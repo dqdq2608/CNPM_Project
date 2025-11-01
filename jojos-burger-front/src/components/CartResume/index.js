@@ -1,44 +1,44 @@
-import React, { useState, useEffect } from 'react'
-import { useHistory } from 'react-router-dom'
-import { toast } from 'react-toastify'
+import React, { useState, useEffect } from "react";
+import { useHistory } from "react-router-dom";
+import { toast } from "react-toastify";
 
-import { useCart } from '../../hooks/CartContext'
-import api from '../../services/api'
-import formatCurrency from '../../utils/formatCurrency'
-import { Button } from '../Button'
-import { Container } from './styles'
+import { useCart } from "../../hooks/CartContext";
+import api from "../../services/api";
+import formatCurrency from "../../utils/formatCurrency";
+import { Button } from "../Button";
+import { Container } from "./styles";
 
 export function CartResume() {
-  const [finalPrice, setFinalPrice] = useState(0)
-  const [deliveryFee] = useState(3)
+  const [finalPrice, setFinalPrice] = useState(0);
+  const [deliveryFee] = useState(3);
 
-  const { push } = useHistory()
+  const { push } = useHistory();
 
-  const { cartProducts, clearCart } = useCart()
+  const { cartProducts, clearCart } = useCart();
 
   useEffect(() => {
     const sumPrice = cartProducts.reduce((acc, current) => {
-      return current.price * current.quantity + acc
-    }, 0)
-    setFinalPrice(sumPrice)
-  }, [cartProducts, deliveryFee])
+      return current.price * current.quantity + acc;
+    }, 0);
+    setFinalPrice(sumPrice);
+  }, [cartProducts, deliveryFee]);
 
   const submitOrder = async () => {
-    const order = cartProducts.map(product => {
-      return { id: product.id, quantity: product.quantity }
-    })
+    const order = cartProducts.map((product) => {
+      return { id: product.id, quantity: product.quantity };
+    });
 
-    await toast.promise(api.post('orders', { products: order }), {
-      pending: 'Registering order...',
-      success: 'Order done! Food is on the way!',
-      error: 'Error when processing request. Please try again later... :('
-    })
+    await toast.promise(api.post("orders", { products: order }), {
+      pending: "Registering order...",
+      success: "Order done! Food is on the way!",
+      error: "Error when processing request. Please try again later... :(",
+    });
 
     setTimeout(() => {
-      push('/')
-      clearCart()
-    }, 1000)
-  }
+      push("/");
+      clearCart();
+    }, 1000);
+  };
 
   return (
     <div>
@@ -58,11 +58,11 @@ export function CartResume() {
         </div>
       </Container>
       <Button
-        style={{ width: '100%', marginTop: 30, marginBottom: 30 }}
+        style={{ width: "100%", marginTop: 30, marginBottom: 30 }}
         onClick={submitOrder}
       >
         Checkout
       </Button>
     </div>
-  )
+  );
 }

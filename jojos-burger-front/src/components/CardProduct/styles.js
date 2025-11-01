@@ -1,4 +1,4 @@
-import styled from 'styled-components'
+import styled from "styled-components";
 
 export const Container = styled.div`
   background: #080806;
@@ -11,33 +11,33 @@ export const Container = styled.div`
   @media (max-width: 1215px) {
     max-width: 400px;
   }
-`
+`;
 
 export const ProductImage = styled.img`
   width: 200px;
   height: 200px;
   border-radius: 10px;
-`
+`;
 
 export const ProductName = styled.p`
-  font-family: 'Merienda', cursive;
+  font-family: "Merienda", cursive;
   font-size: 16px;
   margin: 10px;
   line-height: 20px;
   color: #fbeee0;
-`
+`;
 
 export const ProductPrice = styled.p`
-  font-family: 'Merienda', cursive;
+  font-family: "Merienda", cursive;
   font-size: 18px;
   margin: 10px;
   line-height: 21px;
   color: #fbeee0;
   margin-top: 50px;
-`
+`;
 
 export const ContainerText = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-`
+`;

@@ -1,4 +1,4 @@
-import styled from 'styled-components'
+import styled from "styled-components";
 
 export const Container = styled.div`
   background-color: #ede8d5;
@@ -11,7 +11,7 @@ export const Container = styled.div`
 
   p,
   h2 {
-    font-family: 'Merienda', cursive;
+    font-family: "Merienda", cursive;
     color: #422800;
     padding: 1px;
   }
@@ -19,9 +19,9 @@ export const Container = styled.div`
   .container-top {
     display: grid;
     grid-template-areas:
-      'title title'
-      'items items-price'
-      'delivery-fee delivery-price';
+      "title title"
+      "items items-price"
+      "delivery-fee delivery-price";
 
     grid-gap: 10px 50px;
 
@@ -56,4 +56,4 @@ export const Container = styled.div`
     font-size: 25px;
     margin-top: 50px;
   }
-`
+`;

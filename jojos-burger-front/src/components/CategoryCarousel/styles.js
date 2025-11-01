@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
-import styled from 'styled-components'
+import { Link } from "react-router-dom";
+import styled from "styled-components";
 
 export const Container = styled.div`
   display: flex;
@@ -28,7 +28,7 @@ export const Container = styled.div`
   .rec.rec-pagination {
     visibility: hidden;
   }
-`
+`;
 
 export const ContainerItems = styled.div`
   display: flex;
@@ -36,13 +36,13 @@ export const ContainerItems = styled.div`
   align-items: center;
   gap: 5px;
   flex-direction: column;
-`
+`;
 
 export const Image = styled.img`
   width: 150px;
   height: 110px;
   border-radius: 10px;
-`
+`;
 
 export const Button = styled(Link)`
   background-color: #fbeee0;
@@ -55,7 +55,7 @@ export const Button = styled(Link)`
   display: flex;
   font-weight: 600;
   font-size: 18px;
-  font-family: 'Merienda', cursive;
+  font-family: "Merienda", cursive;
   padding: 0 18px;
   line-height: 50px;
   text-align: center;
@@ -79,10 +79,10 @@ export const Button = styled(Link)`
       padding: 0 25px;
     }
   }
-`
+`;
 
 export const H2Categories = styled.h2`
-  font-family: 'Merienda', cursive;
+  font-family: "Merienda", cursive;
   font-size: 50px;
   margin: 10px;
   text-align: center;
@@ -91,4 +91,4 @@ export const H2Categories = styled.h2`
   @media (max-width: 1215px) {
     font-size: 30px;
   }
-`
+`;

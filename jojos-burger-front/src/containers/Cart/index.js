@@ -1,8 +1,8 @@
-import React from 'react'
+import React from "react";
 
-import CartCover from '../../assets/homecover.jpg'
-import { CartItems, CartResume } from '../../components'
-import { Container, CoverImg, Wrapper } from './styles'
+import CartCover from "../../assets/homecover.jpg";
+import { CartItems, CartResume } from "../../components";
+import { Container, CoverImg, Wrapper } from "./styles";
 
 export function Cart() {
   return (
@@ -13,5 +13,5 @@ export function Cart() {
         <CartResume />
       </Wrapper>
     </Container>
-  )
+  );
 }

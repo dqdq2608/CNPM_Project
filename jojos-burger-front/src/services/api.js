@@ -1,14 +1,23 @@
-import axios from 'axios'
+import axios from "axios";
 
-const apiJoJosBurger = axios.create({
-  baseURL: 'https://jojos-burger-production.up.railway.app'
-})
+const api = axios.create({
+  baseURL: "https://localhost:7082", // BFF đang chạy HTTPS
+  withCredentials: true,
+});
 
-apiJoJosBurger.interceptors.request.use(async config => {
-  const userData = await localStorage.getItem('jojosburger:userData')
-  const token = userData && JSON.parse(userData).token
-  config.headers.authorization = `Bearer ${token}`
+api.interceptors.request.use((config) => {
+  if (config?.url?.startsWith("/health")) {
+    return config;
+  }
 
-  return config
-})
-export default apiJoJosBurger
+  const raw = localStorage.getItem("jojosburger:userData");
+  const token = raw ? JSON.parse(raw).token : null;
+
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export default api;

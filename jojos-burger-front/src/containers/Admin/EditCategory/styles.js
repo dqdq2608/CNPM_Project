@@ -1,4 +1,4 @@
-import styled from 'styled-components'
+import styled from "styled-components";
 
 export const Container = styled.div`
   width: 100%;
@@ -15,12 +15,12 @@ export const Container = styled.div`
     flex-direction: column;
     gap: 25px;
   }
-`
+`;
 
 export const Label = styled.p`
   font-size: 15px;
   color: #ffffff;
-`
+`;
 
 export const Input = styled.input`
   height: 40px;
@@ -31,14 +31,14 @@ export const Input = styled.input`
   width: 100%;
   min-width: 280px;
   padding-left: 5px;
-`
+`;
 
 export const Button = styled.button`
   width: 100%;
   margin-top: 10px;
   border-radius: 5px;
   height: 30px;
-`
+`;
 
 export const LabelUpload = styled.label`
   cursor: pointer;
@@ -56,7 +56,7 @@ export const LabelUpload = styled.label`
     opacity: 0;
     width: 1px;
   }
-`
+`;
 
 export const ContainerInput = styled.div`
   display: flex;
@@ -68,4 +68,4 @@ export const ContainerInput = styled.div`
     height: 15px;
     cursor: pointer;
   }
-`
+`;
