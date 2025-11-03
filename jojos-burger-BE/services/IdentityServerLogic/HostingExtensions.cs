@@ -9,6 +9,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Filters;
+using Microsoft.AspNetCore.Identity;
+
+// 🔥 thêm using cho EF Identity (nếu bạn để ApplicationDbContext/ApplicationUser trong root project thì không cần namespace khác)
 
 namespace IdentityServerLogic;
 
@@ -16,8 +19,6 @@ internal static class HostingExtensions
 {
     public static WebApplicationBuilder ConfigureLogging(this WebApplicationBuilder builder)
     {
-        // Write most logs to the console but diagnostic data to a file.
-        // See https://docs.duendesoftware.com/identityserver/diagnostics/data
         builder.Host.UseSerilog((ctx, lc) =>
         {
             lc.WriteTo.Logger(consoleLogger =>
@@ -36,7 +37,7 @@ internal static class HostingExtensions
                 {
                     fileLogger
                         .WriteTo.File("./diagnostics/diagnostic.log", rollingInterval: RollingInterval.Day,
-                            fileSizeLimitBytes: 1024 * 1024 * 10, // 10 MB
+                            fileSizeLimitBytes: 1024 * 1024 * 10,
                             rollOnFileSizeLimit: true,
                             outputTemplate: "[{Timestamp:HH:mm:ss} {Level}] {SourceContext}{NewLine}{Message:lj}{NewLine}{Exception}{NewLine}",
                             formatProvider: CultureInfo.InvariantCulture)
@@ -52,8 +53,32 @@ internal static class HostingExtensions
     {
         builder.Services.AddRazorPages();
 
+        //  dùng đúng connection string bạn đã cấu hình (SQLite/SQL Server đều OK)
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
+        // =========================
+        //  ASP.NET Identity (USER STORE)
+        // =========================
+        builder.Services.AddDbContext<ApplicationDbContext>(o =>
+            o.UseSqlite(connectionString)); // nếu dùng SQL Server: o.UseSqlServer(connectionString)
+
+        builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+            .AddEntityFrameworkStores<ApplicationDbContext>()
+            .AddDefaultTokenProviders();
+        
+        builder.Services.Configure<IdentityOptions>(options =>
+        {
+            options.Password.RequireDigit = true;
+            options.Password.RequiredLength = 6;
+            options.Password.RequireLowercase = false;
+            options.Password.RequireUppercase = false;
+            options.Password.RequireNonAlphanumeric = false;
+        });
+
+
+        // =========================
+        // IdentityServer + EF stores
+        // =========================
         var isBuilder = builder.Services
             .AddIdentityServer(options =>
             {
@@ -62,23 +87,22 @@ internal static class HostingExtensions
                 options.Events.RaiseFailureEvents = true;
                 options.Events.RaiseSuccessEvents = true;
 
-                // Use a large chunk size for diagnostic logs in development where it will be redirected to a local file
                 if (builder.Environment.IsDevelopment())
                 {
-                    options.Diagnostics.ChunkSize = 1024 * 1024 * 10; // 10 MB
+                    options.Diagnostics.ChunkSize = 1024 * 1024 * 10;
                 }
             })
-            .AddTestUsers(TestUsers.Users)
-            // this adds the config data from DB (clients, resources, CORS)
+            //  bỏ TestUsers, thay bằng ASP.NET Identity
+            //.AddTestUsers(TestUsers.Users)
+            .AddAspNetIdentity<ApplicationUser>() // 🔥 bắt buộc để ROPC validate username/password từ DB
+
+            // config data từ DB (clients, resources, cors)
             .AddConfigurationStore(options =>
             {
                 options.ConfigureDbContext = b =>
                     b.UseSqlite(connectionString, dbOpts => dbOpts.MigrationsAssembly(typeof(Program).Assembly.FullName));
             })
-            // this is something you will want in production to reduce load on and requests to the DB
-            //.AddConfigurationStoreCache()
-            //
-            // this adds the operational data from DB (codes, tokens, consents)
+            // operational data (codes, tokens, consents)
             .AddOperationalStore(options =>
             {
                 options.ConfigureDbContext = b =>
@@ -86,6 +110,7 @@ internal static class HostingExtensions
             })
             .AddLicenseSummary();
 
+        // (giữ OIDC external demo nếu bạn muốn)
         builder.Services.AddAuthentication()
             .AddOpenIdConnect("oidc", "Sign-in with demo.duendesoftware.com", options =>
             {
@@ -105,11 +130,10 @@ internal static class HostingExtensions
                 };
             });
 
-        // this adds the necessary config for the simple admin/config pages
+        // simple admin/config pages
         {
             builder.Services.AddAuthorization(options =>
-                options.AddPolicy("admin",
-                    policy => policy.RequireClaim("sub", "1"))
+                options.AddPolicy("admin", policy => policy.RequireClaim("sub", "1"))
             );
 
             builder.Services.Configure<RazorPagesOptions>(options =>
@@ -121,11 +145,8 @@ internal static class HostingExtensions
             builder.Services.AddTransient<ApiScopeRepository>();
         }
 
-        // if you want to use server-side sessions: https://blog.duendesoftware.com/posts/20220406_session_management/
-        // then enable it
+        // server-side sessions (tuỳ chọn)
         //isBuilder.AddServerSideSessions();
-        //
-        // and put some authorization on the admin/management pages using the same policy created above
         //builder.Services.Configure<RazorPagesOptions>(options =>
         //    options.Conventions.AuthorizeFolder("/ServerSideSessions", "admin"));
 
@@ -146,9 +167,7 @@ internal static class HostingExtensions
         app.UseIdentityServer();
         app.UseAuthorization();
 
-        app.MapRazorPages()
-            .RequireAuthorization();
-
+        app.MapRazorPages().RequireAuthorization();
         return app;
     }
 }

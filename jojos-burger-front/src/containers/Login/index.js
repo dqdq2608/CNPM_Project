@@ -1,14 +1,14 @@
-import { yupResolver } from "@hookform/resolvers/yup";
 import React, { useState, useEffect } from "react";
+import { yupResolver } from "@hookform/resolvers/yup";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 import { toast, Bounce } from "react-toastify";
 import * as Yup from "yup";
 
+import api from "../../services/api";
 import bgHome from "../../assets/bg-home.jpg";
 import LoginImg from "../../assets/login-body.svg";
 import { Button, ErrorMessage } from "../../components";
-import api from "../../services/api"; // axios instance trỏ tới BFF local
 import {
   LoginImage,
   Container,
@@ -21,11 +21,26 @@ import {
   SignInLink,
 } from "./styles";
 
+const BFF_BASE = process.env.REACT_APP_API_BASE || "https://localhost:7082";
+await fetch(`${BFF_BASE}/bff/antiforgery`, { credentials: "include" });
+
 export function Login() {
   const [submitting, setSubmitting] = useState(false);
-  const [bffOk, setBffOk] = useState(null); // null = chưa check, true/false = sống/chết
+  const [bffOk, setBffOk] = useState(null);
 
-  // ✅ Schema validate form
+  useEffect(() => {
+    (async () => {
+      // 1) buộc server set cookie BffCsrf
+      fetch(`${BFF_BASE}/bff/antiforgery`, { credentials: "include" })
+        .then(() => console.log("✅ CSRF cookie set"))
+        .catch(() => console.warn("⚠️ Failed to fetch CSRF cookie"));
+
+      // 2) test /bff/user
+      const r = await api.get("/bff/user");
+      console.log("[BFF TEST] /bff/user:", r.status, r.data);
+    })();
+  }, []);
+
   const schema = Yup.object().shape({
     email: Yup.string()
       .email("Please enter a valid e-mail.")
@@ -39,34 +54,7 @@ export function Login() {
     formState: { errors },
   } = useForm({ resolver: yupResolver(schema) });
 
-  // ✅ Kiểm tra kết nối BFF
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get("/health", {
-          timeout: 4000,
-          validateStatus: () => true,
-        });
-        console.log(
-          "[BFF TEST] /health status:",
-          res?.status,
-          "body:",
-          res?.data,
-        );
-
-        // Kết luận:
-        if (res.status === 200 && res.data?.ok) {
-          console.log("✅ BFF health OK");
-        } else {
-          console.log("❌ BFF health FAIL");
-        }
-      } catch (e) {
-        console.error("❌ BFF health NETWORK ERROR:", e);
-      }
-    })();
-  }, []);
-
-  // ✅ Xử lý login
+  // Xử lý login
   const onSubmit = async (clientData) => {
     if (bffOk === false) {
       toast.error("BFF is not reachable.", {

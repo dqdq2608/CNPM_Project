@@ -16,6 +16,7 @@ public static class Config
         {
             new ApiScope("scope1"),
             new ApiScope("scope2"),
+            new ApiScope("api", "Main API"),
         };
 
     public static IEnumerable<Client> Clients =>
@@ -47,6 +48,24 @@ public static class Config
 
                 AllowOfflineAccess = true,
                 AllowedScopes = { "openid", "profile", "scope2" }
+            },
+
+            // client BFF theo chiến lược ROPC
+            new Client
+            {
+                ClientId = "bff_ro",
+                ClientName = "BFF (ROPC)",
+                AllowedGrantTypes = GrantTypes.ResourceOwnerPassword,
+                RequireClientSecret = true,
+                ClientSecrets = { new Secret("super-secret".Sha256()) },
+
+                AllowedScopes = { "openid", "profile", "offline_access", "api" },
+                AllowOfflineAccess = true,                   // để có refresh_token
+                AccessTokenLifetime = 3600,
+
+                RefreshTokenUsage = TokenUsage.ReUse,
+                RefreshTokenExpiration = TokenExpiration.Sliding,
+                SlidingRefreshTokenLifetime = 1296000        // 15 ngày
             },
         };
 }

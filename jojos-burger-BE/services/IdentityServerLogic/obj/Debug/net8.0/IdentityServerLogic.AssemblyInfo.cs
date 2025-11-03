@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("IdentityServerLogic")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+61b8d70a1527a8420b1ff52f035156f631831f28")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e43c84efd7d1a83981d44591b78333ba67a3c7cb")]
 [assembly: System.Reflection.AssemblyProductAttribute("IdentityServerLogic")]
 [assembly: System.Reflection.AssemblyTitleAttribute("IdentityServerLogic")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

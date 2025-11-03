@@ -8,13 +8,17 @@ D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\IdentityServerLogic.pdb
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Duende.IdentityModel.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Duende.IdentityServer.dll
+D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Duende.IdentityServer.AspNetIdentity.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Duende.IdentityServer.EntityFramework.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Duende.IdentityServer.EntityFramework.Storage.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Duende.IdentityServer.Storage.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Humanizer.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.AspNetCore.Authentication.OpenIdConnect.dll
+D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.AspNetCore.Cryptography.Internal.dll
+D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.AspNetCore.Cryptography.KeyDerivation.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.AspNetCore.DataProtection.Abstractions.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore.dll
+D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.AspNetCore.Identity.EntityFrameworkCore.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.Bcl.AsyncInterfaces.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.CodeAnalysis.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.CodeAnalysis.CSharp.dll
@@ -30,6 +34,8 @@ D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.Extensions.DependencyInjection.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.Extensions.DependencyModel.dll
+D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.Extensions.Identity.Core.dll
+D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.Extensions.Identity.Stores.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.Extensions.Logging.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.Extensions.Logging.Abstractions.dll
 D:\CNPM\CNPM-Project\jojos-burger-BE\services\IdentityServerLogic\bin\Debug\net8.0\Microsoft.Extensions.Options.dll
