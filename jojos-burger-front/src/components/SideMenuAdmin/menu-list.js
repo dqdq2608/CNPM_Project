@@ -1,38 +1,38 @@
-import AddBoxIcon from '@mui/icons-material/AddBox'
-import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart'
-import ListIcon from '@mui/icons-material/List'
-import ShoppingBagIcon from '@mui/icons-material/ShoppingBag'
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'
+import AddBoxIcon from "@mui/icons-material/AddBox";
+import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
+import ListIcon from "@mui/icons-material/List";
+import ShoppingBagIcon from "@mui/icons-material/ShoppingBag";
+import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 
-import paths from '../../constants/paths'
+import paths from "../../constants/paths";
 
 const listLinks = [
   {
     id: 1,
-    label: 'Orders',
+    label: "Orders",
     link: paths.Order,
-    icon: ShoppingBagIcon
+    icon: ShoppingBagIcon,
   },
   {
     id: 2,
-    label: 'List Products',
+    label: "List Products",
     link: paths.Products,
-    icon: ShoppingCartIcon
+    icon: ShoppingCartIcon,
   },
   {
     id: 3,
-    label: 'New Product',
+    label: "New Product",
     link: paths.NewProduct,
-    icon: AddShoppingCartIcon
+    icon: AddShoppingCartIcon,
   },
   {
     id: 4,
-    label: 'List Categories',
+    label: "List Categories",
     link: paths.Categories,
-    icon: ListIcon
+    icon: ListIcon,
   },
 
-  { id: 5, label: 'New Category', link: paths.NewCategory, icon: AddBoxIcon }
-]
+  { id: 5, label: "New Category", link: paths.NewCategory, icon: AddBoxIcon },
+];
 
-export default listLinks
+export default listLinks;

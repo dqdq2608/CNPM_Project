@@ -1,8 +1,8 @@
-import React from 'react'
+import React from "react";
 
-import TrashCan from '../../assets/trash-icon.png'
-import { useCart } from '../../hooks/CartContext'
-import formatCurrency from '../../utils/formatCurrency'
+import TrashCan from "../../assets/trash-icon.png";
+import { useCart } from "../../hooks/CartContext";
+import formatCurrency from "../../utils/formatCurrency";
 import {
   Container,
   Header,
@@ -10,14 +10,14 @@ import {
   EmptyCart,
   ProductImage,
   ImageContainer,
-  ContainerEmptyCart
-} from './styles'
+  ContainerEmptyCart,
+} from "./styles";
 
 export function CartItems() {
   const { cartProducts, increaseQuantity, decreaseQuantity, deleteProduct } =
-    useCart()
+    useCart();
 
-  const isCartEmpty = !cartProducts || cartProducts.length === 0
+  const isCartEmpty = !cartProducts || cartProducts.length === 0;
 
   return (
     <Container>
@@ -35,7 +35,7 @@ export function CartItems() {
           <EmptyCart> The cart is empty </EmptyCart>
         </ContainerEmptyCart>
       ) : (
-        cartProducts.map(product => (
+        cartProducts.map((product) => (
           <Body key={product.id}>
             <ImageContainer>
               <ProductImage src={product.url} />
@@ -49,7 +49,7 @@ export function CartItems() {
               <button onClick={() => increaseQuantity(product.id)}>+</button>
             </div>
             <p>
-              {formatCurrency(product.quantity * product.price)}{' '}
+              {formatCurrency(product.quantity * product.price)}{" "}
               <button onClick={() => deleteProduct(product.id)}>
                 <img src={TrashCan} />
               </button>
@@ -58,5 +58,5 @@ export function CartItems() {
         ))
       )}
     </Container>
-  )
+  );
 }

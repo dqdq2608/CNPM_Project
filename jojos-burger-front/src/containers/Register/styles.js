@@ -1,4 +1,4 @@
-import styled from 'styled-components'
+import styled from "styled-components";
 
 export const Container = styled.div`
   display: flex;
@@ -14,8 +14,8 @@ export const Container = styled.div`
     flex-direction: column;
     align-items: stretch;
   }
-`
-export const ContainerTitle = styled.div``
+`;
+export const ContainerTitle = styled.div``;
 
 export const RegisterImage = styled.img`
   height: 100vh;
@@ -25,7 +25,7 @@ export const RegisterImage = styled.img`
   @media (max-width: 1215px) {
     display: none;
   }
-`
+`;
 
 export const ContainerItems = styled.div`
   background: #000000;
@@ -47,9 +47,9 @@ export const ContainerItems = styled.div`
 
     padding: 1.5625rem;
   }
-`
+`;
 
-export const JoJosLogo = styled.img``
+export const JoJosLogo = styled.img``;
 
 export const H1Register = styled.p`
   color: #fbeee0;
@@ -68,27 +68,27 @@ export const H1Register = styled.p`
     font-size: 15px;
     margin-bottom: 0;
   }
-`
+`;
 
 export const HeaderName = styled.h2`
-  font-family: 'Merienda', cursive;
+  font-family: "Merienda", cursive;
   font-size: 50px;
   text-align: center;
   color: #fbeee0;
   @media (max-width: 1215px) {
     font-size: 30px;
   }
-`
+`;
 
 export const HeaderBurger = styled.h1`
-  font-family: 'Merienda', cursive;
+  font-family: "Merienda", cursive;
   font-size: 70px;
   text-align: center;
   color: #fbeee0;
   @media (max-width: 1215px) {
     font-size: 50px;
   }
-`
+`;
 
 export const Label = styled.p`
   font-size: 0.75rem;
@@ -96,7 +96,7 @@ export const Label = styled.p`
   font-weight: 500;
   color: #fbeee0;
   line-height: 0.875rem;
-`
+`;
 
 export const Input = styled.input`
   height: 2.375rem;
@@ -104,9 +104,9 @@ export const Input = styled.input`
   margin-top: 0.3125rem;
   margin-bottom: 0.3125rem;
   border-radius: 0.3125rem;
-  border: ${props => (props.error ? '1px solid #cc1717' : 'none')};
+  border: ${(props) => (props.error ? "1px solid #cc1717" : "none")};
   padding-left: 0.3125rem;
-`
+`;
 
 export const SignInLink = styled.p`
   color: #ffffff;
@@ -123,4 +123,4 @@ export const SignInLink = styled.p`
   @media (max-width: 1215px) {
     margin-bottom: 2px;
   }
-`
+`;

@@ -1,0 +1,43 @@
+version: '3.9'
+
+services:
+  identity-api:
+    build:
+      context: ./services/identity.api
+      dockerfile: Dockerfile
+    container_name: identity-api
+    ports:
+      - "7001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - FrontendUrl=http://localhost:5173
+      - ConnectionStrings__IdentityDb=Host=identity-db;Database=identity;Username=postgres;Password=postgres
+    depends_on:
+      - identity-db
+
+  identity-db:
+    image: postgres:16
+    container_name: identity-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=identity
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  frontend:
+    build:
+      context: ./jojos-burger-front
+      dockerfile: Dockerfile
+    container_name: jojo-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE=http://localhost:7001
+    depends_on:
+      - identity-api
+
+volumes:
+  pgdata:

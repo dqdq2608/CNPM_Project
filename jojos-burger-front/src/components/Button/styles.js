@@ -1,4 +1,4 @@
-import styled from 'styled-components'
+import styled from "styled-components";
 
 export const ContainerButton = styled.button`
   background-color: #fbeee0;
@@ -11,7 +11,7 @@ export const ContainerButton = styled.button`
   display: inline-block;
   font-weight: 600;
   font-size: 18px;
-  font-family: 'Merienda', cursive;
+  font-family: "Merienda", cursive;
   padding: 0 18px;
   line-height: 50px;
   text-align: center;
@@ -35,4 +35,4 @@ export const ContainerButton = styled.button`
       padding: 0 25px;
     }
   }
-`
+`;

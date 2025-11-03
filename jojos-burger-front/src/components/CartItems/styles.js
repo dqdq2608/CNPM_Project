@@ -1,4 +1,4 @@
-import styled from 'styled-components'
+import styled from "styled-components";
 
 export const Container = styled.div`
   background-color: #ede8d5;
@@ -6,7 +6,7 @@ export const Container = styled.div`
   border-radius: 20px;
   padding: 10px;
   width: max-content;
-`
+`;
 
 export const Header = styled.div`
   display: grid;
@@ -17,7 +17,7 @@ export const Header = styled.div`
   align-items: center;
 
   p {
-    font-family: 'Merienda', cursive;
+    font-family: "Merienda", cursive;
     font-size: 17px;
     color: #422800;
     padding: 1px;
@@ -31,7 +31,7 @@ export const Header = styled.div`
   p:nth-child(4) {
     padding-left: 20px;
   }
-`
+`;
 
 export const Body = styled.div`
   display: grid;
@@ -43,7 +43,7 @@ export const Body = styled.div`
   align-items: center;
 
   p {
-    font-family: 'Merienda', cursive;
+    font-family: "Merienda", cursive;
     font-size: 15px;
     color: #422800;
     padding: 1px;
@@ -86,7 +86,7 @@ export const Body = styled.div`
       }
     }
   }
-`
+`;
 
 export const ProductImage = styled.img`
   width: 130px;
@@ -96,7 +96,7 @@ export const ProductImage = styled.img`
     width: 50px;
     height: 50px;
   }
-`
+`;
 
 export const ImageContainer = styled.div`
   max-width: 130px;
@@ -104,15 +104,15 @@ export const ImageContainer = styled.div`
   @media (max-width: 1215px) {
     max-width: 50px;
   }
-`
+`;
 export const EmptyCart = styled.p`
   padding: 20px;
   text-align: center;
-  font-family: 'Merienda', cursive;
+  font-family: "Merienda", cursive;
   font-size: 15px;
   font-weight: bold;
   color: #422800;
-`
+`;
 export const ContainerEmptyCart = styled.p`
   width: 500px;
-`
+`;

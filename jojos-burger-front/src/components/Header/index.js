@@ -1,13 +1,13 @@
-import MenuIcon from '@mui/icons-material/Menu'
-import IconButton from '@mui/material/IconButton'
-import Menu from '@mui/material/Menu'
-import MenuItem from '@mui/material/MenuItem'
-import React, { useState } from 'react'
-import { useHistory } from 'react-router-dom'
+import MenuIcon from "@mui/icons-material/Menu";
+import IconButton from "@mui/material/IconButton";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import React, { useState } from "react";
+import { useHistory } from "react-router-dom";
 
-import CartLogo from '../../assets/cart.png'
-import UserLogo from '../../assets/user.png'
-import { useUser } from '../../hooks/UserContext'
+import CartLogo from "../../assets/cart.png";
+import UserLogo from "../../assets/user.png";
+import { useUser } from "../../hooks/UserContext";
 import {
   Container,
   ContainerLeft,
@@ -15,48 +15,48 @@ import {
   ContainerText,
   PageLink,
   PageLinkExit,
-  Line
-} from './styles'
+  Line,
+} from "./styles";
 
 export function Header() {
-  const { logout, userData } = useUser()
+  const { logout, userData } = useUser();
   const {
     push,
-    location: { pathname }
-  } = useHistory()
+    location: { pathname },
+  } = useHistory();
 
-  const [anchorEl, setAnchorEL] = useState(null)
+  const [anchorEl, setAnchorEL] = useState(null);
 
-  const handleClickIcon = event => {
-    setAnchorEL(event.currentTarget)
-  }
+  const handleClickIcon = (event) => {
+    setAnchorEL(event.currentTarget);
+  };
 
   const handleCloseIcon = () => {
-    setAnchorEL(null)
-  }
+    setAnchorEL(null);
+  };
 
   const logoutUser = () => {
-    logout()
-    push('/login')
-  }
+    logout();
+    push("/login");
+  };
 
   const handleAdminClick = () => {
     if (userData.admin) {
-      push('/orders')
+      push("/orders");
     }
-  }
+  };
 
   return (
     <Container>
       <ContainerLeft>
         {window.innerWidth > 950 ? (
           <>
-            <PageLink onClick={() => push('/')} isActive={pathname === '/'}>
+            <PageLink onClick={() => push("/")} isActive={pathname === "/"}>
               Home
             </PageLink>
             <PageLink
-              onClick={() => push('/products')}
-              isActive={pathname.includes('/products')}
+              onClick={() => push("/products")}
+              isActive={pathname.includes("/products")}
             >
               Products
             </PageLink>
@@ -81,13 +81,13 @@ export function Header() {
               slotProps={{
                 paper: {
                   style: {
-                    backgroundColor: '#fbeee0'
-                  }
-                }
+                    backgroundColor: "#fbeee0",
+                  },
+                },
               }}
             >
-              <MenuItem onClick={() => push('/')}>Home</MenuItem>
-              <MenuItem onClick={() => push('/products')}>Products</MenuItem>
+              <MenuItem onClick={() => push("/")}>Home</MenuItem>
+              <MenuItem onClick={() => push("/products")}>Products</MenuItem>
             </Menu>
           </>
         )}
@@ -96,8 +96,8 @@ export function Header() {
         <PageLink>
           <img
             src={CartLogo}
-            onClick={() => push('/cart')}
-            style={{ width: '25px' }}
+            onClick={() => push("/cart")}
+            style={{ width: "25px" }}
             alt="cart-logo"
           />
         </PageLink>
@@ -105,7 +105,7 @@ export function Header() {
         <PageLink>
           <img
             src={UserLogo}
-            style={{ width: '25px' }}
+            style={{ width: "25px" }}
             alt="user-logo"
             onClick={handleAdminClick}
           />
@@ -116,5 +116,5 @@ export function Header() {
         </ContainerText>
       </ContainerRight>
     </Container>
-  )
+  );
 }
