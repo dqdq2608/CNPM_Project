@@ -19,7 +19,8 @@ import {
 } from "./styles";
 
 export function Header() {
-  const { logout, userData } = useUser();
+  // từ UserContext mới: { user, loading, logout }
+  const { user, loading, logout } = useUser();
   const {
     push,
     location: { pathname },
@@ -27,24 +28,25 @@ export function Header() {
 
   const [anchorEl, setAnchorEL] = useState(null);
 
-  const handleClickIcon = (event) => {
-    setAnchorEL(event.currentTarget);
-  };
+  const handleClickIcon = (event) => setAnchorEL(event.currentTarget);
+  const handleCloseIcon = () => setAnchorEL(null);
 
-  const handleCloseIcon = () => {
-    setAnchorEL(null);
-  };
-
-  const logoutUser = () => {
-    logout();
+  const logoutUser = async () => {
+    await logout();
     push("/login");
   };
 
+  // kiểm tra quyền admin (tuỳ claim bạn trả về)
+  const isAdmin =
+    user?.role === "admin" ||
+    user?.isAdmin === "true" ||
+    user?.admin === "true";
+
   const handleAdminClick = () => {
-    if (userData.admin) {
-      push("/orders");
-    }
+    if (isAdmin) push("/orders");
   };
+
+  const displayName = user?.displayName || user?.name || user?.email || "Guest";
 
   return (
     <Container>
@@ -79,11 +81,7 @@ export function Header() {
               open={Boolean(anchorEl)}
               onClose={handleCloseIcon}
               slotProps={{
-                paper: {
-                  style: {
-                    backgroundColor: "#fbeee0",
-                  },
-                },
+                paper: { style: { backgroundColor: "#fbeee0" } },
               }}
             >
               <MenuItem onClick={() => push("/")}>Home</MenuItem>
@@ -92,6 +90,7 @@ export function Header() {
           </>
         )}
       </ContainerLeft>
+
       <ContainerRight>
         <PageLink>
           <img
@@ -101,17 +100,22 @@ export function Header() {
             alt="cart-logo"
           />
         </PageLink>
-        <Line></Line>
+
+        <Line />
+
         <PageLink>
           <img
             src={UserLogo}
-            style={{ width: "25px" }}
+            style={{ width: "25px", cursor: isAdmin ? "pointer" : "default" }}
             alt="user-logo"
             onClick={handleAdminClick}
+            title={isAdmin ? "Go to admin" : ""}
           />
         </PageLink>
+
         <ContainerText>
-          <p>Welcome {userData.name}!</p>
+          {/* tránh nháy khi loading */}
+          <p>Welcome {loading ? "…" : displayName}!</p>
           <PageLinkExit onClick={logoutUser}>Logout</PageLinkExit>
         </ContainerText>
       </ContainerRight>

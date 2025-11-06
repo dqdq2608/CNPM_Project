@@ -1,26 +1,33 @@
-using System.Text.Json;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Text.Json;
+
 using Duende.Bff;
 using Duende.Bff.Yarp;
+
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Http.Metadata;
+
 using IdentityServerBFF;
-using System.Security.Cryptography;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// BFF + server-side sessions
+// -----------------------------
+// BFF & cấu hình chung
+// -----------------------------
 builder.Services.AddBff()
     .AddServerSideSessions()
     .AddRemoteApis();
 
-// bind cấu hình BFF từ appsettings
+// Bind config BFF (Authority, ClientId, ...)
 var bffConfig = new Configuration();
 builder.Configuration.Bind("BFF", bffConfig);
 
-// CORS cho FE (HTTPS 3000)
+// CORS cho FE https://localhost:3000
 builder.Services.AddCors(o => o.AddPolicy("fe", p => p
     .WithOrigins("https://localhost:3000")
     .AllowAnyHeader()
@@ -28,7 +35,6 @@ builder.Services.AddCors(o => o.AddPolicy("fe", p => p
     .AllowCredentials()
 ));
 
-// Cookie auth (không OIDC redirect)
 builder.Services.AddAuthentication(o =>
 {
     o.DefaultScheme = "cookie";
@@ -38,11 +44,11 @@ builder.Services.AddAuthentication(o =>
 .AddCookie("cookie", o =>
 {
     o.Cookie.Name = "__Host-bff";
-    o.Cookie.SameSite = SameSiteMode.None;      // khác origin -> bắt buộc None + HTTPS
+    o.Cookie.Path = "/";
+    o.Cookie.SameSite = SameSiteMode.None;
     o.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     o.SlidingExpiration = true;
 
-    // tránh redirect 302 khi gọi API
     o.Events = new CookieAuthenticationEvents
     {
         OnRedirectToLogin = ctx => { ctx.Response.StatusCode = 401; return Task.CompletedTask; },
@@ -52,15 +58,30 @@ builder.Services.AddAuthentication(o =>
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddAntiforgery(o =>
+{
+    o.HeaderName = "X-CSRF";
+    o.Cookie.Name = "__Host-bff-af";
+    o.Cookie.Path = "/";
+    o.Cookie.SameSite = SameSiteMode.None;
+    o.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+});
+
 // HttpClient gọi IdentityServer
 builder.Services.AddHttpClient("ids");
 
 var app = builder.Build();
 
-// nếu đứng sau reverse proxy
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost
+});
+
+app.UseHttpsRedirection();
+app.UseCookiePolicy(new CookiePolicyOptions
+{
+    MinimumSameSitePolicy = SameSiteMode.None,
+    Secure = CookieSecurePolicy.Always
 });
 
 app.UseDefaultFiles();
@@ -70,36 +91,60 @@ app.UseRouting();
 app.UseCors("fe");
 
 app.UseAuthentication();
+
 app.UseBff();
 app.UseAuthorization();
 
-// /bff/user, /bff/backchannel, ...
-app.MapBffManagementEndpoints();
-
-app.MapGet("/bff/antiforgery", (HttpContext ctx) =>
+// GET /bff/antiforgery (sinh token)
+app.MapGet("/bff/antiforgery", (IAntiforgery anti, HttpContext ctx) =>
 {
-    var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-    ctx.Response.Cookies.Append("BffCsrf", token, new CookieOptions
-    {
-        HttpOnly = false,            // FE đọc được
-        Secure = true,               // bắt buộc HTTPS
-        SameSite = SameSiteMode.None,
-        IsEssential = true,
-        Path = "/"
-    });
+    var tokens = anti.GetAndStoreTokens(ctx); // __Host-bff-af (HttpOnly)
+
+    // Trả thêm cookie FE-đọc-được để gắn vào header X-CSRF
+    ctx.Response.Cookies.Append(
+        "__Host-bff-csrf",
+        tokens.RequestToken!,
+        new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = true,
+            SameSite = SameSiteMode.None,
+            Path = "/"
+        });
+
     return Results.Ok(new { ok = true });
-});
+})
+.AllowAnonymous()
+.DisableAntiforgery();
 
-app.MapGet("/debug/echo", (HttpContext ctx) =>
+// cho FE biết phiên đã có và còn bao lâu
+app.MapGet("/bff/user", async (HttpContext ctx) =>
 {
-    var cookies = string.Join("; ", ctx.Request.Cookies.Select(kv => $"{kv.Key}={kv.Value}"));
-    return Results.Text($"Cookie: {cookies}\nX-CSRF: {ctx.Request.Headers["X-CSRF"]}");
-});
+    var auth = await ctx.AuthenticateAsync("cookie");
+    if (!auth.Succeeded || auth.Principal == null)
+        return Results.Unauthorized();
 
-// ===== Login (ROPC) =====
-// POST https://bff/auth/password-login  body: { username, password }
+    var list = auth.Principal.Claims
+        .Select(c => new BffEntry(c.Type, c.Value, null))
+        .ToList();
+
+    var expiresUtc = auth.Properties?.ExpiresUtc;
+    var expiresIn = expiresUtc.HasValue
+        ? Math.Max(0, (int)(expiresUtc.Value - DateTimeOffset.UtcNow).TotalSeconds)
+        : 0;
+
+    list.Add(new BffEntry("bff:logout_url", "/auth/logout", null));
+    list.Add(new BffEntry("bff:session_expires_in", expiresIn.ToString(), null));
+
+    return Results.Json(list);
+})
+.RequireAuthorization()
+.DisableAntiforgery();
+
+// POST /auth/password-login
 app.MapPost("/auth/password-login", async (HttpContext http, LoginDto dto, IHttpClientFactory httpFactory, IConfiguration cfg) =>
 {
+    // Gọi IDS để trao đổi usr/psswd và access_token
     var cfgBff = cfg.GetSection("BFF").Get<Configuration>()!;
     var ids = httpFactory.CreateClient("ids");
     var tokenEndpoint = $"{cfgBff.Authority!.TrimEnd('/')}/connect/token";
@@ -119,9 +164,7 @@ app.MapPost("/auth/password-login", async (HttpContext http, LoginDto dto, IHttp
     };
 
     using var req = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint)
-    {
-        Content = new FormUrlEncodedContent(form)
-    };
+    { Content = new FormUrlEncodedContent(form) };
 
     var resp = await ids.SendAsync(req);
     var body = await resp.Content.ReadAsStringAsync();
@@ -130,38 +173,35 @@ app.MapPost("/auth/password-login", async (HttpContext http, LoginDto dto, IHttp
 
     if (!resp.IsSuccessStatusCode)
     {
-        // trả nguyên body lỗi về FE (để debug), status code cũng set đúng
         http.Response.StatusCode = (int)resp.StatusCode;
         return Results.Content(body, "application/json");
     }
 
-    // parse token json
+    // Lấy access_token & đọc claims cơ bản
     using var doc = JsonDocument.Parse(body);
     var root = doc.RootElement;
+
     var accessToken  = root.GetProperty("access_token").GetString()!;
     var refreshToken = root.TryGetProperty("refresh_token", out var rt) ? rt.GetString() : null;
-    var expiresIn    = root.TryGetProperty("expires_in",   out var ei) ? ei.GetInt32() : 3600;
+    var expiresIn    = root.TryGetProperty("expires_in", out var ei) ? ei.GetInt32() : 3600;
 
-    // đọc claim từ access_token
-    var handler = new JwtSecurityTokenHandler();
-    var jwt = handler.ReadJwtToken(accessToken);
+    var jwt = new JwtSecurityTokenHandler().ReadJwtToken(accessToken);
 
-    var claims = new List<Claim>();
-    foreach (var c in jwt.Claims)
-    {
-        if (c.Type is "sub" or "name" or "email" or "role") claims.Add(c);
-    }
+    var claims = jwt.Claims
+        .Where(c => c.Type is "sub" or "name" or "email" or "role")
+        .ToList();
+
     if (!claims.Any(c => c.Type == "sub"))
         claims.Add(new Claim("sub", Guid.NewGuid().ToString("N")));
 
+    // Tạo session cookie __Host-bff (HttpOnly)
     var identity = new ClaimsIdentity(claims, "cookie", "name", "role");
     var user = new ClaimsPrincipal(identity);
 
-    // lưu token vào auth properties (để BFF có thể dùng refresh sau này nếu cần)
     var props = new AuthenticationProperties
     {
         IsPersistent = false,
-        ExpiresUtc   = DateTimeOffset.UtcNow.AddSeconds(expiresIn - 60)
+        ExpiresUtc = DateTimeOffset.UtcNow.AddSeconds(expiresIn - 60)
     };
     props.StoreTokens(new[]
     {
@@ -172,35 +212,27 @@ app.MapPost("/auth/password-login", async (HttpContext http, LoginDto dto, IHttp
     });
 
     await http.SignInAsync("cookie", user, props);
-
-    return Results.Json(new { ok = true }); // 200
+    return Results.Ok(new { ok = true });
 })
 .AllowAnonymous()
-.DisableAntiforgery(); // login không cần CSRF
+.DisableAntiforgery();
 
-// health
-app.MapGet("/health", () => Results.Ok(new { ok = true }));
-
-// logout (có CSRF)
+// POST /auth/logout
 app.MapPost("/auth/logout", async (HttpContext http) =>
 {
-    await http.SignOutAsync("cookie");
+    try
+    {
+        await http.SignOutAsync("cookie");
+    }
+    catch { /* nuốt lỗi dev */ }
+
     return Results.Ok(new { ok = true });
 })
 .RequireAuthorization()
-.AsBffApiEndpoint();
-
-// map các remote API (nếu có)
-if (bffConfig.Apis?.Any() == true)
-{
-    foreach (var api in bffConfig.Apis)
-    {
-        app.MapRemoteBffApiEndpoint(api.LocalPath, api.RemoteUrl!)
-           .RequireAccessToken(api.RequiredToken);
-    }
-}
+.DisableAntiforgery(); // <-- quan trọng trong dev để tránh 500
 
 app.Run();
 
-// DTO
+// Models
 public sealed record LoginDto(string username, string password);
+public sealed record BffEntry(string type, string value, string? valueType);

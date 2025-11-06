@@ -21,14 +21,16 @@ export function OffersCarousel() {
 
   useEffect(() => {
     async function loadOffers() {
-      const { data } = await api.get("products");
-
-      const onlyOffers = data
-        .filter((product) => product.offer)
-        .map((product) => {
-          return { ...product, formatedPrice: formatCurrency(product.price) };
-        });
-      setOffers(onlyOffers);
+      try {
+        const { data } = await api.get("/api/products"); // ✅ qua BFF
+        const onlyOffers = (data || [])
+          .filter((p) => p.offer)
+          .map((p) => ({ ...p, formatedPrice: formatCurrency(p.price) }));
+        setOffers(onlyOffers);
+      } catch (e) {
+        console.error("[OffersCarousel] loadOffers failed:", e);
+        setOffers([]);
+      }
     }
     loadOffers();
   }, []);
@@ -40,6 +42,7 @@ export function OffersCarousel() {
     { width: 900, itemsToShow: 4 },
     { width: 1300, itemsToShow: 5 },
   ];
+
   return (
     <Container>
       <H2Offers>Offers</H2Offers>
@@ -48,22 +51,21 @@ export function OffersCarousel() {
         style={{ width: "90%" }}
         breakPoints={breakPoints}
       >
-        {offers &&
-          offers.map((product) => (
-            <ContainerItems key={product.id}>
-              <Image src={product.url} alt="product-image" />
-              <OfferP>{product.name}</OfferP>
-              <OfferP>{product.formatedPrice}</OfferP>
-              <Button
-                onClick={() => {
-                  putProductInCart(product);
-                  push("/cart");
-                }}
-              >
-                Order Now!
-              </Button>
-            </ContainerItems>
-          ))}
+        {offers.map((product) => (
+          <ContainerItems key={product.id}>
+            <Image src={product.url} alt="product-image" />
+            <OfferP>{product.name}</OfferP>
+            <OfferP>{product.formatedPrice}</OfferP>
+            <Button
+              onClick={() => {
+                putProductInCart(product);
+                push("/cart");
+              }}
+            >
+              Order Now!
+            </Button>
+          </ContainerItems>
+        ))}
       </Carousel>
     </Container>
   );

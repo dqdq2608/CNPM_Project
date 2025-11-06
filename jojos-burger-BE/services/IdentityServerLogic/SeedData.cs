@@ -1,39 +1,55 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using Serilog;
+using System.Security.Claims;
 using Duende.IdentityServer.EntityFramework.DbContexts;
 using Duende.IdentityServer.EntityFramework.Mappers;
-using Duende.IdentityServer.Models;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Serilog;
+using IdentityServerLogic;
 
-namespace IdentityServerLogic;
-
-public class SeedData
+namespace IdentityServerLogic
 {
-    public static async Task EnsureSeedData(WebApplication app)
+    public static class SeedData
     {
-        using (var scope = app.Services.GetRequiredService<IServiceScopeFactory>().CreateScope())
+        public static async Task EnsureSeedData(WebApplication app)
         {
-            // Migrate 2 DB của IdentityServer
-            scope.ServiceProvider.GetRequiredService<PersistedGrantDbContext>().Database.Migrate();
-            var context = scope.ServiceProvider.GetRequiredService<ConfigurationDbContext>();
-            context.Database.Migrate();
+            using var scope = app.Services.CreateScope();
+            var sp = scope.ServiceProvider;
 
-            // ✅ Migrate DB chứa bảng AspNetUsers
-            var userContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            userContext.Database.Migrate();
+            var configDb = sp.GetRequiredService<ConfigurationDbContext>();
+            var userMgr = sp.GetRequiredService<UserManager<ApplicationUser>>();
 
-            /// Xóa toàn bộ user cũ
-            var userMgr = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var users = userMgr.Users.ToList();
-            foreach (var u in users)
-            {
-                await userMgr.DeleteAsync(u);
-            }
-            Log.Information("🗑️ Đã xóa {Count} user cũ", users.Count);
+            Log.Information("Seeding IdentityServer via WebApplication...");
 
-            // Tạo user mới
-            var email = "123@gmail.com";
-            var password = "123456";
+            // Xóa dữ liệu cũ
+            configDb.Clients.RemoveRange(configDb.Clients);
+            configDb.IdentityResources.RemoveRange(configDb.IdentityResources);
+            configDb.ApiScopes.RemoveRange(configDb.ApiScopes);
+            configDb.ApiResources.RemoveRange(configDb.ApiResources);
+            await configDb.SaveChangesAsync();
+
+            // Seed lại dữ liệu
+            foreach (var res in Config.IdentityResources.ToList())
+                configDb.IdentityResources.Add(res.ToEntity());
+            foreach (var scopeDef in Config.ApiScopes.ToList())
+                configDb.ApiScopes.Add(scopeDef.ToEntity());
+            foreach (var apiRes in Config.ApiResources.ToList())
+                configDb.ApiResources.Add(apiRes.ToEntity());
+            foreach (var client in Config.Clients.ToList())
+                configDb.Clients.Add(client.ToEntity());
+            await configDb.SaveChangesAsync();
+
+            Log.Information("Seeded configuration data.");
+
+            // Seed user mặc định
+            const string email = "123@gmail.com";
+            const string password = "123456";
+
+            var existingUser = await userMgr.FindByEmailAsync(email);
+            if (existingUser != null)
+                await userMgr.DeleteAsync(existingUser);
+
             var user = new ApplicationUser
             {
                 UserName = email,
@@ -44,61 +60,24 @@ public class SeedData
             var result = await userMgr.CreateAsync(user, password);
             if (result.Succeeded)
             {
-                Log.Information("✅ Đã tạo user mới: {Email}", email);
+                await userMgr.AddClaimsAsync(user, new[]
+                {
+                    new Claim("name", "dqdq"),
+                    new Claim("preferred_username", email),
+                    new Claim("email", email),
+                    new Claim("given_name", "Quan"),
+                    new Claim("family_name", "Dang")
+                });
+
+                Log.Information("Created user + claims: {Email}", email);
             }
             else
             {
-                Log.Error("❌ Tạo user thất bại: {Error}", string.Join(", ", result.Errors.Select(e => e.Description)));
+                Log.Error("Error creating user: {Errors}",
+                    string.Join(", ", result.Errors.Select(e => e.Description)));
             }
 
-            // ✅ Tiếp tục seed Clients, Scopes, Resources
-            EnsureSeedData(context);
+            Log.Information("✅ Seeding completed!");
         }
-    }
-
-    private static void EnsureSeedData(ConfigurationDbContext context)
-    {
-        foreach (var client in Config.Clients.ToList())
-        {
-            var existing = context.Clients
-                .Include(x => x.RedirectUris)
-                .Include(x => x.AllowedScopes)
-                .Include(x => x.ClientSecrets)
-                .FirstOrDefault(c => c.ClientId == client.ClientId);
-
-            if (existing == null)
-            {
-                Log.Information("Adding client {ClientId}", client.ClientId);
-                context.Clients.Add(client.ToEntity());
-            }
-            else
-            {
-                Log.Information("Updating client {ClientId}", client.ClientId);
-                context.Clients.Remove(existing);
-                context.Clients.Add(client.ToEntity());
-            }
-        }
-        context.SaveChanges();
-
-        if (!context.IdentityResources.Any())
-        {
-            Log.Debug("IdentityResources being populated");
-            foreach (var resource in Config.IdentityResources.ToList())
-            {
-                context.IdentityResources.Add(resource.ToEntity());
-            }
-            context.SaveChanges();
-        }
-
-        foreach (var s in Config.ApiScopes.ToList())
-        {
-            var exists = context.ApiScopes.Any(x => x.Name == s.Name);
-            if (!exists)
-            {
-                Log.Information("Adding ApiScope {Scope}", s.Name);
-                context.ApiScopes.Add(s.ToEntity());
-            }
-        }
-        context.SaveChanges();
     }
 }

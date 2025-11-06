@@ -15,8 +15,13 @@ export function CategoryCarousel() {
 
   useEffect(() => {
     async function loadCategories() {
-      const { data } = await api.get("categories");
-      setCategories(data);
+      try {
+        const { data } = await api.get("/api/categories"); // ✅ qua BFF
+        setCategories(data || []);
+      } catch (e) {
+        console.error("[CategoryCarousel] loadCategories failed:", e);
+        setCategories([]);
+      }
     }
     loadCategories();
   }, []);
@@ -28,6 +33,7 @@ export function CategoryCarousel() {
     { width: 900, itemsToShow: 4 },
     { width: 1300, itemsToShow: 5 },
   ];
+
   return (
     <Container>
       <H2Categories>Categories</H2Categories>
@@ -36,20 +42,19 @@ export function CategoryCarousel() {
         style={{ width: "90%" }}
         breakPoints={breakPoints}
       >
-        {categories &&
-          categories.map((category) => (
-            <ContainerItems key={category.id}>
-              <Image src={category.url} alt="category-image" />
-              <Button
-                to={{
-                  pathname: "/products",
-                  state: { categoryId: category.id },
-                }}
-              >
-                {category.name}
-              </Button>
-            </ContainerItems>
-          ))}
+        {categories.map((category) => (
+          <ContainerItems key={category.id}>
+            <Image src={category.url} alt="category-image" />
+            <Button
+              to={{
+                pathname: "/products",
+                state: { categoryId: category.id },
+              }}
+            >
+              {category.name}
+            </Button>
+          </ContainerItems>
+        ))}
       </Carousel>
     </Container>
   );
