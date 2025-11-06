@@ -13,7 +13,13 @@ public static class Extensions
             "catalogdb",
             configureDbContextOptions: options =>
             {
-                options.UseNpgsql(npgsql => npgsql.UseVector());
+                options.UseNpgsql(npgsql =>
+               {
+                   // pgvector
+                   npgsql.UseVector();
+                   // 🔸 Bật PostGIS/NetTopologySuite
+                   npgsql.UseNetTopologySuite();
+               });
             });
 
         // Migration seeding

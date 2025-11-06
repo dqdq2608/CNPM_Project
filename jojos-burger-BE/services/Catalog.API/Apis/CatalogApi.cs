@@ -5,33 +5,59 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using eShop.Catalog.API.Services;
+using eShop.Catalog.API.Model;
 
 namespace eShop.Catalog.API;
+
+public sealed class RestaurantDto
+{
+    public Guid RestaurantId { get; set; }
+    public string Name { get; set; } = default!;
+    public string Address { get; set; } = default!;
+    public double Lat { get; set; }   // NTS: Y = latitude
+    public double Lng { get; set; }   // NTS: X = longitude
+}
 
 public static class CatalogApi
 {
     public static IEndpointRouteBuilder MapCatalogApiV1(this IEndpointRouteBuilder app)
     {
-        // Không dùng API versioning để tránh phụ thuộc Asp.Versioning
         var api = app.MapGroup("api/catalog");
 
-        // Routes for querying catalog items.
+        // -------- Items (query) --------
         api.MapGet("/items", GetAllItems);
         api.MapGet("/items/by", GetItemsByIds);
         api.MapGet("/items/{id:int}", GetItemById);
         api.MapGet("/items/by/{name:minlength(1)}", GetItemsByName);
         api.MapGet("/items/{catalogItemId:int}/pic", GetItemPictureById);
 
-        // Routes for resolving catalog items using AI.
+        // AI semantic search (optional)
         api.MapGet("/items/withsemanticrelevance/{text:minlength(1)}", GetItemsBySemanticRelevance);
 
-        // Routes for resolving catalog items by type and brand.
-        api.MapGet("/items/type/{typeId}/brand/{brandId?}", GetItemsByBrandAndTypeId);
-        api.MapGet("/items/type/all/brand/{brandId:int?}", GetItemsByBrandId);
-        api.MapGet("/catalogtypes", async (CatalogContext context) => await context.CatalogTypes.OrderBy(x => x.Type).ToListAsync());
-        api.MapGet("/catalogbrands", async (CatalogContext context) => await context.CatalogBrands.OrderBy(x => x.Brand).ToListAsync());
+        // Filter theo Type / Restaurant (thay cho Brand cũ)
+        api.MapGet("/items/type/{typeId:int}/restaurant/{restaurantId:guid?}", GetItemsByTypeAndRestaurant);
+        api.MapGet("/items/restaurant/{restaurantId:guid}", GetItemsByRestaurant);
 
-        // Routes for modifying catalog items.
+        // -------- Lookups --------
+        api.MapGet("/catalogtypes", async (CatalogContext context)
+            => await context.CatalogTypes.OrderBy(x => x.Type).ToListAsync());
+
+        // Trả DTO phẳng để tránh serialize NetTopologySuite Point
+        api.MapGet("/restaurants", async (CatalogContext context) =>
+            await context.Restaurants
+                .AsNoTracking()
+                .OrderBy(x => x.Name)
+                .Select(r => new RestaurantDto
+                {
+                    RestaurantId = r.RestaurantId,
+                    Name = r.Name,
+                    Address = r.Address,
+                    Lat = r.Location != null ? r.Location.Y : 0, // Y = Lat
+                    Lng = r.Location != null ? r.Location.X : 0  // X = Lng
+                })
+                .ToListAsync());
+
+        // -------- Items (mutations) --------
         api.MapPut("/items", UpdateItem);
         api.MapPost("/items", CreateItem);
         api.MapDelete("/items/{id:int}", DeleteItemById);
@@ -39,16 +65,32 @@ public static class CatalogApi
         return app;
     }
 
+    // ---------- Queries ----------
+
     public static async Task<Results<Ok<PaginatedItems<CatalogItem>>, BadRequest<string>>> GetAllItems(
         [AsParameters] PaginationRequest paginationRequest,
-        [AsParameters] CatalogServices services)
+        [AsParameters] CatalogServices services,
+        int? typeId,
+        Guid? restaurantId,
+        bool? onlyAvailable)
     {
         var pageSize = paginationRequest.PageSize;
         var pageIndex = paginationRequest.PageIndex;
 
-        var totalItems = await services.Context.CatalogItems.LongCountAsync();
+        IQueryable<CatalogItem> query = services.Context.CatalogItems.AsQueryable();
 
-        var itemsOnPage = await services.Context.CatalogItems
+        if (typeId is not null)
+            query = query.Where(c => c.CatalogTypeId == typeId);
+
+        if (restaurantId is not null && restaurantId != Guid.Empty)
+            query = query.Where(c => c.RestaurantId == restaurantId);
+
+        if (onlyAvailable is true)
+            query = query.Where(c => c.IsAvailable);
+
+        var totalItems = await query.LongCountAsync();
+
+        var itemsOnPage = await query
             .OrderBy(c => c.Name)
             .Skip(pageSize * pageIndex)
             .Take(pageSize)
@@ -68,7 +110,7 @@ public static class CatalogApi
         return TypedResults.Ok(items);
     }
 
-    public static async Task<Results<Ok<CatalogItem>, NotFound, BadRequest<string>>> GetItemById(
+    public static async Task<Results<Ok<object>, NotFound, BadRequest<string>>> GetItemById(
         [AsParameters] CatalogServices services,
         int id)
     {
@@ -78,7 +120,8 @@ public static class CatalogApi
         }
 
         var item = await services.Context.CatalogItems
-            .Include(ci => ci.CatalogBrand)
+            .Include(ci => ci.CatalogType)
+            .Include(ci => ci.Restaurant)
             .SingleOrDefaultAsync(ci => ci.Id == id);
 
         if (item == null)
@@ -86,18 +129,52 @@ public static class CatalogApi
             return TypedResults.NotFound();
         }
 
-        return TypedResults.Ok(item);
+        // Project ra DTO ẩn danh rồi ÉP về object để phù hợp Ok<object>
+        var dto = new
+        {
+            item.Id,
+            item.Name,
+            item.Description,
+            item.Price,
+            item.IsAvailable,
+            item.EstimatedPrepTime,
+            item.PictureFileName,
+            item.CatalogTypeId,
+            CatalogType = item.CatalogType?.Type,
+            item.RestaurantId,
+            Restaurant = item.Restaurant == null ? null : new
+            {
+                item.Restaurant.RestaurantId,
+                item.Restaurant.Name,
+                item.Restaurant.Address,
+                Lat = item.Restaurant.Location?.Y ?? 0, // Y = latitude
+                Lng = item.Restaurant.Location?.X ?? 0  // X = longitude
+            }
+        };
+
+        return TypedResults.Ok((object)dto);
     }
+
+
 
     public static async Task<Ok<PaginatedItems<CatalogItem>>> GetItemsByName(
         [AsParameters] PaginationRequest paginationRequest,
         [AsParameters] CatalogServices services,
-        string name)
+        string name,
+        int? typeId,
+        Guid? restaurantId)
     {
         var pageSize = paginationRequest.PageSize;
         var pageIndex = paginationRequest.PageIndex;
 
-        var query = services.Context.CatalogItems.Where(c => c.Name.StartsWith(name));
+        IQueryable<CatalogItem> query = services.Context.CatalogItems
+            .Where(c => c.Name.StartsWith(name));
+
+        if (typeId is not null)
+            query = query.Where(c => c.CatalogTypeId == typeId);
+
+        if (restaurantId is not null && restaurantId != Guid.Empty)
+            query = query.Where(c => c.RestaurantId == restaurantId);
 
         var totalItems = await query.LongCountAsync();
 
@@ -115,10 +192,8 @@ public static class CatalogApi
     {
         var item = await context.CatalogItems.FindAsync(catalogItemId);
 
-        if (item is null)
-        {
+        if (item is null || string.IsNullOrWhiteSpace(item.PictureFileName))
             return TypedResults.NotFound();
-        }
 
         var path = GetFullPath(environment.ContentRootPath, item.PictureFileName);
 
@@ -129,40 +204,37 @@ public static class CatalogApi
         return TypedResults.PhysicalFile(path, mimetype, lastModified: lastModified);
     }
 
-    public static async Task<Results<BadRequest<string>, RedirectToRouteHttpResult, Ok<PaginatedItems<CatalogItem>>>> GetItemsBySemanticRelevance(
+    // AI semantic (in-memory distance)
+    public static async Task<Results<BadRequest<string>, Ok<PaginatedItems<CatalogItem>>>> GetItemsBySemanticRelevance(
         [AsParameters] PaginationRequest paginationRequest,
         [AsParameters] CatalogServices services,
-        string text)
+        string text,
+        int? typeId,
+        Guid? restaurantId)
     {
+        if (!services.CatalogAI.IsEnabled)
+            return TypedResults.BadRequest("Semantic search is disabled.");
+
         var pageSize = paginationRequest.PageSize;
         var pageIndex = paginationRequest.PageIndex;
 
-        if (!services.CatalogAI.IsEnabled)
-        {
-            return await GetItemsByName(paginationRequest, services, text);
-        }
-
-        // Tạo embedding cho văn bản tìm kiếm
         var vector = await services.CatalogAI.GetEmbeddingAsync(text);
         if (vector is null)
-        {
-            // fallback nếu chưa cấu hình AI
-            return await GetItemsByName(paginationRequest, services, text);
-        }
+            return TypedResults.BadRequest("Embedding generator is not available.");
 
-        var totalItems = await services.Context.CatalogItems.LongCountAsync();
+        IQueryable<CatalogItem> baseQuery = services.Context.CatalogItems.AsNoTracking();
 
-        // Lấy data và tính cosine distance IN-MEMORY (tránh phụ thuộc EF translation)
-        var allItems = await services.Context.CatalogItems
-            .AsNoTracking()
-            .ToListAsync();
+        if (typeId is not null)
+            baseQuery = baseQuery.Where(c => c.CatalogTypeId == typeId);
 
-        var itemsWithDistance = allItems
-            .Select(i => new
-            {
-                Item = i,
-                Distance = CosineDistanceInMemory(i.Embedding, vector)
-            })
+        if (restaurantId is not null && restaurantId != Guid.Empty)
+            baseQuery = baseQuery.Where(c => c.RestaurantId == restaurantId);
+
+        var totalItems = await baseQuery.LongCountAsync();
+        var all = await baseQuery.ToListAsync();
+
+        var itemsWithDistance = all
+            .Select(i => new { Item = i, Distance = CosineDistanceInMemory(i.Embedding, vector) })
             .OrderBy(x => x.Distance)
             .Skip(pageSize * pageIndex)
             .Take(pageSize)
@@ -171,32 +243,29 @@ public static class CatalogApi
         if (services.Logger.IsEnabled(LogLevel.Debug))
         {
             services.Logger.LogDebug(
-                "Results from {Text}: {Results}",
+                "Semantic results from '{Text}': {Results}",
                 text,
-                string.Join(", ", itemsWithDistance.Select(i => $"{i.Item.Name} => {i.Distance}"))
+                string.Join(", ", itemsWithDistance.Select(i => $"{i.Item.Name} => {i.Distance:F4}"))
             );
         }
 
         var itemsOnPage = itemsWithDistance.Select(x => x.Item).ToList();
-
         return TypedResults.Ok(new PaginatedItems<CatalogItem>(pageIndex, pageSize, totalItems, itemsOnPage));
     }
 
-    public static async Task<Ok<PaginatedItems<CatalogItem>>> GetItemsByBrandAndTypeId(
+    public static async Task<Ok<PaginatedItems<CatalogItem>>> GetItemsByTypeAndRestaurant(
         [AsParameters] PaginationRequest paginationRequest,
         [AsParameters] CatalogServices services,
         int typeId,
-        int? brandId)
+        Guid? restaurantId)
     {
         var pageSize = paginationRequest.PageSize;
         var pageIndex = paginationRequest.PageIndex;
 
-        var root = (IQueryable<CatalogItem>)services.Context.CatalogItems;
-        root = root.Where(c => c.CatalogTypeId == typeId);
-        if (brandId is not null)
-        {
-            root = root.Where(c => c.CatalogBrandId == brandId);
-        }
+        IQueryable<CatalogItem> root = services.Context.CatalogItems.Where(c => c.CatalogTypeId == typeId);
+
+        if (restaurantId is not null && restaurantId != Guid.Empty)
+            root = root.Where(ci => ci.RestaurantId == restaurantId);
 
         var totalItems = await root.LongCountAsync();
 
@@ -209,20 +278,15 @@ public static class CatalogApi
         return TypedResults.Ok(new PaginatedItems<CatalogItem>(pageIndex, pageSize, totalItems, itemsOnPage));
     }
 
-    public static async Task<Ok<PaginatedItems<CatalogItem>>> GetItemsByBrandId(
+    public static async Task<Ok<PaginatedItems<CatalogItem>>> GetItemsByRestaurant(
         [AsParameters] PaginationRequest paginationRequest,
         [AsParameters] CatalogServices services,
-        int? brandId)
+        Guid restaurantId)
     {
         var pageSize = paginationRequest.PageSize;
         var pageIndex = paginationRequest.PageIndex;
 
-        var root = (IQueryable<CatalogItem>)services.Context.CatalogItems;
-
-        if (brandId is not null)
-        {
-            root = root.Where(ci => ci.CatalogBrandId == brandId);
-        }
+        var root = services.Context.CatalogItems.Where(ci => ci.RestaurantId == restaurantId);
 
         var totalItems = await root.LongCountAsync();
 
@@ -234,6 +298,8 @@ public static class CatalogApi
 
         return TypedResults.Ok(new PaginatedItems<CatalogItem>(pageIndex, pageSize, totalItems, itemsOnPage));
     }
+
+    // ---------- Mutations ----------
 
     public static async Task<Results<Created, NotFound<string>>> UpdateItem(
         [AsParameters] CatalogServices services,
@@ -242,19 +308,18 @@ public static class CatalogApi
         var catalogItem = await services.Context.CatalogItems.SingleOrDefaultAsync(i => i.Id == productToUpdate.Id);
 
         if (catalogItem == null)
-        {
             return TypedResults.NotFound($"Item with id {productToUpdate.Id} not found.");
-        }
 
-        // Update current product
+        // Update fields (không cho đổi Id)
         var catalogEntry = services.Context.Entry(catalogItem);
         catalogEntry.CurrentValues.SetValues(productToUpdate);
 
+        // Rebuild embedding nếu có AI
         catalogItem.Embedding = await services.CatalogAI.GetEmbeddingAsync(catalogItem);
 
         var priceEntry = catalogEntry.Property(i => i.Price);
 
-        if (priceEntry.IsModified) // Save + publish event nếu giá đổi
+        if (priceEntry.IsModified)
         {
             var priceChangedEvent = new ProductPriceChangedIntegrationEvent(
                 catalogItem.Id, productToUpdate.Price, priceEntry.OriginalValue);
@@ -274,19 +339,23 @@ public static class CatalogApi
         [AsParameters] CatalogServices services,
         CatalogItem product)
     {
+        // KHÔNG set Id để auto-increment
         var item = new CatalogItem
         {
-            Id = product.Id,
-            CatalogBrandId = product.CatalogBrandId,
-            CatalogTypeId = product.CatalogTypeId,
-            Description = product.Description,
             Name = product.Name,
-            PictureFileName = product.PictureFileName,
+            Description = product.Description,
             Price = product.Price,
+            CatalogTypeId = product.CatalogTypeId,
+            RestaurantId = product.RestaurantId,
+            PictureFileName = product.PictureFileName,
+            IsAvailable = product.IsAvailable,
+            EstimatedPrepTime = product.EstimatedPrepTime,
             AvailableStock = product.AvailableStock,
             RestockThreshold = product.RestockThreshold,
-            MaxStockThreshold = product.MaxStockThreshold
+            MaxStockThreshold = product.MaxStockThreshold,
+            OnReorder = product.OnReorder
         };
+
         item.Embedding = await services.CatalogAI.GetEmbeddingAsync(item);
 
         services.Context.CatalogItems.Add(item);
@@ -299,17 +368,17 @@ public static class CatalogApi
         [AsParameters] CatalogServices services,
         int id)
     {
-        var item = services.Context.CatalogItems.SingleOrDefault(x => x.Id == id);
+        var item = await services.Context.CatalogItems.SingleOrDefaultAsync(x => x.Id == id);
 
         if (item is null)
-        {
             return TypedResults.NotFound();
-        }
 
         services.Context.CatalogItems.Remove(item);
         await services.Context.SaveChangesAsync();
         return TypedResults.NoContent();
     }
+
+    // ---------- Helpers ----------
 
     private static string GetImageMimeTypeFromImageFileExtension(string extension) => extension switch
     {
@@ -328,7 +397,7 @@ public static class CatalogApi
     public static string GetFullPath(string contentRootPath, string pictureFileName) =>
         System.IO.Path.Combine(contentRootPath, "Pics", pictureFileName);
 
-    // Helper: cosine distance IN-MEMORY (đổi tên để không đụng hàm của Pgvector)
+    // Cosine distance in-memory (tránh conflict với pgvector EF)
     private static double CosineDistanceInMemory(Pgvector.Vector? a, Pgvector.Vector? b)
     {
         if (a is null || b is null) return 1.0;

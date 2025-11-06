@@ -1,28 +1,39 @@
-﻿namespace eShop.Catalog.API.Infrastructure;
+﻿using eShop.Catalog.API.Model;
+using Microsoft.EntityFrameworkCore;
+
+namespace eShop.Catalog.API.Infrastructure;
 
 /// <remarks>
-/// Add migrations using the following command inside the 'Catalog.API' project directory:
-///
-/// dotnet ef migrations add --context CatalogContext [migration-name]
+/// Add migrations inside the 'Catalog.API' project folder:
+///   dotnet ef migrations add --context CatalogContext <migration-name>
 /// </remarks>
 public class CatalogContext : DbContext
 {
-    public CatalogContext(DbContextOptions<CatalogContext> options, IConfiguration configuration) : base(options)
+    private readonly IConfiguration _configuration;
+
+    public CatalogContext(DbContextOptions<CatalogContext> options, IConfiguration configuration)
+        : base(options)
     {
+        _configuration = configuration;
     }
 
-    public DbSet<CatalogItem> CatalogItems { get; set; }
-    public DbSet<CatalogBrand> CatalogBrands { get; set; }
-    public DbSet<CatalogType> CatalogTypes { get; set; }
+    // DbSets
+    public DbSet<CatalogItem> CatalogItems => Set<CatalogItem>();
+    public DbSet<CatalogType> CatalogTypes => Set<CatalogType>();
+    public DbSet<Restaurant> Restaurants => Set<Restaurant>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
-        builder.HasPostgresExtension("vector");
-        builder.ApplyConfiguration(new CatalogBrandEntityTypeConfiguration());
-        builder.ApplyConfiguration(new CatalogTypeEntityTypeConfiguration());
-        builder.ApplyConfiguration(new CatalogItemEntityTypeConfiguration());
+        // PostgreSQL extensions
+        builder.HasPostgresExtension("vector");   // pgvector for embeddings
+        builder.HasPostgresExtension("postgis");  // PostGIS for Restaurant.Location
 
-        // Add the outbox table to this context
+        // Apply entity configurations
+        builder.ApplyConfiguration(new Infrastructure.EntityConfigurations.CatalogItemEntityTypeConfiguration());
+        builder.ApplyConfiguration(new Infrastructure.EntityConfigurations.CatalogTypeEntityTypeConfiguration());
+        builder.ApplyConfiguration(new Infrastructure.EntityConfigurations.RestaurantEntityTypeConfiguration());
+
+        // Outbox table (IntegrationEventLogEF)
         builder.UseIntegrationEventLogs();
     }
 }

@@ -6,24 +6,36 @@ namespace eShop.Catalog.API.Model;
 
 public class CatalogItem
 {
+    [Key]
     public int Id { get; set; }
 
+    // Food information
     [Required]
-    public string Name { get; set; }
+    [MaxLength(200)]
+    public string Name { get; set; } = default!;
 
+    [MaxLength(1000)]
     public string Description { get; set; }
 
+    [Required]
+    [Range(0.01, double.MaxValue)]
     public decimal Price { get; set; }
+    public int? EstimatedPrepTime { get; set; }
+    public bool IsAvailable { get; set; } = true;
 
+    // Food image
+    [MaxLength(100)]
     public string PictureFileName { get; set; }
 
+    // Relationships with CatalogType
     public int CatalogTypeId { get; set; }
 
-    public CatalogType CatalogType { get; set; }
+    public CatalogType CatalogType { get; set; } = default!;
 
-    public int CatalogBrandId { get; set; }
+    // Relationships with Restaurant
+    public Guid RestaurantId { get; set; }
 
-    public CatalogBrand CatalogBrand { get; set; }
+    public Restaurant Restaurant { get; set; } = default!;
 
     // Quantity in stock
     public int AvailableStock { get; set; }
