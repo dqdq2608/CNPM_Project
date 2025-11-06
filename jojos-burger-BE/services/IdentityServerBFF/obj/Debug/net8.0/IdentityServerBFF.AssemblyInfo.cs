@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("IdentityServerBFF")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+be87d0f5282c2241b3866cad1fd487790e4dcf6c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+17b38d0f8dba59c1251b423b1f410ea70b6d219d")]
 [assembly: System.Reflection.AssemblyProductAttribute("IdentityServerBFF")]
 [assembly: System.Reflection.AssemblyTitleAttribute("IdentityServerBFF")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
