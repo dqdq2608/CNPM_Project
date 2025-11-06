@@ -1,5 +1,10 @@
-﻿using Microsoft.AspNetCore.Http.HttpResults;
-using Pgvector.EntityFrameworkCore;
+﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using eShop.Catalog.API.Services;
 
 namespace eShop.Catalog.API;
 
@@ -7,7 +12,8 @@ public static class CatalogApi
 {
     public static IEndpointRouteBuilder MapCatalogApiV1(this IEndpointRouteBuilder app)
     {
-        var api = app.MapGroup("api/catalog").HasApiVersion(1.0);
+        // Không dùng API versioning để tránh phụ thuộc Asp.Versioning
+        var api = app.MapGroup("api/catalog");
 
         // Routes for querying catalog items.
         api.MapGet("/items", GetAllItems);
@@ -40,8 +46,7 @@ public static class CatalogApi
         var pageSize = paginationRequest.PageSize;
         var pageIndex = paginationRequest.PageIndex;
 
-        var totalItems = await services.Context.CatalogItems
-            .LongCountAsync();
+        var totalItems = await services.Context.CatalogItems.LongCountAsync();
 
         var itemsOnPage = await services.Context.CatalogItems
             .OrderBy(c => c.Name)
@@ -56,7 +61,10 @@ public static class CatalogApi
         [AsParameters] CatalogServices services,
         int[] ids)
     {
-        var items = await services.Context.CatalogItems.Where(item => ids.Contains(item.Id)).ToListAsync();
+        var items = await services.Context.CatalogItems
+            .Where(item => ids.Contains(item.Id))
+            .ToListAsync();
+
         return TypedResults.Ok(items);
     }
 
@@ -69,7 +77,9 @@ public static class CatalogApi
             return TypedResults.BadRequest("Id is not valid.");
         }
 
-        var item = await services.Context.CatalogItems.Include(ci => ci.CatalogBrand).SingleOrDefaultAsync(ci => ci.Id == id);
+        var item = await services.Context.CatalogItems
+            .Include(ci => ci.CatalogBrand)
+            .SingleOrDefaultAsync(ci => ci.Id == id);
 
         if (item == null)
         {
@@ -87,12 +97,12 @@ public static class CatalogApi
         var pageSize = paginationRequest.PageSize;
         var pageIndex = paginationRequest.PageIndex;
 
-        var totalItems = await services.Context.CatalogItems
-            .Where(c => c.Name.StartsWith(name))
-            .LongCountAsync();
+        var query = services.Context.CatalogItems.Where(c => c.Name.StartsWith(name));
 
-        var itemsOnPage = await services.Context.CatalogItems
-            .Where(c => c.Name.StartsWith(name))
+        var totalItems = await query.LongCountAsync();
+
+        var itemsOnPage = await query
+            .OrderBy(c => c.Name)
             .Skip(pageSize * pageIndex)
             .Take(pageSize)
             .ToListAsync();
@@ -100,7 +110,8 @@ public static class CatalogApi
         return TypedResults.Ok(new PaginatedItems<CatalogItem>(pageIndex, pageSize, totalItems, itemsOnPage));
     }
 
-    public static async Task<Results<NotFound, PhysicalFileHttpResult>> GetItemPictureById(CatalogContext context, IWebHostEnvironment environment, int catalogItemId)
+    public static async Task<Results<NotFound, PhysicalFileHttpResult>> GetItemPictureById(
+        CatalogContext context, IWebHostEnvironment environment, int catalogItemId)
     {
         var item = await context.CatalogItems.FindAsync(catalogItemId);
 
@@ -113,7 +124,7 @@ public static class CatalogApi
 
         string imageFileExtension = Path.GetExtension(item.PictureFileName);
         string mimetype = GetImageMimeTypeFromImageFileExtension(imageFileExtension);
-        DateTime lastModified = File.GetLastWriteTimeUtc(path);
+        DateTime lastModified = System.IO.File.GetLastWriteTimeUtc(path);
 
         return TypedResults.PhysicalFile(path, mimetype, lastModified: lastModified);
     }
@@ -131,36 +142,42 @@ public static class CatalogApi
             return await GetItemsByName(paginationRequest, services, text);
         }
 
-        // Create an embedding for the input search
+        // Tạo embedding cho văn bản tìm kiếm
         var vector = await services.CatalogAI.GetEmbeddingAsync(text);
+        if (vector is null)
+        {
+            // fallback nếu chưa cấu hình AI
+            return await GetItemsByName(paginationRequest, services, text);
+        }
 
-        // Get the total number of items
-        var totalItems = await services.Context.CatalogItems
-            .LongCountAsync();
+        var totalItems = await services.Context.CatalogItems.LongCountAsync();
 
-        // Get the next page of items, ordered by most similar (smallest distance) to the input search
-        List<CatalogItem> itemsOnPage;
+        // Lấy data và tính cosine distance IN-MEMORY (tránh phụ thuộc EF translation)
+        var allItems = await services.Context.CatalogItems
+            .AsNoTracking()
+            .ToListAsync();
+
+        var itemsWithDistance = allItems
+            .Select(i => new
+            {
+                Item = i,
+                Distance = CosineDistanceInMemory(i.Embedding, vector)
+            })
+            .OrderBy(x => x.Distance)
+            .Skip(pageSize * pageIndex)
+            .Take(pageSize)
+            .ToList();
+
         if (services.Logger.IsEnabled(LogLevel.Debug))
         {
-            var itemsWithDistance = await services.Context.CatalogItems
-                .Select(c => new { Item = c, Distance = c.Embedding.CosineDistance(vector) })
-                .OrderBy(c => c.Distance)
-                .Skip(pageSize * pageIndex)
-                .Take(pageSize)
-                .ToListAsync();
-
-            services.Logger.LogDebug("Results from {text}: {results}", text, string.Join(", ", itemsWithDistance.Select(i => $"{i.Item.Name} => {i.Distance}")));
-
-            itemsOnPage = itemsWithDistance.Select(i => i.Item).ToList();
+            services.Logger.LogDebug(
+                "Results from {Text}: {Results}",
+                text,
+                string.Join(", ", itemsWithDistance.Select(i => $"{i.Item.Name} => {i.Distance}"))
+            );
         }
-        else
-        {
-            itemsOnPage = await services.Context.CatalogItems
-                .OrderBy(c => c.Embedding.CosineDistance(vector))
-                .Skip(pageSize * pageIndex)
-                .Take(pageSize)
-                .ToListAsync();
-        }
+
+        var itemsOnPage = itemsWithDistance.Select(x => x.Item).ToList();
 
         return TypedResults.Ok(new PaginatedItems<CatalogItem>(pageIndex, pageSize, totalItems, itemsOnPage));
     }
@@ -181,10 +198,10 @@ public static class CatalogApi
             root = root.Where(c => c.CatalogBrandId == brandId);
         }
 
-        var totalItems = await root
-            .LongCountAsync();
+        var totalItems = await root.LongCountAsync();
 
         var itemsOnPage = await root
+            .OrderBy(c => c.Name)
             .Skip(pageSize * pageIndex)
             .Take(pageSize)
             .ToListAsync();
@@ -207,10 +224,10 @@ public static class CatalogApi
             root = root.Where(ci => ci.CatalogBrandId == brandId);
         }
 
-        var totalItems = await root
-            .LongCountAsync();
+        var totalItems = await root.LongCountAsync();
 
         var itemsOnPage = await root
+            .OrderBy(c => c.Name)
             .Skip(pageSize * pageIndex)
             .Take(pageSize)
             .ToListAsync();
@@ -237,21 +254,19 @@ public static class CatalogApi
 
         var priceEntry = catalogEntry.Property(i => i.Price);
 
-        if (priceEntry.IsModified) // Save product's data and publish integration event through the Event Bus if price has changed
+        if (priceEntry.IsModified) // Save + publish event nếu giá đổi
         {
-            //Create Integration Event to be published through the Event Bus
-            var priceChangedEvent = new ProductPriceChangedIntegrationEvent(catalogItem.Id, productToUpdate.Price, priceEntry.OriginalValue);
+            var priceChangedEvent = new ProductPriceChangedIntegrationEvent(
+                catalogItem.Id, productToUpdate.Price, priceEntry.OriginalValue);
 
-            // Achieving atomicity between original Catalog database operation and the IntegrationEventLog thanks to a local transaction
             await services.EventService.SaveEventAndCatalogContextChangesAsync(priceChangedEvent);
-
-            // Publish through the Event Bus and mark the saved event as published
             await services.EventService.PublishThroughEventBusAsync(priceChangedEvent);
         }
-        else // Just save the updated product because the Product's Price hasn't changed.
+        else
         {
             await services.Context.SaveChangesAsync();
         }
+
         return TypedResults.Created($"/api/catalog/items/{productToUpdate.Id}");
     }
 
@@ -311,5 +326,29 @@ public static class CatalogApi
     };
 
     public static string GetFullPath(string contentRootPath, string pictureFileName) =>
-        Path.Combine(contentRootPath, "Pics", pictureFileName);
+        System.IO.Path.Combine(contentRootPath, "Pics", pictureFileName);
+
+    // Helper: cosine distance IN-MEMORY (đổi tên để không đụng hàm của Pgvector)
+    private static double CosineDistanceInMemory(Pgvector.Vector? a, Pgvector.Vector? b)
+    {
+        if (a is null || b is null) return 1.0;
+
+        var va = a.ToArray();
+        var vb = b.ToArray();
+        int len = Math.Min(va.Length, vb.Length);
+
+        double dot = 0, na = 0, nb = 0;
+        for (int i = 0; i < len; i++)
+        {
+            double x = va[i];
+            double y = vb[i];
+            dot += x * y;
+            na += x * x;
+            nb += y * y;
+        }
+
+        if (na == 0 || nb == 0) return 1.0;
+        double sim = dot / (Math.Sqrt(na) * Math.Sqrt(nb));
+        return 1 - sim;
+    }
 }

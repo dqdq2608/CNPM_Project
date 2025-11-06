@@ -8,29 +8,33 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Các file shared -->
     <Compile Include="..\Shared\ActivityExtensions.cs" Link="Extensions\ActivityExtensions.cs" />
     <Compile Include="..\Shared\MigrateDbContextExtensions.cs" Link="Extensions\MigrateDbContextExtensions.cs" />
+
+    <!-- ASP.NET Core framework -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Asp.Versioning.Http">
-      <Version>8.0.0</Version>
-    </PackageReference>
+    <!-- API versioning -->
+    <PackageReference Include="Asp.Versioning.Http" Version="8.0.0" />
+
+    <!-- EF + PostgreSQL -->
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-  </ItemGroup>
 
-  <!-- AI -->
-  <ItemGroup>
+    <!-- Semantic Kernel + Vector DB -->
     <PackageReference Include="Microsoft.SemanticKernel" />
-    <PackageReference Include="Pgvector" />
-    <PackageReference Include="Pgvector.EntityFrameworkCore" />
+    <PackageReference Include="Pgvector" Version="0.2.0" />
+    <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.2.0" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Tham chiếu các service khác -->
     <ProjectReference Include="..\EventBusRabbitMQ\EventBusRabbitMQ.csproj" />
     <ProjectReference Include="..\IntegrationEventLogEF\IntegrationEventLogEF.csproj" />
     <ProjectReference Include="..\eShop.ServiceDefaults\eShop.ServiceDefaults.csproj" />

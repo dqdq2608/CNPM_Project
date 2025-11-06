@@ -1,43 +1,81 @@
 version: '3.9'
 
 services:
-  identity-api:
-    build:
-      context: ./services/identity.api
-      dockerfile: Dockerfile
-    container_name: identity-api
+  # identity-api:
+  #   build:
+  #     context: ./services/identity.api
+  #     dockerfile: Dockerfile
+  #   container_name: identity-api
+  #   ports:
+  #     - "7001:8080"
+  #   environment:
+  #     - ASPNETCORE_ENVIRONMENT=Development
+  #     - FrontendUrl=http://localhost:5173
+  #     - ConnectionStrings__IdentityDb=Host=identity-db;Database=identity;Username=postgres;Password=postgres
+  #   depends_on:
+  #     - identity-db
+
+  # identity-db:
+  #   image: postgres:16
+  #   container_name: identity-db
+  #   environment:
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=postgres
+  #     - POSTGRES_DB=identity
+  #   ports:
+  #     - "5433:5432"
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres -d identity"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
+
+  # 🔹 Postgres kèm pgvector cho Catalog
+  catalog-db:
+    image: pgvector/pgvector:pg16
+    container_name: catalog-db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     ports:
-      - "7001:8080"
+      - "5435:5432"
+    volumes:
+      - catalog_pgdata:/var/lib/postgresql/data
+      - ./db/catalogdb-init.sql:/docker-entrypoint-initdb.d/01-vector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  catalog-api:
+    build:
+      context: .
+      dockerfile: ./services/Catalog.API/Dockerfile
+    container_name: catalog-api
+    ports:
+      - "7002:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - FrontendUrl=http://localhost:5173
-      - ConnectionStrings__IdentityDb=Host=identity-db;Database=identity;Username=postgres;Password=postgres
+      - ConnectionStrings__catalogdb=${CATALOG_CONNECTION}
     depends_on:
-      - identity-db
-
-  identity-db:
-    image: postgres:16
-    container_name: identity-db
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=identity
-    ports:
-      - "5433:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-  frontend:
-    build:
-      context: ./jojos-burger-front
-      dockerfile: Dockerfile
-    container_name: jojo-frontend
-    ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_BASE=http://localhost:7001
-    depends_on:
-      - identity-api
+      catalog-db:
+        condition: service_healthy
+        
+  # frontend:
+  #   build:
+  #     context: ./jojos-burger-front
+  #     dockerfile: Dockerfile
+  #   container_name: jojo-frontend
+  #   ports:
+  #     - "5173:5173"
+  #   environment:
+  #     - VITE_API_BASE=http://localhost:7001
+  #   depends_on:
+  #     - identity-api
 
 volumes:
-  pgdata:
+  catalog_pgdata:

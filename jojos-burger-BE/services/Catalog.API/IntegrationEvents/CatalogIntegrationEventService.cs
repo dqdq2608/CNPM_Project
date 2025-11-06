@@ -1,7 +1,7 @@
-﻿namespace eShop.Catalog.API.IntegrationEvents;
+﻿// ﻿namespace eShop.Catalog.API.IntegrationEvents;
 
-public sealed class CatalogIntegrationEventService(ILogger<CatalogIntegrationEventService> logger,
-    IEventBus eventBus,
+public sealed class CatalogIntegrationEventService(
+    ILogger<CatalogIntegrationEventService> logger,
     CatalogContext catalogContext,
     IIntegrationEventLogService integrationEventLogService)
     : ICatalogIntegrationEventService, IDisposable
@@ -12,30 +12,39 @@ public sealed class CatalogIntegrationEventService(ILogger<CatalogIntegrationEve
     {
         try
         {
-            logger.LogInformation("Publishing integration event: {IntegrationEventId_published} - ({@IntegrationEvent})", evt.Id, evt);
+            // Demo mode: không có IEventBus, chỉ log + cập nhật IntegrationEventLog
+            logger.LogInformation(
+                "DEMO: Pretend publishing integration event: {IntegrationEventId} - ({@IntegrationEvent})",
+                evt.Id, evt);
 
             await integrationEventLogService.MarkEventAsInProgressAsync(evt.Id);
-            await eventBus.PublishAsync(evt);
+
+            // KHÔNG gọi eventBus.PublishAsync(evt) vì không có RabbitMQ/EventBus
+            // Giả lập publish thành công để không bị retry
             await integrationEventLogService.MarkEventAsPublishedAsync(evt.Id);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error Publishing integration event: {IntegrationEventId} - ({@IntegrationEvent})", evt.Id, evt);
+            logger.LogError(ex,
+                "Error (DEMO) publishing integration event: {IntegrationEventId} - ({@IntegrationEvent})",
+                evt.Id, evt);
+
             await integrationEventLogService.MarkEventAsFailedAsync(evt.Id);
         }
     }
 
     public async Task SaveEventAndCatalogContextChangesAsync(IntegrationEvent evt)
     {
-        logger.LogInformation("CatalogIntegrationEventService - Saving changes and integrationEvent: {IntegrationEventId}", evt.Id);
+        logger.LogInformation(
+            "CatalogIntegrationEventService - Saving changes and integrationEvent: {IntegrationEventId}",
+            evt.Id);
 
-        //Use of an EF Core resiliency strategy when using multiple DbContexts within an explicit BeginTransaction():
-        //See: https://docs.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency            
+        // Dùng resilient transaction như cũ
         await ResilientTransaction.New(catalogContext).ExecuteAsync(async () =>
         {
-            // Achieving atomicity between original catalog database operation and the IntegrationEventLog thanks to a local transaction
             await catalogContext.SaveChangesAsync();
-            await integrationEventLogService.SaveEventAsync(evt, catalogContext.Database.CurrentTransaction);
+            await integrationEventLogService.SaveEventAsync(
+                evt, catalogContext.Database.CurrentTransaction);
         });
     }
 

@@ -1,0 +1,69 @@
+### .NET build files
+bin/
+obj/
+*.user
+*.rsuser
+*.suo
+*.cache
+*.pdb
+*.dbmdl
+*.bak
+*.log
+
+# .NET Secret & config
+secrets.json
+*.pubxml
+*.Publish.xml
+appsettings.*.local.json
+appsettings.Development.json
+appsettings.Local.json
+.env
+
+# JetBrains Rider / VSCode / VS
+.vs/
+.vscode/
+.idea/
+*.swp
+
+# NuGet packages
+*.nupkg
+packages/
+project.lock.json
+project.fragment.lock.json
+
+# User-specific files
+*.userprefs
+*.orig
+
+# Docker
+**/bin/
+**/obj/
+**/Dockerfile.develop*
+docker-compose.override.yml
+docker-compose.*.yml.save
+docker-compose.yml.backup
+docker-compose.local.yml
+catalog_pgdata/
+pgdata/
+dbdata/
+tmp/
+logs/
+
+# Database or runtime
+*.db
+*.sqlite
+*.sqlite3
+*.mdf
+*.ldf
+
+# OS junk
+Thumbs.db
+.DS_Store
+
+# Node.js (frontend)
+jojos-burger-front/node_modules/
+jojos-burger-front/dist/
+jojos-burger-front/.env
+jojos-burger-front/.vite/
+jojos-burger-front/.next/
+jojos-burger-front/.turbo/

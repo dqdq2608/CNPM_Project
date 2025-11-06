@@ -1,4 +1,6 @@
 ﻿using System.Diagnostics;
+using System.Linq;
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel.Embeddings;
 using Pgvector;
 
@@ -7,69 +9,66 @@ namespace eShop.Catalog.API.Services;
 public sealed class CatalogAI : ICatalogAI
 {
     private const int EmbeddingDimensions = 384;
-    private readonly ITextEmbeddingGenerationService _embeddingGenerator;
+    private readonly ITextEmbeddingGenerationService? _embeddingGenerator;
 
-    /// <summary>The web host environment.</summary>
     private readonly IWebHostEnvironment _environment;
-    /// <summary>Logger for use in AI operations.</summary>
     private readonly ILogger _logger;
 
-    public CatalogAI(IWebHostEnvironment environment, ILogger<CatalogAI> logger, ITextEmbeddingGenerationService embeddingGenerator = null)
+    public CatalogAI(IWebHostEnvironment environment, ILogger<CatalogAI> logger, ITextEmbeddingGenerationService? embeddingGenerator = null)
     {
         _embeddingGenerator = embeddingGenerator;
         _environment = environment;
         _logger = logger;
     }
 
-    /// <inheritdoc/>
     public bool IsEnabled => _embeddingGenerator is not null;
 
-    /// <inheritdoc/>
-    public ValueTask<Vector> GetEmbeddingAsync(CatalogItem item) =>
-        IsEnabled ?
-            GetEmbeddingAsync(CatalogItemToString(item)) :
-            ValueTask.FromResult<Vector>(null);
+    public ValueTask<Vector?> GetEmbeddingAsync(CatalogItem item) =>
+        IsEnabled
+            ? GetEmbeddingAsync(CatalogItemToString(item))
+            : ValueTask.FromResult<Vector?>(null);
 
-    /// <inheritdoc/>
-    public async ValueTask<IReadOnlyList<Vector>> GetEmbeddingsAsync(IEnumerable<CatalogItem> items)
+    public async ValueTask<IReadOnlyList<Vector>?> GetEmbeddingsAsync(IEnumerable<CatalogItem> items)
     {
-        if (IsEnabled)
+        if (!IsEnabled)
+            return null;
+
+        long timestamp = Stopwatch.GetTimestamp();
+
+        // SK trả về ReadOnlyMemory<float>; Pgvector.Vector cần float[]
+        var texts = items.Select(CatalogItemToString).ToList();
+        var embeddings = await _embeddingGenerator!.GenerateEmbeddingsAsync(texts); // IList<ReadOnlyMemory<float>>
+        var results = embeddings
+            .Select(m => new Vector(m.Span[0..EmbeddingDimensions].ToArray()))
+            .ToList();
+
+        if (_logger.IsEnabled(LogLevel.Trace))
         {
-            long timestamp = Stopwatch.GetTimestamp();
-
-            IList<ReadOnlyMemory<float>> embeddings = await _embeddingGenerator.GenerateEmbeddingsAsync(items.Select(CatalogItemToString).ToList());
-            var results = embeddings.Select(m => new Vector(m[0..EmbeddingDimensions])).ToList();
-
-            if (_logger.IsEnabled(LogLevel.Trace))
-            {
-                _logger.LogTrace("Generated {EmbeddingsCount} embeddings in {ElapsedMilliseconds}s", results.Count, Stopwatch.GetElapsedTime(timestamp).TotalSeconds);
-            }
-
-            return results;
+            _logger.LogTrace("Generated {EmbeddingsCount} embeddings in {ElapsedSeconds}s",
+                results.Count, Stopwatch.GetElapsedTime(timestamp).TotalSeconds);
         }
 
-        return null;
+        return results;
     }
 
-    /// <inheritdoc/>
-    public async ValueTask<Vector> GetEmbeddingAsync(string text)
+    public async ValueTask<Vector?> GetEmbeddingAsync(string text)
     {
-        if (IsEnabled)
+        if (!IsEnabled)
+            return null;
+
+        long timestamp = Stopwatch.GetTimestamp();
+
+        var embedding = await _embeddingGenerator!.GenerateEmbeddingAsync(text); // ReadOnlyMemory<float>
+        var slice = embedding.Span[0..EmbeddingDimensions].ToArray();
+        var vector = new Vector(slice);
+
+        if (_logger.IsEnabled(LogLevel.Trace))
         {
-            long timestamp = Stopwatch.GetTimestamp();
-
-            ReadOnlyMemory<float> embedding = await _embeddingGenerator.GenerateEmbeddingAsync(text);
-            embedding = embedding[0..EmbeddingDimensions];
-
-            if (_logger.IsEnabled(LogLevel.Trace))
-            {
-                _logger.LogTrace("Generated embedding in {ElapsedMilliseconds}s: '{Text}'", Stopwatch.GetElapsedTime(timestamp).TotalSeconds, text);
-            }
-
-            return new Vector(embedding);
+            _logger.LogTrace("Generated embedding in {ElapsedSeconds}s: '{Text}'",
+                Stopwatch.GetElapsedTime(timestamp).TotalSeconds, text);
         }
 
-        return null;
+        return vector;
     }
 
     private static string CatalogItemToString(CatalogItem item) => $"{item.Name} {item.Description}";
