@@ -1,43 +1,34 @@
-version: '3.9'
-
 services:
-  identity-api:
+  catalog-db:
     build:
-      context: ./services/identity.api
-      dockerfile: Dockerfile
-    container_name: identity-api
-    ports:
-      - "7001:8080"
+      context: .
+      dockerfile: db/Dockerfile.db
+    container_name: catalog-db
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - FrontendUrl=http://localhost:5173
-      - ConnectionStrings__IdentityDb=Host=identity-db;Database=identity;Username=postgres;Password=postgres
-    depends_on:
-      - identity-db
-
-  identity-db:
-    image: postgres:16
-    container_name: identity-db
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=identity
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-catalogdb}
     ports:
-      - "5433:5432"
+      - "5435:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - catalog_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-catalogdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-  frontend:
+  catalog-api:
     build:
-      context: ./jojos-burger-front
-      dockerfile: Dockerfile
-    container_name: jojo-frontend
-    ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_BASE=http://localhost:7001
+      context: .
+      dockerfile: services/Catalog.API/Dockerfile
+    container_name: catalog-api
     depends_on:
-      - identity-api
+      catalog-db:
+        condition: service_healthy
+    env_file: .env
+    ports:
+      - "7002:8080"
 
 volumes:
-  pgdata:
+  catalog_pgdata:
