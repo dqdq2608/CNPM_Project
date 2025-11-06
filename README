@@ -1,1 +1,6 @@
 👉 Copy .env.example thành .env rồi chỉnh password trước khi chạy.
+Chạy Login: 
+1. "dotnet run /seed" IdentityServerLogic trước để seed data
+2. "dotnet run" IdentityServerBFF
+3. "dotnet run" IdentityServerLogic
+4. "npm run start" FE (test user: email=123@gmail.com, password=123456)
