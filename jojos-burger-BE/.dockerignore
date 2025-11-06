@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+.vs/
+.vscode/
+.git/
+node_modules/
+catalog_pgdata/
+logs/
+*.user
+*.suo
+*.rsuser

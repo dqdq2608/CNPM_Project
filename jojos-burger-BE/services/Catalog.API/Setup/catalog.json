@@ -1,0 +1,122 @@
+[
+  {
+    "Type": "Burger",
+    "Name": "Classic Beef Burger",
+    "Description": "Juicy grilled beef patty with cheese, lettuce and tomato.",
+    "Price": 5.99
+  },
+  {
+    "Type": "Burger",
+    "Name": "Double Cheese Burger",
+    "Description": "Two beef patties, double cheese, caramelized onions and house sauce.",
+    "Price": 7.49
+  },
+  {
+    "Type": "Burger",
+    "Name": "Spicy Chicken Burger",
+    "Description": "Crispy chicken thigh with spicy mayo and pickles.",
+    "Price": 6.29
+  },
+  {
+    "Type": "Burger",
+    "Name": "Bacon BBQ Burger",
+    "Description": "Beef patty, smoked bacon, BBQ sauce, cheddar cheese and onions.",
+    "Price": 7.99
+  },
+  {
+    "Type": "Burger",
+    "Name": "Veggie Delight Burger",
+    "Description": "Plant-based patty with avocado and vegan cheese.",
+    "Price": 6.49
+  },
+  {
+    "Type": "Drink",
+    "Name": "Coca Cola 330ml",
+    "Description": "Chilled soft drink can.",
+    "Price": 1.49
+  },
+  {
+    "Type": "Drink",
+    "Name": "Sprite 330ml",
+    "Description": "Refreshing lemon-lime soft drink.",
+    "Price": 1.49
+  },
+  {
+    "Type": "Drink",
+    "Name": "Iced Lemon Tea",
+    "Description": "Freshly brewed tea with lemon slices and ice.",
+    "Price": 2.49
+  },
+  {
+    "Type": "Drink",
+    "Name": "Chocolate Milkshake",
+    "Description": "Creamy chocolate milkshake topped with whipped cream.",
+    "Price": 3.99
+  },
+  {
+    "Type": "Drink",
+    "Name": "Vietnamese Iced Coffee",
+    "Description": "Strong Robusta coffee with condensed milk and ice.",
+    "Price": 2.99
+  },
+  {
+    "Type": "Side Dish",
+    "Name": "French Fries",
+    "Description": "Golden crispy potato fries with house seasoning.",
+    "Price": 2.49
+  },
+  {
+    "Type": "Side Dish",
+    "Name": "Cheese Fries",
+    "Description": "Crispy fries topped with melted cheddar cheese.",
+    "Price": 3.29
+  },
+  {
+    "Type": "Side Dish",
+    "Name": "Onion Rings",
+    "Description": "Crispy battered onion rings served with BBQ dip.",
+    "Price": 3.49
+  },
+  {
+    "Type": "Side Dish",
+    "Name": "Chicken Nuggets (6pcs)",
+    "Description": "Crispy bite-sized chicken nuggets served with ketchup.",
+    "Price": 4.29
+  },
+  {
+    "Type": "Side Dish",
+    "Name": "Mozzarella Sticks",
+    "Description": "Deep-fried cheese sticks with marinara sauce.",
+    "Price": 4.59
+  },
+  {
+    "Type": "Combo",
+    "Name": "Classic Combo Meal",
+    "Description": "1 Beef Burger + Fries + Coke.",
+    "Price": 9.99
+  },
+  {
+    "Type": "Combo",
+    "Name": "Family Combo",
+    "Description": "2 Burgers + 2 Fries + 2 Drinks.",
+    "Price": 17.99
+  },
+  {
+    "Type": "Combo",
+    "Name": "Chicken Lover Combo",
+    "Description": "Spicy Chicken Burger + Nuggets + Iced Tea.",
+    "Price": 11.49
+  },
+  {
+    "Type": "Combo",
+    "Name": "Veggie Combo",
+    "Description": "Veggie Burger + Cheese Fries + Lemon Tea.",
+    "Price": 10.49
+  },
+  {
+    "Type": "Combo",
+    "Name": "Kids Combo",
+    "Description": "Mini Burger + Fries + Chocolate Milkshake.",
+    "Price": 8.99
+  }
+]
