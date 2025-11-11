@@ -19,6 +19,7 @@ namespace IdentityServerLogic
 
             var configDb = sp.GetRequiredService<ConfigurationDbContext>();
             var userMgr = sp.GetRequiredService<UserManager<ApplicationUser>>();
+            var roleMgr = sp.GetRequiredService<RoleManager<IdentityRole>>();
 
             Log.Information("Seeding IdentityServer via WebApplication...");
 
@@ -29,7 +30,7 @@ namespace IdentityServerLogic
             configDb.ApiResources.RemoveRange(configDb.ApiResources);
             await configDb.SaveChangesAsync();
 
-            // Seed lại dữ liệu
+            // Seed lại dữ liệu cấu hình IDS
             foreach (var res in Config.IdentityResources.ToList())
                 configDb.IdentityResources.Add(res.ToEntity());
             foreach (var scopeDef in Config.ApiScopes.ToList())
@@ -42,42 +43,87 @@ namespace IdentityServerLogic
 
             Log.Information("Seeded configuration data.");
 
-            // Seed user mặc định
-            const string email = "123@gmail.com";
-            const string password = "123456";
+            // Tạo roles
+            if (!await roleMgr.RoleExistsAsync("Admin"))
+                await roleMgr.CreateAsync(new IdentityRole("Admin"));
+            if (!await roleMgr.RoleExistsAsync("User"))
+                await roleMgr.CreateAsync(new IdentityRole("User"));
 
-            var existingUser = await userMgr.FindByEmailAsync(email);
-            if (existingUser != null)
-                await userMgr.DeleteAsync(existingUser);
+            // USER ADMIN
+            const string adminEmail = "admin@gmail.com";
+            const string adminPassword = "123456";
 
-            var user = new ApplicationUser
+            var existingAdmin = await userMgr.FindByEmailAsync(adminEmail);
+            if (existingAdmin != null)
+                await userMgr.DeleteAsync(existingAdmin);
+
+            var adminUser = new ApplicationUser
             {
-                UserName = email,
-                Email = email,
+                UserName = adminEmail,
+                Email = adminEmail,
                 EmailConfirmed = true
             };
 
-            var result = await userMgr.CreateAsync(user, password);
-            if (result.Succeeded)
+            var adminResult = await userMgr.CreateAsync(adminUser, adminPassword);
+            if (adminResult.Succeeded)
             {
-                await userMgr.AddClaimsAsync(user, new[]
+                await userMgr.AddToRoleAsync(adminUser, "Admin");
+                await userMgr.AddClaimsAsync(adminUser, new[]
                 {
-                    new Claim("name", "dqdq"),
-                    new Claim("preferred_username", email),
-                    new Claim("email", email),
+                    new Claim("name", "Admin User"),
+                    new Claim("preferred_username", "admin"),
+                    new Claim("email", adminEmail),
                     new Claim("given_name", "Quan"),
-                    new Claim("family_name", "Dang")
+                    new Claim("family_name", "Dang"),
+                    new Claim("role", "Admin")
                 });
 
-                Log.Information("Created user + claims: {Email}", email);
+                Log.Information("Created Admin user + claims: {Email}", adminEmail);
             }
             else
             {
-                Log.Error("Error creating user: {Errors}",
-                    string.Join(", ", result.Errors.Select(e => e.Description)));
+                Log.Error("Error creating admin user: {Errors}",
+                    string.Join(", ", adminResult.Errors.Select(e => e.Description)));
             }
 
-            Log.Information("✅ Seeding completed!");
+            // USER THƯỜNG
+            const string normalEmail = "123@gmail.com";
+            const string normalPassword = "123456";
+
+            var existingUser = await userMgr.FindByEmailAsync(normalEmail);
+            if (existingUser != null)
+                await userMgr.DeleteAsync(existingUser);
+
+            var normalUser = new ApplicationUser
+            {
+                UserName = normalEmail,
+                Email = normalEmail,
+                EmailConfirmed = true
+            };
+
+            var userResult = await userMgr.CreateAsync(normalUser, normalPassword);
+            if (userResult.Succeeded)
+            {
+                await userMgr.AddToRoleAsync(normalUser, "User");
+                await userMgr.AddClaimsAsync(normalUser, new[]
+                {
+                    new Claim("name", "Normal User"),
+                    new Claim("preferred_username", "dqdq"),
+                    new Claim("email", normalEmail),
+                    new Claim("given_name", "Quan"),
+                    new Claim("family_name", "Dang"),
+                    new Claim("role", "User")
+                });
+
+                Log.Information("Created Normal user + claims: {Email}", normalEmail);
+            }
+            else
+            {
+                Log.Error("Error creating normal user: {Errors}",
+                    string.Join(", ", userResult.Errors.Select(e => e.Description)));
+            }
+
+            Log.Information("Seeding completed successfully!");
         }
     }
 }

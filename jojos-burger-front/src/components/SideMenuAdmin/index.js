@@ -22,7 +22,7 @@ export function SideMenuAdmin({ path }) {
       <hr></hr>
       <ItemContainer>
         <HomeIcon style={{ color: "#ffffff" }} />
-        <ListLink to={"/"}>Home</ListLink>
+        <ListLink to={"/admin"}>Home</ListLink>
       </ItemContainer>
 
       <ItemContainer>

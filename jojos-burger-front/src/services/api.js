@@ -5,23 +5,21 @@ export const BFF_BASE =
 
 const api = axios.create({
   baseURL: BFF_BASE,
-  withCredentials: true, // bắt buộc để gửi/nhận cookie __Host-bff
+  withCredentials: true, // gửi/nhận cookie __Host-bff
 });
 
-// xin CSRF: BFF set __Host-bff-af (HttpOnly) + __Host-bff-csrf (FE đọc được)
+// ---- CSRF helpers ----
 export async function ensureCsrfToken() {
-  await api.get("/bff/antiforgery");
+  // phát lại __Host-bff-csrf (FE đọc được) + __Host-bff-af (HttpOnly)
+  await api.get("/bff/public/antiforgery");
 }
 
-// auto gắn X-CSRF từ cookie __Host-bff-csrf
 function readCookie(name) {
-  return document.cookie
-    .split(";")
-    .map((s) => s.trim())
-    .find((x) => x.startsWith(name + "="))
-    ?.split("=")[1];
+  const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return m ? decodeURIComponent(m[1]) : null;
 }
 
+// Tự gắn X-CSRF nếu có (cho TẤT CẢ request)
 api.interceptors.request.use((cfg) => {
   const csrf = readCookie("__Host-bff-csrf");
   if (csrf) {
@@ -30,5 +28,36 @@ api.interceptors.request.use((cfg) => {
   }
   return cfg;
 });
+
+// ---- PUBLIC INTERFACE cho FE ----
+export async function bffLogin(username, password) {
+  await ensureCsrfToken();
+  await api.post("/bff/public/login", { username, password });
+  await ensureCsrfToken(); // refresh CSRF gắn với session vừa tạo
+}
+
+export async function bffGetUser() {
+  try {
+    const r = await api.get("/bff/public/user");
+    return r.data; // { sub, name, email, session_expires_in, raw }
+  } catch (e) {
+    if (e?.response?.status === 401) return null;
+    throw e;
+  }
+}
+
+export async function bffLogout() {
+  // 🔴 refresh CSRF trước khi logout để chắc chắn đúng token
+  await ensureCsrfToken();
+  try {
+    await api.post("/bff/public/logout", {});
+  } catch (e) {
+    // không chặn UI nếu server trả 500/403 — vẫn cho FE xóa phiên
+    console.error("Logout failed:", e?.response?.status, e?.message);
+  } finally {
+    // token CSRF có thể bị đổi sau khi logout
+    await ensureCsrfToken();
+  }
+}
 
 export default api;

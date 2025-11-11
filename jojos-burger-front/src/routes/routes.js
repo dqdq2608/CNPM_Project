@@ -2,10 +2,9 @@ import React from "react";
 import { Switch, Route, BrowserRouter as Router } from "react-router-dom";
 
 import paths from "../constants/paths";
-// import { Home, Login, Products, Register, Cart, Admin } from '../containers'
 import PrivateRoute from "./private-routes";
-// import AuthCallback from "./pages/AuthCallback";
-import { Home, Login, Products, Register, Cart } from "../containers";
+
+import { Home, Login, Products, Register, Cart, Admin } from "../containers";
 
 function Routes() {
   return (
@@ -17,13 +16,14 @@ function Routes() {
         <PrivateRoute component={Products} path="/products" />
         <PrivateRoute component={Cart} path="/cart" />
 
-        {/* <PrivateRoute component={Admin} path={paths.Order} isAdmin />
+        <PrivateRoute component={Admin} path="/admin" isAdmin />
+        <PrivateRoute component={Admin} path={paths.Order} isAdmin />
         <PrivateRoute component={Admin} path={paths.Products} isAdmin />
         <PrivateRoute component={Admin} path={paths.NewProduct} isAdmin />
         <PrivateRoute component={Admin} path={paths.EditProduct} isAdmin />
         <PrivateRoute component={Admin} path={paths.NewCategory} isAdmin />
         <PrivateRoute component={Admin} path={paths.EditCategory} isAdmin />
-        <PrivateRoute component={Admin} path={paths.Categories} isAdmin /> */}
+        <PrivateRoute component={Admin} path={paths.Categories} isAdmin />
       </Switch>
     </Router>
   );

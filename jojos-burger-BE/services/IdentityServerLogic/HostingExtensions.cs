@@ -76,9 +76,7 @@ internal static class HostingExtensions
         });
 
 
-        // =========================
         // IdentityServer + EF stores
-        // =========================
         var isBuilder = builder.Services
             .AddIdentityServer(options =>
             {
@@ -144,11 +142,6 @@ internal static class HostingExtensions
             builder.Services.AddTransient<IdentityScopeRepository>();
             builder.Services.AddTransient<ApiScopeRepository>();
         }
-
-        // server-side sessions (tuỳ chọn)
-        //isBuilder.AddServerSideSessions();
-        //builder.Services.Configure<RazorPagesOptions>(options =>
-        //    options.Conventions.AuthorizeFolder("/ServerSideSessions", "admin"));
 
         return builder.Build();
     }

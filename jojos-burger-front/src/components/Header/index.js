@@ -19,7 +19,6 @@ import {
 } from "./styles";
 
 export function Header() {
-  // từ UserContext mới: { user, loading, logout }
   const { user, loading, logout } = useUser();
   const {
     push,
@@ -46,7 +45,10 @@ export function Header() {
     if (isAdmin) push("/orders");
   };
 
-  const displayName = user?.displayName || user?.name || user?.email || "Guest";
+  // Ưu tiên hiển thị displayName (được tính trong UserContext)
+  const displayName = !loading
+    ? user?.displayName || user?.name || user?.email || "Guest"
+    : "…";
 
   return (
     <Container>
@@ -114,9 +116,10 @@ export function Header() {
         </PageLink>
 
         <ContainerText>
-          {/* tránh nháy khi loading */}
-          <p>Welcome {loading ? "…" : displayName}!</p>
-          <PageLinkExit onClick={logoutUser}>Logout</PageLinkExit>
+          <p>Welcome {displayName}!</p>
+          {!loading && user && (
+            <PageLinkExit onClick={logoutUser}>Logout</PageLinkExit>
+          )}
         </ContainerText>
       </ContainerRight>
     </Container>

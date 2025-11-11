@@ -23,9 +23,34 @@ export function ListProducts() {
   const [products, setProducts] = useState();
   useEffect(() => {
     async function loadProducts() {
-      const { data } = await api.get("products");
+      try {
+        // const { data } = await api.get("products");
+        // setProducts(data);
 
-      setProducts(data);
+        const mockProducts = [
+          {
+            id: 1,
+            name: "Mock Burger",
+            price: 45000,
+            offer: true,
+            url: "https://via.placeholder.com/100x80.png?text=Burger",
+          },
+          {
+            id: 2,
+            name: "Mock Fries",
+            price: 25000,
+            offer: false,
+            url: "https://via.placeholder.com/100x80.png?text=Fries",
+          },
+        ];
+        setProducts(mockProducts);
+        toast.info("⚠️ Hiển thị dữ liệu giả (mock products)", {
+          autoClose: 1200,
+          theme: "dark",
+        });
+      } catch (err) {
+        console.error(err);
+      }
     }
     loadProducts();
   }, []);
@@ -41,10 +66,14 @@ export function ListProducts() {
     push(paths.EditProduct, { product });
   }
   const deleteProduct = async (productId) => {
-    await toast.promise(api.delete(`products/${productId}`), {
-      pending: "Deleting Product...",
-      success: "Product was successfully deleted.",
-      error: "Error while deleting Product, try again later...",
+    // await toast.promise(api.delete(`products/${productId}`), {
+    //   pending: "Deleting Product...",
+    //   success: "Product was successfully deleted.",
+    //   error: "Error while deleting Product, try again later...",
+    // });
+    toast.success("Product was successfully deleted (mock).", {
+      position: "top-center",
+      autoClose: 1000,
     });
     setProducts(products.filter((prd) => prd.id !== productId));
   };

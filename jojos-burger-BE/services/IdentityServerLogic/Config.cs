@@ -1,5 +1,6 @@
 using Duende.IdentityServer.Models;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.Identity;
 
 namespace IdentityServerLogic
 {
@@ -12,6 +13,7 @@ namespace IdentityServerLogic
                 new IdentityResources.OpenId(),
                 new IdentityResources.Profile(),
                 new IdentityResources.Email(),
+                new IdentityResource("roles", new[] {"role"})
             };
 
         // Thêm ApiResource chính để access_token chứa đủ claim
@@ -52,6 +54,7 @@ namespace IdentityServerLogic
                         "openid",
                         "profile",
                         "email",
+                        "roles",
                         "offline_access",
                         "api"
                     },
