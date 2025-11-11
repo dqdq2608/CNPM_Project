@@ -1,10 +1,10 @@
+// src/containers/Products/index.js
 import PropTypes from "prop-types";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 
 import ProductsCover from "../../assets/productsCover.jpg";
 import { CardProduct } from "../../components";
-import api from "../../services/api";
-import formatCurrency from "../../utils/formatCurrency";
+import { fetchCatalogTypes, fetchCatalog } from "../../services/api/catalog"; // <= đổi import
 import {
   CategoryButton,
   Container,
@@ -14,71 +14,61 @@ import {
 } from "./styles";
 
 export function Products({ location: { state } }) {
-  let categoryId = 0;
-  if (state?.categoryId) {
-    categoryId = state.categoryId;
-  }
+  let initialCategoryId = 0;
+  if (state?.categoryId) initialCategoryId = state.categoryId;
+
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
-  const [filteredProducts, setFilteredProdutcs] = useState([]);
-  const [activeCategory, setActiveCategory] = useState(categoryId);
+  const [activeCategory, setActiveCategory] = useState(initialCategoryId);
 
   useEffect(() => {
-    async function loadCategories() {
-      const { data } = await api.get("categories");
+    async function loadAll() {
+      // categories
+      const types = await fetchCatalogTypes();
+      setCategories([{ id: 0, name: "All" }, ...types]);
 
-      const newCategories = [{ id: 0, name: "All" }, ...data];
-      setCategories(newCategories);
-    }
-
-    async function loadProducts() {
-      const { data: allProducts } = await api.get("products");
-
-      const newProducts = allProducts.map((product) => {
-        return { ...product, formatedPrice: formatCurrency(product.price) };
+      // items
+      const { items } = await fetchCatalog({
+        pageIndex: 0,
+        pageSize: 1000,
+        onlyAvailable: true,
       });
-
-      setProducts(newProducts);
+      // map về shape cũ để CardProduct vẫn dùng được
+      const shaped = items.map((item) => ({
+        ...item,
+        category_id: item.raw?.catalogTypeId, // giữ key cũ FE đang dùng
+        imageUrl: item.url, // CardProduct thường đọc imageUrl
+      }));
+      setProducts(shaped);
     }
-    loadCategories();
-    loadProducts();
+    loadAll();
   }, []);
 
-  useEffect(() => {
-    if (activeCategory === 0) {
-      setFilteredProdutcs(products);
-    } else {
-      const newFilteredProducts = products.filter(
-        (product) => product.category_id === activeCategory,
-      );
-
-      setFilteredProdutcs(newFilteredProducts);
-    }
+  const filteredProducts = useMemo(() => {
+    if (activeCategory === 0) return products;
+    return products.filter((p) => p.category_id === activeCategory);
   }, [activeCategory, products]);
 
   return (
     <Container>
-      <CoverImg src={ProductsCover} />
+      <CoverImg src={ProductsCover} alt="cover" />
       <ContainerCategory>
-        {categories &&
-          categories.map((category) => (
-            <CategoryButton
-              type="button"
-              isActiveCategory={activeCategory === category.id}
-              key={category.id}
-              onClick={() => {
-                setActiveCategory(category.id);
-              }}
-            >
-              {category.name}
-            </CategoryButton>
-          ))}
+        {categories.map((category) => (
+          <CategoryButton
+            type="button"
+            isActiveCategory={activeCategory === category.id}
+            key={category.id}
+            onClick={() => setActiveCategory(category.id)}
+          >
+            {category.name}
+          </CategoryButton>
+        ))}
       </ContainerCategory>
+
       <ContainerProducts>
-        {filteredProducts &&
-          filteredProducts.map((product) => (
-            <CardProduct key={product.id} product={product} />
-          ))}
+        {filteredProducts.map((product) => (
+          <CardProduct key={product.id} product={product} />
+        ))}
       </ContainerProducts>
     </Container>
   );

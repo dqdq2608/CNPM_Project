@@ -1,0 +1,22 @@
+# 🧱 Base image: PostgreSQL 16 + PostGIS 3.4 + pgvector
+FROM postgis/postgis:16-3.4
+
+# 🧩 Cài thêm pgvector extension
+RUN apt-get update && \
+    apt-get install -y postgresql-16-pgvector && \
+    rm -rf /var/lib/apt/lists/*
+
+# ⚙️ Environment mặc định (có thể override trong docker-compose hoặc .env)
+ENV POSTGRES_USER=postgres
+ENV POSTGRES_PASSWORD=123456
+ENV POSTGRES_DB=catalogdb
+
+# 🗂️ Volume để giữ dữ liệu
+VOLUME ["/var/lib/postgresql/data"]
+
+# 🧠 Healthcheck đơn giản (Postgres ready)
+HEALTHCHECK --interval=5s --timeout=5s --retries=20 \
+    CMD pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" || exit 1
+
+# 🚪 Mặc định Postgres lắng nghe cổng 5432
+EXPOSE 5432

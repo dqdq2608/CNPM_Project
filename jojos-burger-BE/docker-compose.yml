@@ -27,6 +27,8 @@ services:
       catalog-db:
         condition: service_healthy
     env_file: .env
+    environment:
+      - ConnectionStrings__catalogdb=Host=catalog-db;Port=5432;Database=catalogdb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-123456};Include Error Detail=true
     ports:
       - "7002:8080"
 

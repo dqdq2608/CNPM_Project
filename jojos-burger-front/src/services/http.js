@@ -1,9 +1,16 @@
+// services/http.js
 import axios from "axios";
 
 const base = process.env.REACT_APP_API_BASE || "";
 const http = axios.create({
   baseURL: base + "/api",
   withCredentials: true,
+});
+
+// 👇 Thêm instance riêng cho Catalog
+export const catalogHttp = axios.create({
+  baseURL: process.env.REACT_APP_CATALOG_API_BASE + "/api/catalog",
+  withCredentials: false, // KHÔNG gửi cookie để tránh CORS lỗi
 });
 
 function getCookie(name) {

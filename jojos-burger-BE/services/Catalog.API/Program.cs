@@ -26,29 +26,40 @@ using eShop.Catalog.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 🔹 ServiceDefaults (Health checks, Logging, v.v.)
+// CORS
+var AllowFrontend = "AllowFrontend";
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(AllowFrontend, policy =>
+    {
+        policy.WithOrigins("https://localhost:3000")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials(); // cần cho credentials
+    });
+});
+// Service defaults / logging / health, v.v.
 builder.AddServiceDefaults();
-
-// 🔹 Catalog-specific services
 builder.AddApplicationServices();
 
-// 🔹 ProblemDetails middleware (error format)
 builder.Services.AddProblemDetails();
 
-// 🔹 Swagger cơ bản (không versioning)
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+app.UseCors(AllowFrontend); // chỉ gọi 1 lần, trước endpoints
 
-// 🔹 Map health endpoints (từ ServiceDefaults)
+// Health endpoints
 app.MapDefaultEndpoints();
 
-// 🔹 Bật Swagger UI
+// Swagger UI
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// 🔹 Map các API endpoints chính
+// Map API
 app.MapCatalogApiV1();
 
 app.Run();
+
