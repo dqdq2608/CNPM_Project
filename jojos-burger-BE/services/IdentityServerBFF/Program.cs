@@ -68,10 +68,7 @@ builder.Services.AddHttpClient("ids", (sp, c) =>
 {
     var cfg = sp.GetRequiredService<IConfiguration>();
     var authority = cfg["BFF:Authority"] ?? bffConfig.Authority;
-    if (string.IsNullOrWhiteSpace(authority))
-        throw new InvalidOperationException("Missing BFF:Authority");
-
-    c.BaseAddress = new Uri(authority.TrimEnd('/')); // ví dụ http://ids:5001
+    c.BaseAddress = new Uri(authority.TrimEnd('/'));
 })
 .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 {
@@ -86,6 +83,7 @@ builder.Services.AddHttpClient("kong", c =>
 {
     c.BaseAddress = new Uri(kongUrl);
     c.DefaultRequestHeaders.Add("apikey", kongApiKey);
+    c.Timeout = TimeSpan.FromSeconds(5);
 })
 // chấp nhận self-signed cert chỉ cho môi trường DEV (không ảnh hưởng prod)
 .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -129,7 +127,7 @@ app.MapGet("/api/health", () =>
 app.MapGet("/api/kong-check", async (IHttpClientFactory f) =>
 {
     var http = f.CreateClient("kong");
-    var res  = await http.GetAsync("/internal/ping");   // route test đã cấu hình trong Kong
+    var res  = await http.GetAsync("/internal/ping");
     var body = await res.Content.ReadAsStringAsync();
     return Results.Content(body, "application/json");
 });

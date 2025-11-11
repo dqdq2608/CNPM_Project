@@ -1,37 +1,4 @@
-version: "3.9"
-
 services:
-  # catalog-db:
-  #   build:
-  #     context: .
-  #     dockerfile: db/Dockerfile.db
-  #   container_name: catalog-db
-  #   environment:
-  #     - POSTGRES_USER=${POSTGRES_USER:-postgres}
-  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-  #     - POSTGRES_DB=${POSTGRES_DB:-catalogdb}
-  #   ports:
-  #     - "5435:5432"
-  #   volumes:
-  #     - catalog_pgdata:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-catalogdb}"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 20
-
-  # catalog-api:
-  #   build:
-  #     context: .
-  #     dockerfile: services/Catalog.API/Dockerfile
-  #   container_name: catalog-api
-  #   depends_on:
-  #     catalog-db:
-  #       condition: service_healthy
-  #   env_file: .env
-  #   ports:
-  #     - "7002:8080"
-
   # === IdentityServer (IDS) ===
   ids:
     build:
@@ -56,8 +23,7 @@ services:
       timeout: 5s
       retries: 15
       start_period: 20s
-
-
+    networks: [appnet]
 
   # === BFF ===
   bff:
@@ -70,7 +36,7 @@ services:
       ASPNETCORE_URLS: "https://+:7082"
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/localhost.pem"
       ASPNETCORE_Kestrel__Certificates__Default__KeyPath: "/https/localhost-key.pem"
-      # Trỏ Authority của BFF tới service 'ids' trong mạng docker
+
       BFF__Authority: "https://ids:5001"
       BFF__ClientId: "bff_ro"
       BFF__ClientSecret: "super-secret"
@@ -80,6 +46,9 @@ services:
       BFF__Scopes__3: "roles"
       BFF__Scopes__4: "offline_access"
       BFF__Scopes__5: "api"
+
+      Kong__Url: "http://kong:8000"
+      Kong__ApiKey: "bff-internal-api-key"
     depends_on:
       ids:
         condition: service_healthy
@@ -87,7 +56,32 @@ services:
       - ./certs:/https:ro
     ports:
       - "7082:7082"
+    networks: [appnet]
+
+  # === Kong (DB-less) ===
+  kong:
+    image: kong:3.7
+    container_name: kong
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_PROXY_LISTEN: "0.0.0.0:8443 ssl, 0.0.0.0:8000"
+      KONG_SSL_CERT: /certs/localhost.pem
+      KONG_SSL_CERT_KEY: /certs/localhost-key.pem
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_LOG_LEVEL: info
+    volumes:
+      - ./kong/kong.yml:/kong/kong.yml:ro
+      - ./certs:/certs:ro
+    ports:
+      - "8443:8443"
+    depends_on:
+      - bff
+      - ids
+    networks: [appnet]
+
+networks:
+  appnet: {}
 
 volumes:
-  # catalog_pgdata:
   ids_data:

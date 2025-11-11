@@ -21,7 +21,7 @@ try
         .ConfigureServices()
         .ConfigurePipeline();
 
-    // ✅ Migrate DB trước khi seed hoặc chạy web
+    // Migrate DB trước khi seed hoặc chạy web
     using (var scope = app.Services.CreateScope())
     {
         var sp = scope.ServiceProvider;

@@ -13,15 +13,15 @@ services:
         strip_path: true
         tags: ["internal","test"]
     plugins:
-      # BFF bắt buộc gửi X-API-Key
       - name: key-auth
-      # Trả về JSON mock từ chính Kong (không cần service thật)
+        config:
+          key_names: ["apikey"]
+          run_on_preflight: true
       - name: request-termination
         config:
           status_code: 200
           content_type: application/json
           body: '{"ok": true, "via": "kong", "route": "/internal/ping"}'
-
 #####################################################
 # (Sau này) Thêm service thật – ví dụ user-service
 #####################################################
