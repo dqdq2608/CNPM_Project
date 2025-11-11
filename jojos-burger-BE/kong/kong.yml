@@ -1,0 +1,51 @@
+_format_version: "3.0"
+_transform: true
+
+#####################################################
+# INTERNAL: BFF → Kong (route test không cần backend)
+#####################################################
+services:
+  - name: internal-ping
+    url: http://does-not-matter.local   # sẽ bị chặn trước khi gọi
+    routes:
+      - name: internal-ping-route
+        paths: ["/internal/ping"]
+        strip_path: true
+        tags: ["internal","test"]
+    plugins:
+      # BFF bắt buộc gửi X-API-Key
+      - name: key-auth
+      # Trả về JSON mock từ chính Kong (không cần service thật)
+      - name: request-termination
+        config:
+          status_code: 200
+          content_type: application/json
+          body: '{"ok": true, "via": "kong", "route": "/internal/ping"}'
+
+#####################################################
+# (Sau này) Thêm service thật – ví dụ user-service
+#####################################################
+#  - name: user-service
+#    url: http://user-svc:5000
+#    routes:
+#      - name: user-internal
+#        paths: ["/internal/user"]
+#        strip_path: true
+#        tags: ["internal"]
+#    plugins:
+#      - name: key-auth
+#      - name: request-transformer
+#        config:
+#          add:
+#            headers:
+#              - "x-service-caller:bff"
+
+# Consumer đại diện cho BFF khi gọi nội bộ
+consumers:
+  - username: bff
+    keyauth_credentials:
+      - key: "bff-internal-api-key"
+
+# Metrics (tuỳ chọn)
+plugins:
+  - name: prometheus

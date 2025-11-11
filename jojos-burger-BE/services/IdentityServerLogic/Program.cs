@@ -3,6 +3,8 @@ using System.Text;
 using Duende.IdentityServer.Licensing;
 using IdentityServerLogic;
 using Serilog;
+using Microsoft.EntityFrameworkCore;
+using Duende.IdentityServer.EntityFramework.DbContexts;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture)
@@ -19,9 +21,21 @@ try
         .ConfigureServices()
         .ConfigurePipeline();
 
-    // this seeding is only for the template to bootstrap the DB and users.
-    // in production you will likely want a different approach.
-    if (args.Contains("/seed"))
+    // ✅ Migrate DB trước khi seed hoặc chạy web
+    using (var scope = app.Services.CreateScope())
+    {
+        var sp = scope.ServiceProvider;
+
+        // Duende stores
+        await sp.GetRequiredService<PersistedGrantDbContext>().Database.MigrateAsync();
+        await sp.GetRequiredService<ConfigurationDbContext>().Database.MigrateAsync();
+
+        // ASP.NET Identity store
+        await sp.GetRequiredService<ApplicationDbContext>().Database.MigrateAsync();
+    }
+
+    // ✅ Seed chỉ khi truyền tham số /seed
+    if (args.Contains("/seed", StringComparer.OrdinalIgnoreCase))
     {
         Log.Information("Seeding database...");
         await SeedData.EnsureSeedData(app);
@@ -37,6 +51,18 @@ try
             Console.Write(Summary(usage));
         });
     }
+
+    // Cho phép tắt redirect HTTPS khi chạy container
+    var disableHttpsRedirect =
+        Environment.GetEnvironmentVariable("DISABLE_HTTPS_REDIRECT")?.ToLower() == "true";
+
+    if (!disableHttpsRedirect)
+    {
+        app.UseHttpsRedirection();
+    }
+
+    // Health endpoint đơn giản cho Docker healthcheck
+    app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
     app.Run();
 }

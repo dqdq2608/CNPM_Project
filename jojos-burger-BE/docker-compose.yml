@@ -1,34 +1,93 @@
-services:
-  catalog-db:
-    build:
-      context: .
-      dockerfile: db/Dockerfile.db
-    container_name: catalog-db
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-catalogdb}
-    ports:
-      - "5435:5432"
-    volumes:
-      - catalog_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-catalogdb}"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
+version: "3.9"
 
-  catalog-api:
+services:
+  # catalog-db:
+  #   build:
+  #     context: .
+  #     dockerfile: db/Dockerfile.db
+  #   container_name: catalog-db
+  #   environment:
+  #     - POSTGRES_USER=${POSTGRES_USER:-postgres}
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+  #     - POSTGRES_DB=${POSTGRES_DB:-catalogdb}
+  #   ports:
+  #     - "5435:5432"
+  #   volumes:
+  #     - catalog_pgdata:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-catalogdb}"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 20
+
+  # catalog-api:
+  #   build:
+  #     context: .
+  #     dockerfile: services/Catalog.API/Dockerfile
+  #   container_name: catalog-api
+  #   depends_on:
+  #     catalog-db:
+  #       condition: service_healthy
+  #   env_file: .env
+  #   ports:
+  #     - "7002:8080"
+
+  # === IdentityServer (IDS) ===
+  ids:
     build:
-      context: .
-      dockerfile: services/Catalog.API/Dockerfile
-    container_name: catalog-api
-    depends_on:
-      catalog-db:
-        condition: service_healthy
-    env_file: .env
+      context: ./services/IdentityServerLogic
+      dockerfile: Dockerfile
+    container_name: ids
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "https://+:5001"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/localhost.pem"
+      ASPNETCORE_Kestrel__Certificates__Default__KeyPath: "/https/localhost-key.pem"
+      DISABLE_HTTPS_REDIRECT: "false"
+      ConnectionStrings__Default: "Data Source=/data/IdentityServer.db"
+    volumes:
+      - ids_data:/data
+      - ./certs:/https:ro
     ports:
-      - "7002:8080"
+      - "5001:5001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSk https://localhost:5001/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+
+
+  # === BFF ===
+  bff:
+    build:
+      context: ./services/IdentityServerBFF
+      dockerfile: Dockerfile
+    container_name: bff
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "https://+:7082"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/localhost.pem"
+      ASPNETCORE_Kestrel__Certificates__Default__KeyPath: "/https/localhost-key.pem"
+      # Trỏ Authority của BFF tới service 'ids' trong mạng docker
+      BFF__Authority: "https://ids:5001"
+      BFF__ClientId: "bff_ro"
+      BFF__ClientSecret: "super-secret"
+      BFF__Scopes__0: "openid"
+      BFF__Scopes__1: "profile"
+      BFF__Scopes__2: "email"
+      BFF__Scopes__3: "roles"
+      BFF__Scopes__4: "offline_access"
+      BFF__Scopes__5: "api"
+    depends_on:
+      ids:
+        condition: service_healthy
+    volumes:
+      - ./certs:/https:ro
+    ports:
+      - "7082:7082"
 
 volumes:
-  catalog_pgdata:
+  # catalog_pgdata:
+  ids_data:

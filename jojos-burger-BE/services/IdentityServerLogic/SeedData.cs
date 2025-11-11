@@ -6,7 +6,6 @@ using Serilog;
 using System.Security.Claims;
 using Duende.IdentityServer.EntityFramework.DbContexts;
 using Duende.IdentityServer.EntityFramework.Mappers;
-using IdentityServerLogic;
 
 namespace IdentityServerLogic
 {
@@ -23,6 +22,7 @@ namespace IdentityServerLogic
 
             Log.Information("Seeding IdentityServer via WebApplication...");
 
+            // ⚠️ Giả định DB đã được Migrate trước đó (Program.cs đã làm)
             // Xóa dữ liệu cũ
             configDb.Clients.RemoveRange(configDb.Clients);
             configDb.IdentityResources.RemoveRange(configDb.IdentityResources);

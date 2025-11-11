@@ -90,7 +90,9 @@ public static class BffPublicApi
     {
         var bff = cfg.GetSection("BFF").Get<Configuration>()!;
         var ids = httpFactory.CreateClient("ids");
-        var tokenEndpoint = $"{bff.Authority!.TrimEnd('/')}/connect/token";
+
+        // ✅ dùng URL tương đối, vì HttpClient("ids") đã có BaseAddress=http://ids:5001
+        var tokenEndpoint = new Uri("/connect/token", UriKind.Relative);
 
         var scopes = string.Join(' ', bff.Scopes ?? new List<string>());
 
@@ -136,8 +138,7 @@ public static class BffPublicApi
         }
 
         // 2) GỌI USERINFO để lấy profile đầy đủ rồi MERGE (xử lý mọi kiểu JSON)
-        var authority = bff.Authority!.TrimEnd('/');
-        var userInfoEndpoint = $"{authority}/connect/userinfo";
+        var userInfoEndpoint = new Uri("/connect/userinfo", UriKind.Relative);
         using (var uiReq = new HttpRequestMessage(HttpMethod.Get, userInfoEndpoint))
         {
             uiReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
@@ -157,7 +158,7 @@ public static class BffPublicApi
                             AddClaimIfNotExists(claims, t, v.GetString()!);
                             break;
                         case JsonValueKind.Number:
-                            AddClaimIfNotExists(claims, t, v.GetRawText()); // giữ nguyên dạng chuỗi số
+                            AddClaimIfNotExists(claims, t, v.GetRawText());
                             break;
                         case JsonValueKind.True:
                         case JsonValueKind.False:
@@ -172,9 +173,6 @@ public static class BffPublicApi
                                     AddClaimIfNotExists(claims, t, item.GetRawText());
                             }
                             break;
-                        case JsonValueKind.Null:
-                        case JsonValueKind.Object:
-                        case JsonValueKind.Undefined:
                         default:
                             break;
                     }

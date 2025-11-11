@@ -2,6 +2,7 @@ using Duende.Bff.Yarp;
 
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
+using System.Net.Security;
 
 using IdentityServerBFF;
 
@@ -63,7 +64,34 @@ builder.Services.AddAntiforgery(o =>
 });
 
 // HttpClient gọi IdentityServer
-builder.Services.AddHttpClient("ids");
+builder.Services.AddHttpClient("ids", (sp, c) =>
+{
+    var cfg = sp.GetRequiredService<IConfiguration>();
+    var authority = cfg["BFF:Authority"] ?? bffConfig.Authority;
+    if (string.IsNullOrWhiteSpace(authority))
+        throw new InvalidOperationException("Missing BFF:Authority");
+
+    c.BaseAddress = new Uri(authority.TrimEnd('/')); // ví dụ http://ids:5001
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+});
+
+// gọi Kong
+var kongUrl   = builder.Configuration["Kong:Url"]   ?? "https://localhost:8443";
+var kongApiKey= builder.Configuration["Kong:ApiKey"]?? "bff-internal-api-key";
+
+builder.Services.AddHttpClient("kong", c =>
+{
+    c.BaseAddress = new Uri(kongUrl);
+    c.DefaultRequestHeaders.Add("apikey", kongApiKey);
+})
+// chấp nhận self-signed cert chỉ cho môi trường DEV (không ảnh hưởng prod)
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+});
 
 var app = builder.Build();
 
@@ -92,5 +120,18 @@ app.UseAuthorization();
 
 app.MapBffPublicApi();
 app.MapBffManagementEndpoints();
+
+app.MapGet("/api/health", () =>
+{
+    return Results.Json(new { status = "ok", service = "BFF", time = DateTime.UtcNow });
+});
+
+app.MapGet("/api/kong-check", async (IHttpClientFactory f) =>
+{
+    var http = f.CreateClient("kong");
+    var res  = await http.GetAsync("/internal/ping");   // route test đã cấu hình trong Kong
+    var body = await res.Content.ReadAsStringAsync();
+    return Results.Content(body, "application/json");
+});
 
 app.Run();

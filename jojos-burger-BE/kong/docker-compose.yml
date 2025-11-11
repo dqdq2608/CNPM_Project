@@ -1,0 +1,29 @@
+services:
+  kong:
+    image: kong:3.7
+    environment:
+      KONG_DATABASE: "off"                        # DB-less
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml    # đọc từ file YAML
+
+      # Chỉ HTTPS (buộc dùng HTTPS)
+      KONG_PROXY_LISTEN: "0.0.0.0:8443 ssl"
+
+      # Gắn chứng chỉ
+      KONG_SSL_CERT: /certs/localhost.pem
+      KONG_SSL_CERT_KEY: /certs/localhost-key.pem
+
+      # Admin API (HTTP nội bộ)
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+
+      KONG_LOG_LEVEL: info
+    volumes:
+      - ./kong.yml:/kong/kong.yml:ro
+      - ./certs:/certs:ro
+    ports:
+      - "8443:8443"   # HTTPS
+      - "8001:8001"   # Admin API (chỉ nội bộ)
+    networks:
+      - kong-net
+
+networks:
+  kong-net: {}
