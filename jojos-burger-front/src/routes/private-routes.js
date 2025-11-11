@@ -1,8 +1,9 @@
 import PropTypes from "prop-types";
 import React from "react";
 import { Route, Redirect } from "react-router-dom";
-import { useUser } from "../hooks/UserContext";
+
 import { Header, Footer } from "../components";
+import { useUser } from "../hooks/UserContext";
 
 export default function PrivateRoute({ component, isAdmin, ...rest }) {
   const { user, loading } = useUser();

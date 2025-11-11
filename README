@@ -4,3 +4,9 @@ Chạy Login:
 2. "dotnet run" IdentityServerBFF
 3. "dotnet run" IdentityServerLogic
 4. "npm run start" FE (test user: email=123@gmail.com, password=123456)
+
+Lấy certs:
+mkdir certs -Force
+mkcert -key-file certs/localhost-key.pem -cert-file certs/localhost.pem "localhost" 127.0.0.1 ::1
+
+Check api: http://localhost:7002/swagger/index.html

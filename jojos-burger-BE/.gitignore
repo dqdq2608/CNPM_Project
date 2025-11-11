@@ -1,6 +1,8 @@
 ### .NET build files
-bin/
-obj/
+**/bin/
+**/obj/
+**/TestResults/
+**/out/
 *.user
 *.rsuser
 *.suo
@@ -50,7 +52,7 @@ tmp/
 logs/
 
 # Database or runtime
-*.db
+
 *.sqlite
 *.sqlite3
 *.mdf

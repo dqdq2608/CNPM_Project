@@ -1,11 +1,11 @@
 import React from "react";
 import { Switch, Route, BrowserRouter as Router } from "react-router-dom";
 
-import paths from "../constants/paths";
+import { Home, Login, Products, Register, Cart } from "../containers";
+// import paths from "../constants/paths";
 // import { Home, Login, Products, Register, Cart, Admin } from '../containers'
 import PrivateRoute from "./private-routes";
 // import AuthCallback from "./pages/AuthCallback";
-import { Home, Login, Products, Register, Cart } from "../containers";
 
 function Routes() {
   return (
