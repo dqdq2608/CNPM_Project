@@ -22,23 +22,14 @@ services:
           status_code: 200
           content_type: application/json
           body: '{"ok": true, "via": "kong", "route": "/internal/ping"}'
-#####################################################
-# (Sau này) Thêm service thật – ví dụ user-service
-#####################################################
-#  - name: user-service
-#    url: http://user-svc:5000
-#    routes:
-#      - name: user-internal
-#        paths: ["/internal/user"]
-#        strip_path: true
-#        tags: ["internal"]
-#    plugins:
-#      - name: key-auth
-#      - name: request-transformer
-#        config:
-#          add:
-#            headers:
-#              - "x-service-caller:bff"
+
+  - name: catalog
+    url: http://host.docker.internal:6001   # nếu Kong trong Docker
+    routes:
+      - name: catalog-route
+        paths: ["/catalog"]
+        strip_path: true
+        methods: ["GET"]
 
 # Consumer đại diện cho BFF khi gọi nội bộ
 consumers:

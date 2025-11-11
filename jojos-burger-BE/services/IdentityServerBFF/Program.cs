@@ -127,9 +127,17 @@ app.MapGet("/api/health", () =>
 app.MapGet("/api/kong-check", async (IHttpClientFactory f) =>
 {
     var http = f.CreateClient("kong");
-    var res  = await http.GetAsync("/internal/ping");
+    var res = await http.GetAsync("/internal/ping");
     var body = await res.Content.ReadAsStringAsync();
     return Results.Content(body, "application/json");
+});
+
+app.MapGet("/api/catalog/items", async (IHttpClientFactory f) =>
+{
+    var http = f.CreateClient("kong");
+    var res  = await http.GetAsync("/catalog/api/catalog/items");
+    var json = await res.Content.ReadAsStringAsync();
+    return Results.Content(json, "application/json");
 });
 
 app.Run();
