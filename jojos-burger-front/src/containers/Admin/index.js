@@ -1,5 +1,6 @@
 import PropTypes from "prop-types";
-import React from "react";
+import React, { useEffect } from "react";
+import { useHistory, useLocation } from "react-router-dom";
 
 import { SideMenuAdmin } from "../../components";
 import paths from "../../constants/paths";
@@ -12,18 +13,30 @@ import NewProduct from "./NewProducts";
 import Orders from "./Orders";
 import { Container, ContainerItems } from "./styles";
 
-export function Admin({ match: { path } }) {
+export function Admin() {
+  const history = useHistory();
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    if (pathname === "/admin") {
+      const defaultAdminPath =
+        (typeof paths?.Products === "string" && paths.Products) ||
+        "/admin/products";
+      history.replace(defaultAdminPath);
+    }
+  }, [pathname, history]);
+
   return (
     <Container>
-      <SideMenuAdmin path={path} />
+      <SideMenuAdmin path={pathname} />
       <ContainerItems>
-        {path === paths.Order && <Orders />}
-        {path === paths.Products && <ListProducts />}
-        {path === paths.NewProduct && <NewProduct />}
-        {path === paths.EditProduct && <EditProduct />}
-        {path === paths.Categories && <ListCategories />}
-        {path === paths.NewCategory && <NewCategory />}
-        {path === paths.EditCategory && <EditCategory />}
+        {pathname === paths.Order && <Orders />}
+        {pathname === paths.Products && <ListProducts />}
+        {pathname === paths.NewProduct && <NewProduct />}
+        {pathname === paths.EditProduct && <EditProduct />}
+        {pathname === paths.Categories && <ListCategories />}
+        {pathname === paths.NewCategory && <NewCategory />}
+        {pathname === paths.EditCategory && <EditCategory />}
       </ContainerItems>
     </Container>
   );

@@ -5,28 +5,52 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import api, { ensureCsrfToken } from "../services/api";
 import PropTypes from "prop-types";
+import api, { ensureCsrfToken } from "../services/api";
 
-// đọc /bff/user → map claim -> value (+displayName)
+// read cookie
+function readCookie(name) {
+  const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+// /bff/public/user
 async function fetchBffUser() {
   await ensureCsrfToken();
-  const r = await api.get("/bff/user");
-  const arr = r.data || [];
-  const map = Object.fromEntries(arr.map((c) => [c.type, c.value]));
+  const r = await api.get("/bff/public/user");
+  const u = r.data;
+  if (!u) throw new Error("No user");
 
-  // build displayName "đẹp"
-  const dn =
-    map.name ||
-    map.preferred_username ||
-    map.email ||
-    [map.given_name, map.family_name].filter(Boolean).join(" ") ||
-    map.sub ||
+  const rawArr = Array.isArray(u.raw) ? u.raw : [];
+  const claim = Object.fromEntries(rawArr.map((c) => [c.type, c.value]));
+
+  // get full name
+  const full = [claim.given_name, claim.family_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  // display name on header
+  const displayName =
+    claim.name ||
+    (u.name && u.name !== u.email ? u.name : null) ||
+    full ||
+    claim.preferred_username ||
+    claim.email ||
+    u.email ||
+    claim.sub ||
+    u.sub ||
     "User";
 
-  map.displayName = dn;
-  return map;
+  return {
+    sub: u.sub ?? claim.sub ?? null,
+    name: claim.name ?? u.name ?? null,
+    email: claim.email ?? u.email ?? null,
+    displayName,
+    raw: rawArr,
+  };
 }
+
 const Ctx = createContext({
   user: null,
   loading: true,
@@ -52,17 +76,24 @@ export function UserProvider({ children }) {
     })();
   }, []);
 
+  // --- login qua BFF public API ---
   const login = async (username, password) => {
     await ensureCsrfToken();
-    await api.post("/auth/password-login", { username, password });
+    await api.post("/bff/public/login", { username, password });
     await ensureCsrfToken(); // CSRF mới theo session
     const u = await fetchBffUser();
     setUser(u);
     return u;
   };
 
+  // --- logout qua BFF public API ---
   const logout = async () => {
-    await api.post("/auth/logout", {}); // interceptor tự gắn X-CSRF
+    const csrf = readCookie("__Host-bff-csrf");
+    await api.post(
+      "/bff/public/logout",
+      {},
+      { headers: csrf ? { "X-CSRF": csrf } : {} },
+    );
     setUser(null);
   };
 

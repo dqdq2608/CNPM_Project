@@ -1,0 +1,53 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: internal-ping
+    url: http://does-not-matter.local   # sẽ bị chặn trước khi gọi
+    routes:
+      - name: internal-ping-route
+        paths: ["/internal/ping"]
+        strip_path: true
+        tags: ["internal","test"]
+    plugins:
+      - name: key-auth
+        config:
+          key_names: ["apikey"]
+          run_on_preflight: true
+      - name: request-termination
+        config:
+          status_code: 200
+          content_type: application/json
+          body: '{"ok": true, "via": "kong", "route": "/internal/ping"}'
+
+  - name: catalog
+    url: http://host.docker.internal:6001   # nếu Kong trong Docker
+    routes:
+      - name: catalog-route
+        paths: ["/catalog"]
+        strip_path: true
+        methods: ["GET"]
+
+  - name: webhook-receiver
+    url: http://webhook-receiver:6105
+    routes:
+      - name: eshop-webhook-in
+        paths: ["/webhooks/eshop"]
+        strip_path: false
+        methods: ["OPTIONS","POST"]
+        tags: ["webhook","eshop","inbound"]
+    plugins:
+      - name: request-size-limiting
+        config: { allowed_payload_size: 2 }
+      - name: correlation-id
+        config: { header_name: "x-correlation-id", generator: "uuid", echo_downstream: true }
+
+# Consumer đại diện cho BFF khi gọi nội bộ
+consumers:
+  - username: bff
+    keyauth_credentials:
+      - key: "bff-internal-api-key"
+
+# Metrics (tuỳ chọn)
+plugins:
+  - name: prometheus

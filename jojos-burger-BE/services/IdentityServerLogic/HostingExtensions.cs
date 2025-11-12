@@ -11,8 +11,6 @@ using Serilog;
 using Serilog.Filters;
 using Microsoft.AspNetCore.Identity;
 
-// 🔥 thêm using cho EF Identity (nếu bạn để ApplicationDbContext/ApplicationUser trong root project thì không cần namespace khác)
-
 namespace IdentityServerLogic;
 
 internal static class HostingExtensions
@@ -53,8 +51,8 @@ internal static class HostingExtensions
     {
         builder.Services.AddRazorPages();
 
-        //  dùng đúng connection string bạn đã cấu hình (SQLite/SQL Server đều OK)
-        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+        // ✅ Dùng key "Default" để khớp với env Docker: ConnectionStrings__Default
+        var connectionString = builder.Configuration.GetConnectionString("Default");
 
         // =========================
         //  ASP.NET Identity (USER STORE)
@@ -65,7 +63,7 @@ internal static class HostingExtensions
         builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
             .AddDefaultTokenProviders();
-        
+
         builder.Services.Configure<IdentityOptions>(options =>
         {
             options.Password.RequireDigit = true;
@@ -75,10 +73,7 @@ internal static class HostingExtensions
             options.Password.RequireNonAlphanumeric = false;
         });
 
-
-        // =========================
         // IdentityServer + EF stores
-        // =========================
         var isBuilder = builder.Services
             .AddIdentityServer(options =>
             {
@@ -92,9 +87,7 @@ internal static class HostingExtensions
                     options.Diagnostics.ChunkSize = 1024 * 1024 * 10;
                 }
             })
-            //  bỏ TestUsers, thay bằng ASP.NET Identity
-            //.AddTestUsers(TestUsers.Users)
-            .AddAspNetIdentity<ApplicationUser>() // 🔥 bắt buộc để ROPC validate username/password từ DB
+            .AddAspNetIdentity<ApplicationUser>() // validate username/password từ DB
 
             // config data từ DB (clients, resources, cors)
             .AddConfigurationStore(options =>
@@ -144,11 +137,6 @@ internal static class HostingExtensions
             builder.Services.AddTransient<IdentityScopeRepository>();
             builder.Services.AddTransient<ApiScopeRepository>();
         }
-
-        // server-side sessions (tuỳ chọn)
-        //isBuilder.AddServerSideSessions();
-        //builder.Services.Configure<RazorPagesOptions>(options =>
-        //    options.Conventions.AuthorizeFolder("/ServerSideSessions", "admin"));
 
         return builder.Build();
     }

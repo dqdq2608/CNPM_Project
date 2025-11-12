@@ -1,3 +1,4 @@
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
@@ -10,20 +11,54 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IdentityServerBFF", "jojos-
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IdentityServerLogic", "jojos-burger-BE\services\IdentityServerLogic\IdentityServerLogic.csproj", "{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebhookReceiver", "jojos-burger-BE\services\WebhookReceiver\WebhookReceiver.csproj", "{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
 		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7}.Debug|x64.Build.0 = Debug|Any CPU
+		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7}.Debug|x86.Build.0 = Debug|Any CPU
 		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7}.Release|x64.ActiveCfg = Release|Any CPU
+		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7}.Release|x64.Build.0 = Release|Any CPU
+		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7}.Release|x86.ActiveCfg = Release|Any CPU
+		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7}.Release|x86.Build.0 = Release|Any CPU
 		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}.Debug|x64.Build.0 = Debug|Any CPU
+		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}.Debug|x86.Build.0 = Debug|Any CPU
 		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}.Release|x64.ActiveCfg = Release|Any CPU
+		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}.Release|x64.Build.0 = Release|Any CPU
+		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}.Release|x86.ActiveCfg = Release|Any CPU
+		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F}.Release|x86.Build.0 = Release|Any CPU
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}.Debug|x64.Build.0 = Debug|Any CPU
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}.Debug|x86.Build.0 = Debug|Any CPU
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}.Release|x64.ActiveCfg = Release|Any CPU
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}.Release|x64.Build.0 = Release|Any CPU
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}.Release|x86.ActiveCfg = Release|Any CPU
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -32,6 +67,7 @@ Global
 		{221721BF-26F6-678D-0DB5-1C75FF563D36} = {76997B5B-AE4A-9281-3DF5-777A64E735BF}
 		{C4FFC4D7-9A46-9CDE-69CA-EF3533C282F7} = {221721BF-26F6-678D-0DB5-1C75FF563D36}
 		{A7DAFAF8-C381-0DD1-F825-AC5DF639B51F} = {221721BF-26F6-678D-0DB5-1C75FF563D36}
+		{D9D518BB-90C2-4E76-8D8D-4738B1E0B33F} = {221721BF-26F6-678D-0DB5-1C75FF563D36}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {AB9B043E-DE66-45D1-87B2-6FB7190E80AA}

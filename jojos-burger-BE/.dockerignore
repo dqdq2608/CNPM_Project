@@ -1,11 +1,17 @@
 **/bin/
 **/obj/
-.vs/
-.vscode/
-.git/
-node_modules/
-catalog_pgdata/
-logs/
-*.user
-*.suo
-*.rsuser
+**/.vs/
+**/.idea/
+**/.vscode/
+**/node_modules/
+**/dist/
+**/coverage/
+**/*.user
+**/*.suo
+**/*.nupkg
+**/*.snupkg
+**/*.log
+.git
+.gitignore
+.env.local
+**/Migrations/ # nếu bạn migrate trước trong dev và không muốn đưa vào image

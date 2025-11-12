@@ -21,18 +21,18 @@
     <PackageReference Include="Asp.Versioning.Http" Version="8.0.0" />
 
     <!-- EF + PostgreSQL -->
-    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.10" PrivateAssets="All" >
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
 
     <!-- Semantic Kernel + Vector DB -->
-    <PackageReference Include="Microsoft.SemanticKernel" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.16.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="8.*" />
     <PackageReference Include="Pgvector" Version="0.2.0" />
     <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.2.0" />
