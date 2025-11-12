@@ -18,6 +18,10 @@ public class CatalogTypeEntityTypeConfiguration : IEntityTypeConfiguration<Catal
             .HasMaxLength(100)
             .IsRequired();
 
+        builder.Property(ct => ct.PictureFileName)
+            .HasMaxLength(200)
+            .IsRequired(false);
+
         // Không cho phép trùng tên loại
         builder.HasIndex(ct => ct.Type)
             .IsUnique();

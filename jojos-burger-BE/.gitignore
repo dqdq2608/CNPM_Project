@@ -11,6 +11,11 @@
 *.dbmdl
 *.bak
 *.log
+*.db
+*.db-shm
+*.db-wal
+
+!Dockerfile.db
 
 # .NET Secret & config
 secrets.json

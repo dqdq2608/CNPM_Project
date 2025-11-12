@@ -25,8 +25,31 @@ const normalizeItem = (i) => ({
 
 /** Lấy danh sách CatalogTypes (categories) */
 async function fetchCatalogTypes() {
-  const res = await catalogHttp.get("/catalogtypes");
-  return res.data;
+  // Ưu tiên endpoint có ảnh
+  try {
+    const { data } = await catalogHttp.get("/catalogtypes-with-pics", {
+      withCredentials: false,
+    });
+    // -> [{ id, type, pictureUri }]
+    return (data || []).map((t) => ({
+      id: t.id,
+      name: t.type,
+      pictureUri: t.pictureUri || "/images/category-placeholder.png",
+    }));
+  } catch (e) {
+    // Fallback sang /catalogtypes
+    if (e?.response?.status !== 404) {
+      console.warn("[fetchCatalogTypes] with-pics failed, fallback:", e);
+    }
+    const { data } = await catalogHttp.get("/catalogtypes", {
+      withCredentials: false,
+    });
+    return (data || []).map((t) => ({
+      id: t.id,
+      name: t.type,
+      pictureUri: "/images/category-placeholder.png",
+    }));
+  }
 }
 
 /** Lấy danh sách items (có phân trang + filter) */

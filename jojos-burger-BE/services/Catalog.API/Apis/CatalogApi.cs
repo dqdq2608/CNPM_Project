@@ -18,6 +18,8 @@ public sealed class RestaurantDto
     public double Lng { get; set; }   // NTS: X = longitude
 }
 
+public sealed record CatalogTypeDto(int Id, string Type, string PictureUri);
+
 public static class CatalogApi
 {
     public static IEndpointRouteBuilder MapCatalogApiV1(this IEndpointRouteBuilder app)
@@ -41,6 +43,41 @@ public static class CatalogApi
         // -------- Lookups --------
         api.MapGet("/catalogtypes", async (CatalogContext context)
             => await context.CatalogTypes.OrderBy(x => x.Type).ToListAsync());
+
+        // Ảnh theo typeId
+        api.MapGet("/catalogtypes/{id:int}/pic", async (int id, IWebHostEnvironment env) =>
+        {
+            var fileName = GetCatalogTypeImageFileName(id);
+            if (string.IsNullOrWhiteSpace(fileName))
+                return Results.NotFound();
+
+            var physicalPath = Path.Combine(env.ContentRootPath, "Pics", fileName);
+            if (!System.IO.File.Exists(physicalPath))
+                return Results.NotFound();
+
+            // Dùng Results.File với byte[] cho chắc, tránh vấn đề Results.PhysicalFile giữa các SDK
+            var bytes = await System.IO.File.ReadAllBytesAsync(physicalPath);
+            var contentType = GetImageMimeTypeFromImageFileExtension(Path.GetExtension(fileName));
+            return Results.File(bytes, contentType);
+        });
+
+        // Danh sách type kèm URL ảnh
+        api.MapGet("/catalogtypes-with-pics", async (CatalogContext ctx, HttpContext http) =>
+        {
+            var baseUrl = $"{http.Request.Scheme}://{http.Request.Host}";
+            var types = await ctx.CatalogTypes
+                .AsNoTracking()
+                .OrderBy(x => x.Type)
+                .Select(t => new
+                {
+                    id = t.Id,
+                    type = t.Type,
+                    pictureUri = $"{baseUrl}/api/catalog/catalogtypes/{t.Id}/pic"
+                })
+                .ToListAsync();
+
+            return Results.Ok(types);
+        });
 
         // Trả DTO phẳng để tránh serialize NetTopologySuite Point
         api.MapGet("/restaurants", async (CatalogContext context) =>
@@ -203,6 +240,80 @@ public static class CatalogApi
 
         return TypedResults.PhysicalFile(path, mimetype, lastModified: lastModified);
     }
+
+    public static Results<NotFound, PhysicalFileHttpResult> GetCatalogTypePictureById(
+     CatalogContext context,
+     IWebHostEnvironment env,
+     int typeId)
+    {
+        // Thư mục chứa ảnh
+        var baseDir = Path.Combine(env.ContentRootPath, "Pics", "Types");
+
+        // 1) Thử theo quy ước {id}.{ext}
+        string? path = TryFindPictureById(baseDir, typeId);
+        if (path is null)
+        {
+            // 2) Fallback: lấy tên type rồi thử theo tên (Burger/Drink/Combo/SideDish...)
+            var typeName = context.CatalogTypes
+                .AsNoTracking()
+                .Where(t => t.Id == typeId)
+                .Select(t => t.Type)
+                .FirstOrDefault();
+
+            if (!string.IsNullOrWhiteSpace(typeName))
+            {
+                path = TryFindPictureByName(baseDir, typeName!);
+            }
+        }
+
+        if (path is null || !System.IO.File.Exists(path))
+            return TypedResults.NotFound();
+
+        var ext = Path.GetExtension(path);
+        var mime = GetImageMimeTypeFromImageFileExtension(ext);
+        var lastModified = System.IO.File.GetLastWriteTimeUtc(path);
+        return TypedResults.PhysicalFile(path, mime, lastModified: lastModified);
+
+        // ------- helpers cục bộ -------
+        static string? TryFindPictureById(string baseDir, int id)
+        {
+            foreach (var ext in new[] { ".webp", ".png", ".jpg", ".jpeg" })
+            {
+                var p = Path.Combine(baseDir, $"{id}{ext}");
+                if (System.IO.File.Exists(p)) return p;
+            }
+            return null;
+        }
+
+        static string? TryFindPictureByName(string baseDir, string name)
+        {
+            // Chuẩn hoá tên: bỏ khoảng trắng, lower, thay space bằng '-', '_'…
+            var candidates = new[]
+            {
+            name,
+            name.Replace(" ", ""),
+            name.Replace(" ", "-"),
+            name.Replace(" ", "_")
+        }
+            .Select(s => s.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+            foreach (var n in candidates)
+            {
+                foreach (var ext in new[] { ".webp", ".png", ".jpg", ".jpeg" })
+                {
+                    var p1 = Path.Combine(baseDir, $"{n}{ext}");          // Burger.webp
+                    var p2 = Path.Combine(baseDir, $"{n.ToLower()}{ext}"); // burger.webp
+                    if (System.IO.File.Exists(p1)) return p1;
+                    if (System.IO.File.Exists(p2)) return p2;
+                }
+            }
+            return null;
+        }
+    }
+
+
 
     // AI semantic (in-memory distance)
     public static async Task<Results<BadRequest<string>, Ok<PaginatedItems<CatalogItem>>>> GetItemsBySemanticRelevance(
@@ -380,7 +491,16 @@ public static class CatalogApi
 
     // ---------- Helpers ----------
 
-    private static string GetImageMimeTypeFromImageFileExtension(string extension) => extension switch
+    static string GetCatalogTypeImageFileName(int typeId) => typeId switch
+    {
+        1 => "burger.jpg",      // Burger
+        2 => "drink.jpg",       // Drink
+        3 => "combo.avif",      // Combo
+        4 => "side_dishes.jpg", // Side Dish
+        _ => null!
+    };
+
+    static string GetImageMimeTypeFromImageFileExtension(string extension) => extension.ToLowerInvariant() switch
     {
         ".png" => "image/png",
         ".gif" => "image/gif",
@@ -391,6 +511,7 @@ public static class CatalogApi
         ".jp2" => "image/jp2",
         ".svg" => "image/svg+xml",
         ".webp" => "image/webp",
+        ".avif" => "image/avif",
         _ => "application/octet-stream",
     };
 

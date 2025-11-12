@@ -1,5 +1,5 @@
 // src/components/CategoryCarousel/index.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Carousel from "react-elastic-carousel";
 
 import { fetchCatalogTypes } from "../../services/api/catalog";
@@ -15,31 +15,33 @@ export function CategoryCarousel() {
   const [categories, setCategories] = useState([]);
 
   useEffect(() => {
-    async function loadCategories() {
+    let mounted = true;
+    (async () => {
       try {
-        const types = await fetchCatalogTypes();
-        const mapped = (types || []).map((t) => ({
-          id: t.id,
-          name: t.type,
-          // BE chưa có ảnh -> dùng placeholder tạm
-          url: "/images/category-placeholder.png",
-        }));
-        setCategories(mapped);
+        const types = await fetchCatalogTypes(); // [{ id, name, pictureUri }]
+        if (mounted) setCategories(types ?? []);
       } catch (e) {
         console.error("[CategoryCarousel] loadCategories failed:", e);
-        setCategories([]);
+        if (mounted) setCategories([]);
       }
-    }
-    loadCategories();
+    })();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const breakPoints = [
-    { width: 1, itemsToShow: 1 },
-    { width: 400, itemsToShow: 2 },
-    { width: 600, itemsToShow: 3 },
-    { width: 900, itemsToShow: 4 },
-    { width: 1300, itemsToShow: 5 },
-  ];
+  const breakPoints = useMemo(
+    () => [
+      { width: 1, itemsToShow: 1 },
+      { width: 400, itemsToShow: 2 },
+      { width: 600, itemsToShow: 3 },
+      { width: 900, itemsToShow: 4 },
+      { width: 1300, itemsToShow: 5 },
+    ],
+    []
+  );
+
+  const fallbackImg = "/images/category-placeholder.png";
 
   return (
     <Container>
@@ -49,16 +51,23 @@ export function CategoryCarousel() {
         style={{ width: "90%" }}
         breakPoints={breakPoints}
       >
-        {categories.map((category) => (
-          <ContainerItems key={category.id}>
-            <Image src={category.url} alt={category.name} />
+        {categories.map((c) => (
+          <ContainerItems key={c.id}>
+            <Image
+              src={c.pictureUri || fallbackImg}
+              alt={c.name}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = fallbackImg;
+              }}
+            />
             <Button
               to={{
                 pathname: "/products",
-                state: { categoryId: category.id }, // Router v5: state truyền qua location
+                state: { categoryId: c.id }, // React Router v5
               }}
             >
-              {category.name}
+              {c.name}
             </Button>
           </ContainerItems>
         ))}

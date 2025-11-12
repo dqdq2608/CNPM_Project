@@ -14,10 +14,13 @@ COPY ./services/eShop.ServiceDefaults/ ./services/eShop.ServiceDefaults/
 COPY ./services/EventBus/ ./services/EventBus/
 COPY ./services/IntegrationEventLogEF/ ./services/IntegrationEventLogEF/
 COPY ./services/Shared/ ./services/Shared/
+COPY ./services/Catalog.API/Pics ./Pics
 
 # Restore & Publish
 RUN dotnet restore ./services/Catalog.API/Catalog.API.csproj
-RUN dotnet publish ./services/Catalog.API/Catalog.API.csproj -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish ./services/Catalog.API/Catalog.API.csproj \
+    -c Release -o /app/publish /p:UseAppHost=false \
+    /p:TreatWarningsAsErrors=false -v:minimal
 
 # Final
 FROM base AS final
