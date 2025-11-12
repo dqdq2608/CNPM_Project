@@ -81,6 +81,34 @@ services:
       - ids
     networks: [appnet]
 
+  webhook-receiver:
+    build:
+      context: ./services/WebhookReceiver
+      dockerfile: Dockerfile
+    container_name: webhook-receiver
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      # đặt secret nếu muốn bật HMAC verify (khớp với token khi đăng ký ở eShop)
+      Webhooks__Secret: "${WEBHOOKS_SECRET:-}"   # để trống cũng được
+    ports:
+      - "6105:6105"        # mở ra host để bạn test; prod có thể bỏ
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:6105/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [appnet]
+
+  webhook-publisher:
+    build:
+      context: ./services/WebhookPublisher
+    container_name: webhook-publisher
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+    ports: ["6110:6110"]
+    networks: [appnet]
+
 networks:
   appnet: {}
 

@@ -1,9 +1,6 @@
 _format_version: "3.0"
 _transform: true
 
-#####################################################
-# INTERNAL: BFF → Kong (route test không cần backend)
-#####################################################
 services:
   - name: internal-ping
     url: http://does-not-matter.local   # sẽ bị chặn trước khi gọi
@@ -30,6 +27,20 @@ services:
         paths: ["/catalog"]
         strip_path: true
         methods: ["GET"]
+
+  - name: webhook-receiver
+    url: http://webhook-receiver:6105
+    routes:
+      - name: eshop-webhook-in
+        paths: ["/webhooks/eshop"]
+        strip_path: false
+        methods: ["OPTIONS","POST"]
+        tags: ["webhook","eshop","inbound"]
+    plugins:
+      - name: request-size-limiting
+        config: { allowed_payload_size: 2 }
+      - name: correlation-id
+        config: { header_name: "x-correlation-id", generator: "uuid", echo_downstream: true }
 
 # Consumer đại diện cho BFF khi gọi nội bộ
 consumers:
