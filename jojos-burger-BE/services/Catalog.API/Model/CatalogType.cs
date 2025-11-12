@@ -9,7 +9,7 @@ public class CatalogType
 
     [Required, MaxLength(100)]
     public string Type { get; set; } = default!;
-
+    public string? PictureFileName { get; set; }
     public CatalogType() { }
     public CatalogType(string type) => Type = type;
 }

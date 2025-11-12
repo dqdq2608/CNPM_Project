@@ -12,8 +12,6 @@
     <Compile Include="..\Shared\ActivityExtensions.cs" Link="Extensions\ActivityExtensions.cs" />
     <Compile Include="..\Shared\MigrateDbContextExtensions.cs" Link="Extensions\MigrateDbContextExtensions.cs" />
 
-    <!-- ASP.NET Core framework -->
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>
@@ -46,7 +44,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Pics\*.webp" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Pics/**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

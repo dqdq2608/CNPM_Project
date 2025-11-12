@@ -29,16 +29,17 @@ public partial class CatalogContextSeed(
         {
             var types = new List<CatalogType>
             {
-                new("Burger"),
-                new("Drink"),
-                new("Combo"),
-                new("Side Dish")
+                new() { Type = "Burger",    PictureFileName = "burger.jpg" },
+                new() { Type = "Drink",     PictureFileName = "drink.jpg" },
+                new() { Type = "Combo",     PictureFileName = "combo.avif" },
+                new() { Type = "Side Dish", PictureFileName = "side_dishes.jpg" }
             };
 
             await context.CatalogTypes.AddRangeAsync(types);
             await context.SaveChangesAsync();
             logger.LogInformation("Seeded CatalogTypes: {Count}", types.Count);
         }
+
 
         // 2️⃣ Seed Restaurants
         if (!context.Restaurants.Any())
