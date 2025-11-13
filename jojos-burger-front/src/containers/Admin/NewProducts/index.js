@@ -2,7 +2,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import UploadIcon from "@mui/icons-material/Upload";
 import React, { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
-import { useHistory } from "react-router-dom/";
+import { useHistory } from "react-router-dom";
 import ReactSelect from "react-select";
 import { toast } from "react-toastify";
 import * as Yup from "yup";
@@ -16,22 +16,65 @@ import {
   createCatalogItem,
 } from "../../../services/api/catalog";
 
+const schema = Yup.object().shape({
+  name: Yup.string().required("The product must have a name."),
+  price: Yup.number()
+    .typeError("Price must be a number.")
+    .positive("Price must be greater than 0.")
+    .required("The product must have a price."),
+  category: Yup.object().required("You must choose a category."),
+  restaurant: Yup.object().required("You must choose a restaurant."),
+  file: Yup.mixed().nullable(),
+});
+
+// Ép toàn bộ text của ReactSelect thành màu đen
+const selectStyles = {
+  control: (base) => ({
+    ...base,
+    color: "#000",
+    fontSize: 14,
+  }),
+  menu: (base) => ({
+    ...base,
+    zIndex: 9999,
+  }),
+  menuList: (base) => ({
+    ...base,
+    color: "#000",
+    fontSize: 14,
+  }),
+  option: (base, state) => ({
+    ...base,
+    color: "#000",
+    backgroundColor: state.isSelected
+      ? "#e0e7ff"
+      : state.isFocused
+      ? "#f1f5f9"
+      : "#fff",
+    fontSize: 14,
+  }),
+  singleValue: (base) => ({
+    ...base,
+    color: "#000",
+    fontSize: 14,
+  }),
+  input: (base) => ({
+    ...base,
+    color: "#000",
+    fontSize: 14,
+  }),
+  placeholder: (base) => ({
+    ...base,
+    color: "#666",
+    fontSize: 14,
+  }),
+};
+
 export function NewProduct() {
   const [fileName, setFileName] = useState(null);
   const [categories, setCategories] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
   const { push } = useHistory();
-
-  const schema = Yup.object().shape({
-    name: Yup.string().required("The product must have a name."),
-    price: Yup.number()
-      .typeError("Price must be a number.")
-      .positive("Price must be greater than 0.")
-      .required("The product must have a price."),
-    category: Yup.object().required("You must choose a category."),
-    restaurant: Yup.object().required("You must choose a restaurant."),
-    file: Yup.mixed().nullable(), // ảnh không bắt buộc
-  });
 
   const {
     register,
@@ -45,10 +88,11 @@ export function NewProduct() {
 
     const payload = {
       name: data.name,
-      description: "", // có thể thêm input Description nếu muốn
+      description: "",
       price: Number(data.price),
-      catalogTypeId: data.category.id,
-      restaurantId: data.restaurant.id,
+      // lấy id từ option { value, label }
+      catalogTypeId: data.category.value,
+      restaurantId: data.restaurant.value,
       pictureFileName: picName,
       isAvailable: true,
       estimatedPrepTime: 10,
@@ -74,28 +118,44 @@ export function NewProduct() {
   useEffect(() => {
     async function loadLookups() {
       try {
-        // Categories (catalog types)
-        const types = await fetchCatalogTypes(); // [{ id, type }]
+        // ======================= CATEGORIES =======================
+        const types = await fetchCatalogTypes();
+        console.log("raw types:", types);
+
         const mappedCats = (types || []).map((t) => ({
-          id: t.id,
-          name: t.type,
+          value: t.id ?? t.Id ?? t.value,
+          label:
+            t.type ??
+            t.Type ??
+            t.name ??
+            t.Name ??
+            t.label ??
+            "",
         }));
+        console.log("categories mapped:", mappedCats);
+
         setCategories(mappedCats);
 
-        // Restaurants
-        const rData = await fetchRestaurants(); // [{ restaurantId, name, ... }]
+        // ======================= RESTAURANTS =======================
+        const rData = await fetchRestaurants();
+        console.log("raw restaurants:", rData);
+
         const mappedRes = (rData || []).map((r) => ({
-          id: r.restaurantId,
-          name: r.name,
+          value: r.restaurantId ?? r.id ?? r.value,
+          label: r.name ?? r.Name ?? r.label ?? "",
         }));
+        console.log("restaurants mapped:", mappedRes);
+
         setRestaurants(mappedRes);
       } catch (e) {
-        console.error(e);
+        console.error("Failed to load lookups:", e);
         toast.error("Failed to load categories/restaurants.");
       }
     }
+
     loadLookups();
   }, []);
+
 
   return (
     <Container>
@@ -141,10 +201,9 @@ export function NewProduct() {
             render={({ field }) => (
               <ReactSelect
                 {...field}
-                options={categories}
-                getOptionLabel={(cat) => cat.name}
-                getOptionValue={(cat) => String(cat.id)}
+                options={categories}     // [{ value, label }]
                 placeholder="Select Category"
+                isClearable
               />
             )}
           />
@@ -159,10 +218,10 @@ export function NewProduct() {
             render={({ field }) => (
               <ReactSelect
                 {...field}
-                options={restaurants}
-                getOptionLabel={(r) => r.name}
-                getOptionValue={(r) => String(r.id)}
+                styles={selectStyles}
+                options={restaurants}     // [{ value, label }]
                 placeholder="Select Restaurant"
+                isClearable
               />
             )}
           />

@@ -12,22 +12,25 @@ import { toast } from "react-toastify";
 import { fetchCatalogTypes } from "../../../services/api/catalog";
 import { Container, Img } from "./styles";
 
+const FALLBACK_IMG = "/images/category-placeholder.png";
+
 export function ListCategories() {
   const [categories, setCategories] = useState([]);
 
   useEffect(() => {
     async function loadCategories() {
       try {
-        // Lấy catalog types từ Catalog API
-        const types = await fetchCatalogTypes();
+        const types = await fetchCatalogTypes(); // [{ id, type, pictureUri }]
+        console.log("types from API:", types);
 
-        // Map dữ liệu
         const mapped = (types || []).map((t) => ({
           id: t.id,
-          name: t.type,
-          url: "/images/category-placeholder.png", // ảnh mặc định
+          // cố gắng lấy tên từ nhiều field khác nhau cho chắc
+          name: t.name || t.type || t.Type || t.category || t.Category || "",
+          url: t.pictureUri || FALLBACK_IMG,
         }));
 
+        console.log("mapped categories:", mapped);
         setCategories(mapped);
       } catch (err) {
         console.error("Error loading catalog types:", err);
@@ -50,19 +53,25 @@ export function ListCategories() {
           </TableHead>
 
           <TableBody>
-            {categories &&
-              categories.map((cat) => (
-                <TableRow
-                  key={cat.id}
-                  sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                >
-                  <TableCell>{cat.name}</TableCell>
+            {categories.map((cat) => (
+              <TableRow
+                key={cat.id}
+                sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
+              >
+                {/* Hiển thị tên */}
+                <TableCell sx={{ color: "#000" }}>{cat.name}</TableCell>
 
-                  <TableCell align="center">
-                    <Img src={cat.url} alt="category" />
-                  </TableCell>
-                </TableRow>
-              ))}
+                <TableCell align="center">
+                  <Img
+                    src={cat.url}
+                    alt={cat.name || "category"}
+                    onError={(e) => {
+                      e.currentTarget.src = FALLBACK_IMG;
+                    }}
+                  />
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </TableContainer>

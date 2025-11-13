@@ -30,7 +30,7 @@ const schema = Yup.object().shape({
 
 export function EditCategory() {
   const [categories, setCategories] = useState([]);
-  const [editingCategory, setEditingCategory] = useState(null); // category đang được edit (popup)
+  const [editingCategory, setEditingCategory] = useState(null); // category đang được edit
 
   const {
     register,
@@ -42,77 +42,99 @@ export function EditCategory() {
     defaultValues: { name: "" },
   });
 
-  // Load list categories
+  // ===== Load list categories =====
   useEffect(() => {
     async function loadCategories() {
       try {
-        const types = await fetchCatalogTypes(); // [{ id, type }]
+        const types = await fetchCatalogTypes(); // thường trả [{ id, type, pictureUri }]
+        console.log("raw types (EditCategory):", types);
+
         const mapped = (types || []).map((t) => ({
-          id: t.id,
-          name: t.type,
+          id: t.id ?? t.Id ?? t.value,
+          name:
+            t.type ??
+            t.Type ??
+            t.name ??
+            t.Name ??
+            t.label ??
+            "",
         }));
+
+        console.log("mapped categories (EditCategory):", mapped);
         setCategories(mapped);
       } catch (err) {
         console.error("Error loading catalog types:", err);
         toast.error("Failed to load categories.");
       }
     }
+
     loadCategories();
   }, []);
 
-  // Mở popup edit
+  // ===== Mở popup edit =====
   function handleOpenEdit(cat) {
     setEditingCategory(cat);
     reset({ name: cat.name });
   }
 
-  // Đóng popup
+  // ===== Đóng popup =====
   function handleCloseDialog() {
     setEditingCategory(null);
     reset({ name: "" });
   }
 
-  // Submit form trong popup
+  // ===== Submit form trong popup =====
   const onSubmit = async (data) => {
     if (!editingCategory) return;
 
     const payload = { type: data.name.trim() };
 
-    // updateCatalogType đang được định nghĩa kiểu: (id, payload) -> PUT /catalogtypes với { id, ...payload }
-    const req = updateCatalogType(editingCategory.id, payload);
+    try {
+      // updateCatalogType(id, payload) sẽ gọi BFF: PUT /api/catalog/catalogtypes
+      const req = updateCatalogType(editingCategory.id, payload);
 
-    await toast.promise(req, {
-      pending: "Updating category...",
-      success: "Category was successfully updated.",
-      error: "Error while updating category, try again later...",
-    });
+      await toast.promise(req, {
+        pending: "Updating category...",
+        success: "Category was successfully updated.",
+        error: "Error while updating category, try again later...",
+      });
 
-    // Cập nhật lại list ở client
-    setCategories((prev) =>
-      prev.map((c) =>
-        c.id === editingCategory.id ? { ...c, name: data.name.trim() } : c
-      )
-    );
+      // Cập nhật lại list ở client
+      setCategories((prev) =>
+        prev.map((c) =>
+          c.id === editingCategory.id ? { ...c, name: data.name.trim() } : c
+        )
+      );
 
-    handleCloseDialog();
+      handleCloseDialog();
+    } catch (err) {
+      console.error("Update category failed:", err);
+      toast.error("Unexpected error while updating category.");
+    }
   };
 
-  // Xoá category
+  // ===== Xoá category =====
   async function handleDelete(cat) {
     if (!window.confirm(`Delete category "${cat.name}"?`)) return;
 
-    const req = deleteCatalogType(cat.id);
+    try {
+      // deleteCatalogType(id) -> DELETE /api/catalog/catalogtypes/{id}
+      const req = deleteCatalogType(cat.id);
 
-    await toast.promise(req, {
-      pending: "Deleting category...",
-      success: "Category was successfully deleted.",
-      error: "Error while deleting category, try again later...",
-    });
+      await toast.promise(req, {
+        pending: "Deleting category...",
+        success: "Category was successfully deleted.",
+        error: "Error while deleting category, try again later...",
+      });
 
-    setCategories((prev) => prev.filter((c) => c.id !== cat.id));
+      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
 
-    if (editingCategory?.id === cat.id) {
-      handleCloseDialog();
+      if (editingCategory?.id === cat.id) {
+        handleCloseDialog();
+      }
+    } catch (err) {
+      console.error("Delete category failed:", err);
+      toast.error("Unexpected error while deleting category.");
     }
   }
 
@@ -127,6 +149,7 @@ export function EditCategory() {
               <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
+
           <TableBody>
             {categories.map((cat) => (
               <TableRow key={cat.id} hover>
@@ -137,6 +160,7 @@ export function EditCategory() {
                 </TableCell>
               </TableRow>
             ))}
+
             {categories.length === 0 && (
               <TableRow>
                 <TableCell colSpan={2}>No categories yet.</TableCell>
