@@ -62,18 +62,19 @@ public static class CatalogApi
         });
 
         // Danh sách type kèm URL ảnh
-        api.MapGet("/catalogtypes-with-pics", async (CatalogContext ctx, HttpContext http) =>
+        api.MapGet("/catalogtypes-with-pics", async (CatalogContext ctx) =>
         {
-            var baseUrl = $"{http.Request.Scheme}://{http.Request.Host}";
+            // Base URL public qua Kong
+            const string externalBase = "https://localhost:8443/catalog";
+
             var types = await ctx.CatalogTypes
                 .AsNoTracking()
                 .OrderBy(x => x.Type)
-                .Select(t => new
-                {
-                    id = t.Id,
-                    type = t.Type,
-                    pictureUri = $"{baseUrl}/api/catalog/catalogtypes/{t.Id}/pic"
-                })
+                .Select(t => new CatalogTypeDto(
+                    t.Id,
+                    t.Type,
+                    $"{externalBase}/catalogtypes/{t.Id}/pic"
+                ))
                 .ToListAsync();
 
             return Results.Ok(types);

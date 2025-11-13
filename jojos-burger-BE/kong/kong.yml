@@ -3,12 +3,12 @@ _transform: true
 
 services:
   - name: internal-ping
-    url: http://does-not-matter.local   # sẽ bị chặn trước khi gọi
+    url: http://does-not-matter.local # sẽ bị chặn trước khi gọi
     routes:
       - name: internal-ping-route
         paths: ["/internal/ping"]
         strip_path: true
-        tags: ["internal","test"]
+        tags: ["internal", "test"]
     plugins:
       - name: key-auth
         config:
@@ -20,13 +20,29 @@ services:
           content_type: application/json
           body: '{"ok": true, "via": "kong", "route": "/internal/ping"}'
 
+  # === CATALOG qua Kong ===
   - name: catalog
-    url: http://host.docker.internal:6001   # nếu Kong trong Docker
+    url: http://catalog-api:8080/api/catalog
     routes:
       - name: catalog-route
-        paths: ["/catalog"]
+        paths:
+          - /catalog
         strip_path: true
-        methods: ["GET"]
+        methods: ["GET", "OPTIONS"]
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - https://localhost:3000
+          methods:
+            - GET
+            - OPTIONS
+          headers:
+            - "*"
+          exposed_headers:
+            - "*"
+          credentials: false # FE đang withCredentials:false
+          max_age: 3600
 
   - name: webhook-receiver
     url: http://webhook-receiver:6105
@@ -34,13 +50,18 @@ services:
       - name: eshop-webhook-in
         paths: ["/webhooks/eshop"]
         strip_path: false
-        methods: ["OPTIONS","POST"]
-        tags: ["webhook","eshop","inbound"]
+        methods: ["OPTIONS", "POST"]
+        tags: ["webhook", "eshop", "inbound"]
     plugins:
       - name: request-size-limiting
         config: { allowed_payload_size: 2 }
       - name: correlation-id
-        config: { header_name: "x-correlation-id", generator: "uuid", echo_downstream: true }
+        config:
+          {
+            header_name: "x-correlation-id",
+            generator: "uuid",
+            echo_downstream: true,
+          }
 
 # Consumer đại diện cho BFF khi gọi nội bộ
 consumers:

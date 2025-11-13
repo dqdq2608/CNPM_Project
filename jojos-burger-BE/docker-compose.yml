@@ -127,6 +127,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    networks: [appnet]
 
   catalog-api:
     build:
@@ -141,6 +142,7 @@ services:
       - ConnectionStrings__catalogdb=Host=catalog-db;Port=5432;Database=catalogdb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-123456};Include Error Detail=true
     ports:
       - "7002:8080"
+    networks: [appnet]
 
 networks:
   appnet: {}
