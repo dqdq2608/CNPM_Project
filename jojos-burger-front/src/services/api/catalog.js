@@ -28,15 +28,11 @@ async function fetchCatalogTypes() {
 }
 
 async function createCatalogType(payload) {
-  const res = await catalogHttp.post(
-    "/catalogtypes",
-    payload,
-    {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
-  );
+  const res = await catalogHttp.post("/catalogtypes", payload, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
   return res.data;
 }
 

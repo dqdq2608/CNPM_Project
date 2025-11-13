@@ -31,7 +31,11 @@ import {
 } from "../../../services/api/catalog";
 
 // dùng lại style ảnh + icon edit/delete của ListProducts
-import { Img, EditIconImg, DeleteForever as DeleteIcon } from "../ListProducts/styles";
+import {
+  Img,
+  EditIconImg,
+  DeleteForever as DeleteIcon,
+} from "../ListProducts/styles";
 
 const schema = Yup.object().shape({
   name: Yup.string().required("The product must have a name."),
@@ -190,7 +194,8 @@ export default function EditProduct() {
   if (products.length === 0) {
     return (
       <div style={{ padding: 20 }}>
-        There is no product yet. Please create one in <strong>New Product</strong>.
+        There is no product yet. Please create one in{" "}
+        <strong>New Product</strong>.
       </div>
     );
   }
@@ -262,12 +267,18 @@ export default function EditProduct() {
         fullWidth
       >
         <DialogTitle>
-          {selectedProduct ? `Editing: ${selectedProduct.name}` : "Edit Product"}
+          {selectedProduct
+            ? `Editing: ${selectedProduct.name}`
+            : "Edit Product"}
         </DialogTitle>
 
         <DialogContent dividers>
           {selectedProduct && (
-            <form id="edit-product-form" noValidate onSubmit={handleSubmit(onSubmit)}>
+            <form
+              id="edit-product-form"
+              noValidate
+              onSubmit={handleSubmit(onSubmit)}
+            >
               <div>
                 <Label>Name</Label>
                 <Input type="text" {...register("name")} />
