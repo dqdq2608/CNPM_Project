@@ -117,8 +117,6 @@ async function fetchCatalogItemById(id) {
   return normalizeItem(data);
 }
 
-<<<<<<< HEAD
-=======
 /* ===== Default export để giữ tương thích với code cũ (import catalog from ...) =====
    - getCategories: alias của fetchCatalogTypes
    - getProducts: alias của fetchCatalog
@@ -148,16 +146,13 @@ async function deleteCatalogItem(id) {
    - getProductById: alias của fetchCatalogItemById
 */
 
->>>>>>> dqdq
 const catalog = {
   fetchCatalogTypes,
   fetchRestaurants,
   fetchCatalog,
   searchCatalogByName,
   fetchCatalogItemById,
-<<<<<<< HEAD
   // alias cũ
-=======
   createCatalogItem,
   updateCatalogItem,
   deleteCatalogItem,
@@ -166,7 +161,6 @@ const catalog = {
   deleteCatalogType,
 
   // Aliases cho code cũ
->>>>>>> dqdq
   getCategories: fetchCatalogTypes,
   getProducts: fetchCatalog,
   getProductById: fetchCatalogItemById,
