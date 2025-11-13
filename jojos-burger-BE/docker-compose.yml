@@ -36,6 +36,7 @@ services:
       ASPNETCORE_URLS: "https://+:7082"
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/localhost.pem"
       ASPNETCORE_Kestrel__Certificates__Default__KeyPath: "/https/localhost-key.pem"
+      Basket__BaseUrl: "http://basket-api:8080"
 
       BFF__Authority: "https://ids:5001"
       BFF__ClientId: "bff_ro"
@@ -143,6 +144,30 @@ services:
     ports:
       - "7002:8080"
     networks: [appnet]
+
+  basket-redis:
+    image: redis:7
+    container_name: basket-redis
+    ports:
+      - "6379:6379"          # dev cho dễ debug, sau này có thể bỏ
+    networks: [appnet]
+
+  basket-api:
+    build:
+      context: .
+      dockerfile: services/Basket.API/Dockerfile
+    container_name: basket-api
+    depends_on:
+      basket-redis:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      # override connection string Redis cho Basket.API
+      ConnectionStrings__Redis: "basket-redis:6379"
+    ports:
+      - "5005:8080"       # map ra host để debug swagger: http://localhost:5005
+    networks: [appnet]
+
 
 networks:
   appnet: {}
