@@ -1,30 +1,32 @@
+// src/services/api/catalog.js
 import { catalogHttp } from "../http";
 
-// build URL ảnh item
-const buildPicUrl = (id) => `${catalogHttp.defaults.baseURL}/items/${id}/pic`;
+const BASE = process.env.REACT_APP_CATALOG_API_BASE || "http://localhost:7002";
 
-// Chuẩn hoá item
+// build ảnh từ endpoint BE
+const buildPicUrl = (id) => `${BASE}/api/catalog/items/${id}/pic`;
+
+// format tiền VND
+const toVnd = (value) =>
+  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
+    value ?? 0
+  );
+
+// Chuẩn hoá item để FE dùng đồng nhất
 const normalizeItem = (i) => ({
   id: i.id,
   name: i.name,
   description: i.description,
   price: i.price,
-  formatedPrice: new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-  }).format(i.price ?? 0),
+  formatedPrice: toVnd(i.price),
   url: i.pictureFileName ? buildPicUrl(i.id) : undefined,
   raw: i,
 });
 
-// 🔹 Lấy CatalogTypes kèm ảnh (1 call, fail thì ném lỗi luôn)
+/** Lấy danh sách CatalogTypes (categories) */
 async function fetchCatalogTypes() {
-  const { data } = await catalogHttp.get("/catalogtypes-with-pics");
-  return (data || []).map((t) => ({
-    id: t.id,
-    name: t.type,
-    pictureUri: t.pictureUri || "/images/category-placeholder.png",
-  }));
+  const res = await catalogHttp.get("/catalogtypes");
+  return res.data;
 }
 
 async function createCatalogType(payload) {
@@ -59,7 +61,7 @@ async function fetchRestaurants() {
   return data;
 }
 
-// 🔹 Danh sách items
+/** Lấy danh sách items (có phân trang + filter) */
 async function fetchCatalog({
   pageIndex = 0,
   pageSize = 12,
@@ -72,7 +74,10 @@ async function fetchCatalog({
   if (restaurantId) params.restaurantId = restaurantId;
   if (onlyAvailable) params.onlyAvailable = true;
 
-  const { data } = await catalogHttp.get("/items", { params });
+  const url = `${BASE}/api/catalog/items`;
+  const { data } = await catalogHttp.get(url, { params });
+
+  // BE trả kiểu { pageIndex, pageSize, count/totalItems, data/items }
   const items = data?.data ?? data?.items ?? data?.results ?? [];
   const total = data?.count ?? data?.totalItems ?? items.length;
 
@@ -84,7 +89,7 @@ async function fetchCatalog({
   };
 }
 
-// 🔹 Tìm theo tên
+/** Tìm theo tên (có phân trang + filter) */
 async function searchCatalogByName({
   name,
   pageIndex = 0,
@@ -96,10 +101,9 @@ async function searchCatalogByName({
   if (typeof typeId === "number") params.typeId = typeId;
   if (restaurantId) params.restaurantId = restaurantId;
 
-  const { data } = await catalogHttp.get(
-    `/items/by/${encodeURIComponent(name)}`,
-    { params }
-  );
+  const url = `${BASE}/api/catalog/items/by/${encodeURIComponent(name)}`;
+  const { data } = await catalogHttp.get(url, { params });
+
   const items = data?.data ?? data?.items ?? data ?? [];
   const total = data?.count ?? data?.totalItems ?? items.length;
 
@@ -111,9 +115,10 @@ async function searchCatalogByName({
   };
 }
 
-// 🔹 Chi tiết item
+/** Lấy chi tiết 1 item */
 async function fetchCatalogItemById(id) {
-  const { data } = await catalogHttp.get(`/items/${id}`);
+  const url = `${BASE}/api/catalog/items/${id}`;
+  const { data } = await catalog.get(url);
   return normalizeItem(data);
 }
 
@@ -124,20 +129,15 @@ async function fetchCatalogItemById(id) {
 */
 
 async function createCatalogItem(productPayload) {
-  const url = `${BASE}/api/catalog/items`;
-  await catalogHttp.post(url, productPayload);
+  await catalogHttp.post("/items", productPayload);
 }
 
-/** Cập nhật CatalogItem (v1: PUT /items, id nằm trong body) */
 async function updateCatalogItem(productPayload) {
-  const url = `${BASE}/api/catalog/items`;
-  await catalogHttp.put(url, productPayload);
+  await catalogHttp.put("/items", productPayload);
 }
 
-/** Xoá CatalogItem: DELETE /items/{id} */
 async function deleteCatalogItem(id) {
-  const url = `${BASE}/api/catalog/items/${id}`;
-  await catalogHttp.delete(url);
+  await catalogHttp.delete(`/items/${id}`);
 }
 
 /* ===== Default export để giữ tương thích với code cũ (import catalog from ...) =====
@@ -152,7 +152,6 @@ const catalog = {
   fetchCatalog,
   searchCatalogByName,
   fetchCatalogItemById,
-  // alias cũ
   createCatalogItem,
   updateCatalogItem,
   deleteCatalogItem,
@@ -167,6 +166,8 @@ const catalog = {
 };
 
 export default catalog;
+
+// Đồng thời export named để dùng cú pháp { fetchCatalog, ... } nếu cần
 export {
   fetchCatalogTypes,
   fetchRestaurants,

@@ -132,6 +132,7 @@ app.MapGet("/api/kong-check", async (IHttpClientFactory f) =>
     return Results.Content(body, "application/json");
 });
 
+// BFF thông qua Kong để gọi Catalog.API
 app.MapGet("/api/catalog/items", async (IHttpClientFactory f) =>
 {
     var http = f.CreateClient("kong");

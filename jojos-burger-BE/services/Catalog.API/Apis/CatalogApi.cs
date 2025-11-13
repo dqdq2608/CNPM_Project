@@ -46,7 +46,6 @@ public static class CatalogApi
                 .OrderBy(x => x.Type)
                 .ToListAsync());
 
-<<<<<<< HEAD
         // Ảnh theo typeId
         api.MapGet("/catalogtypes/{id:int}/pic", async (int id, IWebHostEnvironment env) =>
         {
@@ -83,13 +82,11 @@ public static class CatalogApi
             return Results.Ok(types);
         });
 
-=======
         // Tạo mới CatalogType
         api.MapPost("/catalogtypes", CreateCatalogType);
         api.MapPut("/catalogtypes", UpdateCatalogTypeV1);
         api.MapDelete("/catalogtypes/{id:int}", DeleteCatalogType);
         
->>>>>>> dqdq
         // Trả DTO phẳng để tránh serialize NetTopologySuite Point
         api.MapGet("/restaurants", async (CatalogContext context) =>
             await context.Restaurants
