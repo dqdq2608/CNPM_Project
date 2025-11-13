@@ -9,7 +9,7 @@ const http = axios.create({
 
 // 👇 Thêm instance riêng cho Catalog
 export const catalogHttp = axios.create({
-  baseURL: process.env.REACT_APP_CATALOG_API_BASE + "/api/catalog",
+  baseURL: process.env.REACT_APP_CATALOG_API_BASE,
   withCredentials: false, // KHÔNG gửi cookie để tránh CORS lỗi
 });
 

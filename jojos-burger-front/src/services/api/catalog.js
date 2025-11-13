@@ -1,58 +1,33 @@
-// src/services/api/catalog.js
 import { catalogHttp } from "../http";
 
-const BASE = process.env.REACT_APP_CATALOG_API_BASE || "http://localhost:7002";
+// build URL ảnh item
+const buildPicUrl = (id) => `${catalogHttp.defaults.baseURL}/items/${id}/pic`;
 
-// build ảnh từ endpoint BE
-const buildPicUrl = (id) => `${BASE}/api/catalog/items/${id}/pic`;
-
-// format tiền VND
-const toVnd = (value) =>
-  new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(
-    value ?? 0
-  );
-
-// Chuẩn hoá item để FE dùng đồng nhất
+// Chuẩn hoá item
 const normalizeItem = (i) => ({
   id: i.id,
   name: i.name,
   description: i.description,
   price: i.price,
-  formatedPrice: toVnd(i.price),
+  formatedPrice: new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+  }).format(i.price ?? 0),
   url: i.pictureFileName ? buildPicUrl(i.id) : undefined,
   raw: i,
 });
 
-/** Lấy danh sách CatalogTypes (categories) */
+// 🔹 Lấy CatalogTypes kèm ảnh (1 call, fail thì ném lỗi luôn)
 async function fetchCatalogTypes() {
-  // Ưu tiên endpoint có ảnh
-  try {
-    const { data } = await catalogHttp.get("/catalogtypes-with-pics", {
-      withCredentials: false,
-    });
-    // -> [{ id, type, pictureUri }]
-    return (data || []).map((t) => ({
-      id: t.id,
-      name: t.type,
-      pictureUri: t.pictureUri || "/images/category-placeholder.png",
-    }));
-  } catch (e) {
-    // Fallback sang /catalogtypes
-    if (e?.response?.status !== 404) {
-      console.warn("[fetchCatalogTypes] with-pics failed, fallback:", e);
-    }
-    const { data } = await catalogHttp.get("/catalogtypes", {
-      withCredentials: false,
-    });
-    return (data || []).map((t) => ({
-      id: t.id,
-      name: t.type,
-      pictureUri: "/images/category-placeholder.png",
-    }));
-  }
+  const { data } = await catalogHttp.get("/catalogtypes-with-pics");
+  return (data || []).map((t) => ({
+    id: t.id,
+    name: t.type,
+    pictureUri: t.pictureUri || "/images/category-placeholder.png",
+  }));
 }
 
-/** Lấy danh sách items (có phân trang + filter) */
+// 🔹 Danh sách items
 async function fetchCatalog({
   pageIndex = 0,
   pageSize = 12,
@@ -65,10 +40,7 @@ async function fetchCatalog({
   if (restaurantId) params.restaurantId = restaurantId;
   if (onlyAvailable) params.onlyAvailable = true;
 
-  const url = `${BASE}/api/catalog/items`;
-  const { data } = await catalogHttp.get(url, { params });
-
-  // BE trả kiểu { pageIndex, pageSize, count/totalItems, data/items }
+  const { data } = await catalogHttp.get("/items", { params });
   const items = data?.data ?? data?.items ?? data?.results ?? [];
   const total = data?.count ?? data?.totalItems ?? items.length;
 
@@ -80,7 +52,7 @@ async function fetchCatalog({
   };
 }
 
-/** Tìm theo tên (có phân trang + filter) */
+// 🔹 Tìm theo tên
 async function searchCatalogByName({
   name,
   pageIndex = 0,
@@ -92,9 +64,10 @@ async function searchCatalogByName({
   if (typeof typeId === "number") params.typeId = typeId;
   if (restaurantId) params.restaurantId = restaurantId;
 
-  const url = `${BASE}/api/catalog/items/by/${encodeURIComponent(name)}`;
-  const { data } = await catalogHttp.get(url, { params });
-
+  const { data } = await catalogHttp.get(
+    `/items/by/${encodeURIComponent(name)}`,
+    { params }
+  );
   const items = data?.data ?? data?.items ?? data ?? [];
   const total = data?.count ?? data?.totalItems ?? items.length;
 
@@ -106,33 +79,24 @@ async function searchCatalogByName({
   };
 }
 
-/** Lấy chi tiết 1 item */
+// 🔹 Chi tiết item
 async function fetchCatalogItemById(id) {
-  const url = `${BASE}/api/catalog/items/${id}`;
-  const { data } = await catalog.get(url);
+  const { data } = await catalogHttp.get(`/items/${id}`);
   return normalizeItem(data);
 }
 
-/* ===== Default export để giữ tương thích với code cũ (import catalog from ...) =====
-   - getCategories: alias của fetchCatalogTypes
-   - getProducts: alias của fetchCatalog
-   - getProductById: alias của fetchCatalogItemById
-*/
 const catalog = {
   fetchCatalogTypes,
   fetchCatalog,
   searchCatalogByName,
   fetchCatalogItemById,
-
-  // Aliases cho code cũ
+  // alias cũ
   getCategories: fetchCatalogTypes,
   getProducts: fetchCatalog,
   getProductById: fetchCatalogItemById,
 };
 
 export default catalog;
-
-// Đồng thời export named để dùng cú pháp { fetchCatalog, ... } nếu cần
 export {
   fetchCatalogTypes,
   fetchCatalog,
