@@ -9,47 +9,29 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import * as React from "react";
 import { useEffect, useState } from "react";
-import { useHistory } from "react-router-dom/";
 import { toast } from "react-toastify";
 
-import paths from "../../../constants/paths";
-import api from "../../../services/api";
-import formatCurrency from "../../../utils/formatCurrency";
-import { DeleteIcon } from "../ListCategories/styles";
-import { Container, Img, EditIconImg } from "./styles";
+// API lấy sản phẩm từ Catalog
+import { fetchCatalog } from "../../../services/api/catalog";
+
+import { Container, Img } from "./styles";
 
 export function ListProducts() {
-  const { push } = useHistory();
-  const [products, setProducts] = useState();
+  const [products, setProducts] = useState([]);
+
   useEffect(() => {
     async function loadProducts() {
       try {
-        // const { data } = await api.get("products");
-        // setProducts(data);
-
-        const mockProducts = [
-          {
-            id: 1,
-            name: "Mock Burger",
-            price: 45000,
-            offer: true,
-            url: "https://via.placeholder.com/100x80.png?text=Burger",
-          },
-          {
-            id: 2,
-            name: "Mock Fries",
-            price: 25000,
-            offer: false,
-            url: "https://via.placeholder.com/100x80.png?text=Fries",
-          },
-        ];
-        setProducts(mockProducts);
-        toast.info("⚠️ Hiển thị dữ liệu giả (mock products)", {
-          autoClose: 1200,
-          theme: "dark",
+        const { items } = await fetchCatalog({
+          pageIndex: 0,
+          pageSize: 50,
+          onlyAvailable: true,
         });
+
+        setProducts(items);
       } catch (err) {
         console.error(err);
+        toast.error("Không tải được danh sách sản phẩm.");
       }
     }
     loadProducts();
@@ -62,34 +44,19 @@ export function ListProducts() {
     return <CancelIcon style={{ color: "#CC1717" }} />;
   }
 
-  function editProduct(product) {
-    push(paths.EditProduct, { product });
-  }
-  const deleteProduct = async (productId) => {
-    // await toast.promise(api.delete(`products/${productId}`), {
-    //   pending: "Deleting Product...",
-    //   success: "Product was successfully deleted.",
-    //   error: "Error while deleting Product, try again later...",
-    // });
-    toast.success("Product was successfully deleted (mock).", {
-      position: "top-center",
-      autoClose: 1000,
-    });
-    setProducts(products.filter((prd) => prd.id !== productId));
-  };
   return (
     <Container>
       <TableContainer component={Paper}>
-        <Table sx={{ minWidth: 650 }} aria-label="simple table">
+        <Table sx={{ minWidth: 650 }} aria-label="products table">
           <TableHead>
             <TableRow>
               <TableCell>Product</TableCell>
               <TableCell>Price</TableCell>
               <TableCell align="center">Offer</TableCell>
               <TableCell align="center">Image</TableCell>
-              <TableCell>Edit/Delete</TableCell>
             </TableRow>
           </TableHead>
+
           <TableBody>
             {products &&
               products.map((product) => (
@@ -100,14 +67,19 @@ export function ListProducts() {
                   <TableCell component="th" scope="row">
                     {product.name}
                   </TableCell>
-                  <TableCell>{formatCurrency(product.price)}</TableCell>
-                  <TableCell align="center">{isOffer(product.offer)}</TableCell>
+
+                  <TableCell>{product.formatedPrice}</TableCell>
+
                   <TableCell align="center">
-                    <Img src={product.url} alt="product-image" />
+                    {isOffer(product?.raw?.available ?? true)}
                   </TableCell>
-                  <TableCell>
-                    <EditIconImg onClick={() => editProduct(product)} />
-                    <DeleteIcon onClick={() => deleteProduct(product.id)} />
+
+                  <TableCell align="center">
+                    {product.url ? (
+                      <Img src={product.url} alt="product" />
+                    ) : (
+                      "-"
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
