@@ -1,12 +1,20 @@
-👉 Copy .env.example thành .env rồi chỉnh password trước khi chạy.
-Chạy Login: 
-1. "dotnet run /seed" IdentityServerLogic trước để seed data
-2. "dotnet run" IdentityServerBFF
-3. "dotnet run" IdentityServerLogic
-4. "npm run start" FE (test user: email=123@gmail.com, password=123456)
-
-Lấy certs:
-mkdir certs -Force
-mkcert -key-file certs/localhost-key.pem -cert-file certs/localhost.pem "localhost" 127.0.0.1 ::1
-
-Check api: http://localhost:7002/swagger/index.html
+🧁 JoJo’s Burger — Microservices System
+Hệ thống đặt hàng & quản lý thực đơn cho JoJo’s Burger, được xây dựng theo kiến trúc microservices, bao gồm:
+IdentityServer (Đăng nhập / Token / User Claims)
+BFF Gateway (API Gateway cho frontend + session/csrf + forward claims)
+Kong Gateway (API Gateway nội bộ / routing / rate-limit / cors)
+Catalog.API (Quản lý sản phẩm + hình ảnh + PostgreSQL)
+Basket.API (Giỏ hàng của user, sử dụng Redis)
+Webhook Services
+Frontend React (User App)
+📦 1. Giới thiệu hệ thống
+Hệ thống JoJo’s Burger là một nền tảng bán đồ ăn nhanh mô phỏng doanh nghiệp thực, hỗ trợ:
+✔ Đăng nhập / đăng ký
+✔ Lấy danh sách sản phẩm theo loại
+✔ Hiển thị hình ảnh món ăn thông qua Kong
+✔ Giỏ hàng lưu theo user (Redis)
+✔ Tích hợp OAuth2 / OpenID Connect
+✔ API Gateway nội bộ (Kong) + API Gateway cho FE (BFF)
+✔ Hỗ trợ Webhook event
+✔ Hỗ trợ Docker-compose để chạy toàn hệ thống
+Toàn bộ hệ thống được tách thành 7 service độc lập, giao tiếp qua HTTP.
