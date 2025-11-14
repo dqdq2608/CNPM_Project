@@ -47,6 +47,15 @@ services:
           credentials: false # FE đang withCredentials:false
           max_age: 3600
 
+  - name: basket-api
+    url: http://basket-api:8080
+    routes:
+      - name: basket-route
+        paths:
+          - /basket-api
+        strip_path: true
+        methods: ["GET", "POST", "DELETE", "OPTIONS"]
+
   - name: webhook-receiver
     url: http://webhook-receiver:6105
     routes:
