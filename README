@@ -128,8 +128,8 @@ Sơ đồ kiến trúc tổng thể
      ┌─────────────────────┬────────────────────┼──────────────────────┬────────────────────────┐
      ▼                     ▼                    ▼                      ▼                        ▼
 ┌─────────────┐     ┌──────────────┐     ┌──────────────┐      ┌──────────────┐         ┌──────────────┐
-│ Catalog.API │     │ Basket.API    │     │ Order.API     │      │ Payment.API   │         │ IdentityServer │
-│ PostgreSQL  │     │ Redis         │     │ PostgreSQL     │      │ Mock Provider │         │ Auth + Token   │
+│ Catalog.API │     │ Basket.API   │     │ Order.API    │      │ Payment.API  │         │IdentityServer│
+│ PostgreSQL  │     │ Redis        │     │ PostgreSQL   │      │ Mock Provider│         │Auth + Token  │
 └─────────────┘     └──────────────┘     └──────────────┘      └──────────────┘         └──────────────┘
 
 
