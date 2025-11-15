@@ -56,24 +56,27 @@ services:
         strip_path: true
         methods: ["GET", "POST", "DELETE", "OPTIONS"]
 
-  - name: webhook-receiver
-    url: http://webhook-receiver:6105
+  - name: payment-service
+    host: paymentprocessor
+    port: 5226
+    protocol: http
     routes:
-      - name: eshop-webhook-in
-        paths: ["/webhooks/eshop"]
-        strip_path: false
-        methods: ["OPTIONS", "POST"]
-        tags: ["webhook", "eshop", "inbound"]
-    plugins:
-      - name: request-size-limiting
-        config: { allowed_payload_size: 2 }
-      - name: correlation-id
-        config:
-          {
-            header_name: "x-correlation-id",
-            generator: "uuid",
-            echo_downstream: true,
-          }
+      - name: payment-create
+        paths:
+          - /api/payments
+        methods: [ POST ]
+
+  - name: payment-webhook-service
+    host: webhookreceiver
+    port: 5022
+    protocol: http
+    path: /webhooks
+    routes:
+      - name: payos-webhook
+        paths:
+          - /api/payment/webhooks
+        methods: [ POST ]
+        strip_path: true
 
 # Consumer đại diện cho BFF khi gọi nội bộ
 consumers:
