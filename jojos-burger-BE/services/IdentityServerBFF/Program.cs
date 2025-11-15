@@ -10,13 +10,14 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
 using System.Net.Security;
 
+using IdentityServerBFF.Application.Identity;
+using IdentityServerBFF.Infrastructure.Identity;
+
 using IdentityServerBFF;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// -----------------------------
 // BFF & cấu hình chung
-// -----------------------------
 builder.Services.AddBff(o =>
     {
         // tắt cơ chế tự revoke refresh token khi sign-out
@@ -24,6 +25,9 @@ builder.Services.AddBff(o =>
     })
     .AddServerSideSessions()
     .AddRemoteApis();
+
+// DI cho Interface IBffBackchannelToIds
+builder.Services.AddHttpClient<IBffBackchannelToIds, BffBackchannelToIds>();
 
 // Bind config BFF (Authority, ClientId, ...)
 var bffConfig = new Configuration();
@@ -136,7 +140,7 @@ app.UseAuthentication();
 app.UseBff();
 app.UseAuthorization();
 
-app.MapBffPublicApi();
+app.MapBffAuthApi();
 app.MapBffManagementEndpoints();
 
 app.MapGet("/debug/user", (ClaimsPrincipal user) =>

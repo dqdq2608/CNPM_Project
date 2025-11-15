@@ -1,4 +1,3 @@
-// src/containers/Login/index.js
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -9,6 +8,7 @@ import { toast, Bounce } from "react-toastify";
 import bgHome from "../../assets/bg-home.jpg";
 import LoginImg from "../../assets/login-body.svg";
 import { Button, ErrorMessage } from "../../components";
+
 import {
   LoginImage,
   Container,
@@ -21,30 +21,27 @@ import {
   SignInLink,
 } from "./styles";
 
-// ❗ Dùng UserContext thay vì gọi trực tiếp bffLogin/bffGetUser
 import { useUser } from "../../hooks/UserContext";
-
-// ✅ Nếu bạn đã có constants/paths, dùng để nhận biết các route admin
 import paths from "../../constants/paths";
 
-function pickClaims(me) {
-  if (Array.isArray(me?.raw))
-    return me.raw.map((c) => ({ type: c.type, value: c.value }));
-  if (Array.isArray(me?.claims))
-    return me.claims.map((c) => ({ type: c.type, value: c.value }));
-  return [];
+/* =================== HELPERS ====================== */
+
+// Trích claim từ BFF
+function extractClaims(dto) {
+  if (!dto?.raw) return {};
+  return Object.fromEntries(dto.raw.map((c) => [c.type, c.value]));
 }
 
-function hasAdminRole(me) {
-  const claims = pickClaims(me);
-  return claims.some(
-    (c) => c.type === "role" && String(c.value).toLowerCase() === "admin",
-  );
+// Kiểm tra role admin
+function isAdminUser(dto) {
+  const claims = extractClaims(dto);
+  const role = claims.role?.toLowerCase?.();
+  return role === "restaurantadmin" || role === "admin";
 }
 
-function buildAdminPathList() {
-  // Tập các đường dẫn admin khả dụng—lọc cái nào thật sự có giá trị string
-  const candidates = [
+// Xác định URL admin trong hệ thống
+function getAdminPaths() {
+  return [
     paths?.Order,
     paths?.Products,
     paths?.NewProduct,
@@ -52,26 +49,28 @@ function buildAdminPathList() {
     paths?.NewCategory,
     paths?.EditCategory,
     paths?.Categories,
-    "/admin", // fallback nếu dự án có route /admin
-  ];
-  return candidates.filter((p) => typeof p === "string" && p.length > 0);
+    "/admin",
+  ].filter((x) => typeof x === "string" && x.length > 0);
 }
 
+// Kiểm tra URL có phải admin route không
 function isAdminUrl(url) {
-  if (typeof url !== "string") return false;
-  const admins = buildAdminPathList();
-  return admins.some((p) => url === p || url.startsWith(p + "/"));
+  if (!url) return false;
+  const adminRoutes = getAdminPaths();
+  return adminRoutes.some((p) => url === p || url.startsWith(p + "/"));
 }
+
+/* =================== LOGIN COMPONENT ====================== */
 
 export function Login() {
   const history = useHistory();
   const location = useLocation();
-  const { login } = useUser(); // <— lấy hàm login từ context
+  const { login } = useUser(); // ← FE chỉ gọi hàm login của context
 
   const params = new URLSearchParams(location.search);
   const rawReturnUrl = params.get("returnUrl") || "/";
 
-  // Chỉ cho phép điều hướng nội bộ, tránh //host
+  // Chỉ redirect nội bộ, chặn open redirect
   const safeReturnUrl =
     rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//")
       ? rawReturnUrl
@@ -79,6 +78,7 @@ export function Login() {
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Validate form
   const schema = Yup.object().shape({
     email: Yup.string()
       .email("Please enter a valid e-mail.")
@@ -92,50 +92,50 @@ export function Login() {
     formState: { errors },
   } = useForm({ resolver: yupResolver(schema) });
 
+  /* =================== HANDLE LOGIN ====================== */
+
   const onSubmit = async ({ email, password }) => {
     try {
       setSubmitting(true);
 
-      // ❗ Gọi login của context – hàm này đã ensure CSRF, gọi BFF, và setUser()
-      const me = await login(email, password);
+      // ❗ Gọi login của UserContext – context sẽ dùng bffPublicApi.login()
+      const dto = await login(email, password);
 
-      if (me) {
-        const isAdmin = hasAdminRole(me);
-
-        // Đích mặc định cho admin: ưu tiên paths.Products, nếu không có dùng "/admin"
-        const defaultAdminPath = "/admin";
-
-        let target = safeReturnUrl;
-
-        if (isAdmin) {
-          // Nếu returnUrl không phải admin, chuyển sang admin default
-          if (!isAdminUrl(safeReturnUrl)) {
-            target = defaultAdminPath;
-          }
-        } else {
-          // User thường mà returnUrl lại là admin => đưa về "/"
-          if (isAdminUrl(safeReturnUrl)) {
-            target = "/";
-          }
-        }
-
-        toast.success("Login successful!", {
+      if (!dto) {
+        toast.error("Login succeeded but cannot fetch session.", {
           position: "top-center",
-          autoClose: 600,
+          autoClose: 1500,
           theme: "dark",
           transition: Bounce,
         });
-
-        history.replace(target);
         return;
       }
 
-      toast.error("Đăng nhập xong nhưng không đọc được phiên.", {
+      const admin = isAdminUser(dto);
+      const adminFallback = "/admin";
+
+      let target = safeReturnUrl;
+
+      if (admin) {
+        // Nếu user là admin nhưng returnUrl không nằm trong admin route → ép qua admin
+        if (!isAdminUrl(safeReturnUrl)) {
+          target = adminFallback;
+        }
+      } else {
+        // User thường nhưng returnUrl lại là admin → chuyển về "/"
+        if (isAdminUrl(safeReturnUrl)) {
+          target = "/";
+        }
+      }
+
+      toast.success("Login successful!", {
         position: "top-center",
-        autoClose: 1500,
+        autoClose: 600,
         theme: "dark",
         transition: Bounce,
       });
+
+      history.replace(target);
     } catch (e) {
       console.error("Login error:", e);
       toast.error("Cannot connect or wrong credentials.", {
@@ -149,9 +149,12 @@ export function Login() {
     }
   };
 
+  /* =================== UI RENDER ====================== */
+
   return (
     <Container>
       <LoginImage src={LoginImg} alt="login" />
+
       <ContainerItems
         style={{
           backgroundImage: `url(${bgHome})`,

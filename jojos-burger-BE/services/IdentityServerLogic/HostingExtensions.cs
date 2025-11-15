@@ -1,15 +1,12 @@
 using System.Globalization;
 using Duende.IdentityServer;
-using IdentityServerLogic;
-using IdentityServerLogic.Pages.Admin.ApiScopes;
-using IdentityServerLogic.Pages.Admin.Clients;
-using IdentityServerLogic.Pages.Admin.IdentityScopes;
+using IdentityServerLogic.Identity;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Filters;
-using Microsoft.AspNetCore.Identity;
 
 namespace IdentityServerLogic;
 
@@ -24,26 +21,33 @@ internal static class HostingExtensions
                 consoleLogger.WriteTo.Console(
                     outputTemplate: "[{Timestamp:HH:mm:ss} {Level}] {SourceContext}{NewLine}{Message:lj}{NewLine}{Exception}{NewLine}",
                     formatProvider: CultureInfo.InvariantCulture);
+
                 if (builder.Environment.IsDevelopment())
                 {
-                    consoleLogger.Filter.ByExcluding(Matching.FromSource("Duende.IdentityServer.Diagnostics.Summary"));
+                    consoleLogger.Filter.ByExcluding(
+                        Matching.FromSource("Duende.IdentityServer.Diagnostics.Summary"));
                 }
             });
+
             if (builder.Environment.IsDevelopment())
             {
                 lc.WriteTo.Logger(fileLogger =>
                 {
                     fileLogger
-                        .WriteTo.File("./diagnostics/diagnostic.log", rollingInterval: RollingInterval.Day,
+                        .WriteTo.File("./diagnostics/diagnostic.log",
+                            rollingInterval: RollingInterval.Day,
                             fileSizeLimitBytes: 1024 * 1024 * 10,
                             rollOnFileSizeLimit: true,
                             outputTemplate: "[{Timestamp:HH:mm:ss} {Level}] {SourceContext}{NewLine}{Message:lj}{NewLine}{Exception}{NewLine}",
                             formatProvider: CultureInfo.InvariantCulture)
-                        .Filter
-                        .ByIncludingOnly(Matching.FromSource("Duende.IdentityServer.Diagnostics.Summary"));
-                }).Enrich.FromLogContext().ReadFrom.Configuration(ctx.Configuration);
+                        .Filter.ByIncludingOnly(
+                            Matching.FromSource("Duende.IdentityServer.Diagnostics.Summary"));
+                })
+                .Enrich.FromLogContext()
+                .ReadFrom.Configuration(ctx.Configuration);
             }
         });
+
         return builder;
     }
 
@@ -51,14 +55,13 @@ internal static class HostingExtensions
     {
         builder.Services.AddRazorPages();
 
-        // ✅ Dùng key "Default" để khớp với env Docker: ConnectionStrings__Default
-        var connectionString = builder.Configuration.GetConnectionString("Default");
+        // Dùng key "Default" để khớp với env Docker: ConnectionStrings__Default
+        var connectionString = builder.Configuration.GetConnectionString("Default")
+            ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured");
 
-        // =========================
-        //  ASP.NET Identity (USER STORE)
-        // =========================
+        // ASP.NET Identity (USER STORE)
         builder.Services.AddDbContext<ApplicationDbContext>(o =>
-            o.UseSqlite(connectionString)); // nếu dùng SQL Server: o.UseSqlServer(connectionString)
+            o.UseSqlite(connectionString));
 
         builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -73,8 +76,8 @@ internal static class HostingExtensions
             options.Password.RequireNonAlphanumeric = false;
         });
 
-        // IdentityServer + EF stores
-        var isBuilder = builder.Services
+        // IdentityServer + EF stores + Custom Profile
+        builder.Services
             .AddIdentityServer(options =>
             {
                 options.Events.RaiseErrorEvents = true;
@@ -87,56 +90,21 @@ internal static class HostingExtensions
                     options.Diagnostics.ChunkSize = 1024 * 1024 * 10;
                 }
             })
-            .AddAspNetIdentity<ApplicationUser>() // validate username/password từ DB
-
-            // config data từ DB (clients, resources, cors)
+            .AddAspNetIdentity<ApplicationUser>() // dùng user/role từ DB
             .AddConfigurationStore(options =>
             {
                 options.ConfigureDbContext = b =>
-                    b.UseSqlite(connectionString, dbOpts => dbOpts.MigrationsAssembly(typeof(Program).Assembly.FullName));
+                    b.UseSqlite(connectionString,
+                        dbOpts => dbOpts.MigrationsAssembly(typeof(Program).Assembly.FullName));
             })
-            // operational data (codes, tokens, consents)
             .AddOperationalStore(options =>
             {
                 options.ConfigureDbContext = b =>
-                    b.UseSqlite(connectionString, dbOpts => dbOpts.MigrationsAssembly(typeof(Program).Assembly.FullName));
+                    b.UseSqlite(connectionString,
+                        dbOpts => dbOpts.MigrationsAssembly(typeof(Program).Assembly.FullName));
             })
-            .AddLicenseSummary();
+            .AddProfileService<CustomProfileService>(); // đẩy user_type/restaurant vào token
 
-        // (giữ OIDC external demo nếu bạn muốn)
-        builder.Services.AddAuthentication()
-            .AddOpenIdConnect("oidc", "Sign-in with demo.duendesoftware.com", options =>
-            {
-                options.SignInScheme = IdentityServerConstants.ExternalCookieAuthenticationScheme;
-                options.SignOutScheme = IdentityServerConstants.SignoutScheme;
-                options.SaveTokens = true;
-
-                options.Authority = "https://demo.duendesoftware.com";
-                options.ClientId = "interactive.confidential";
-                options.ClientSecret = "secret";
-                options.ResponseType = "code";
-
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    NameClaimType = "name",
-                    RoleClaimType = "role"
-                };
-            });
-
-        // simple admin/config pages
-        {
-            builder.Services.AddAuthorization(options =>
-                options.AddPolicy("admin", policy => policy.RequireClaim("sub", "1"))
-            );
-
-            builder.Services.Configure<RazorPagesOptions>(options =>
-                options.Conventions.AuthorizeFolder("/Admin", "admin"));
-
-            builder.Services.AddTransient<IdentityServerLogic.Pages.Portal.ClientRepository>();
-            builder.Services.AddTransient<ClientRepository>();
-            builder.Services.AddTransient<IdentityScopeRepository>();
-            builder.Services.AddTransient<ApiScopeRepository>();
-        }
 
         return builder.Build();
     }
@@ -152,10 +120,14 @@ internal static class HostingExtensions
 
         app.UseStaticFiles();
         app.UseRouting();
+
+        // Auth + IdentityServer
+        app.UseAuthentication();
         app.UseIdentityServer();
         app.UseAuthorization();
 
-        app.MapRazorPages().RequireAuthorization();
+        app.MapRazorPages();
+
         return app;
     }
 }
