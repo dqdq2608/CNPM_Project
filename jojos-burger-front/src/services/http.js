@@ -10,11 +10,9 @@ const http = axios.create({
 });
 
 // HTTP riêng cho Catalog service (hình ảnh, catalogtypes,...)
-// Ưu tiên REACT_APP_CATALOG_API_BASE, nếu không có thì fallback về /api/catalog
 export const catalogHttp = axios.create({
-  baseURL:
-    process.env.REACT_APP_CATALOG_API_BASE || API_BASE + "/api/catalog",
-  withCredentials: false, // thường không cần cookie cho public catalog
+  baseURL: API_BASE + "/api/catalog",
+  withCredentials: true, // BFF yêu cầu auth -> cần cookie
 });
 
 export default http;

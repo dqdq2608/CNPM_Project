@@ -12,6 +12,8 @@ using System.Net.Security;
 
 using IdentityServerBFF.Application.Identity;
 using IdentityServerBFF.Infrastructure.Identity;
+using IdentityServerBFF.Application.Services;
+using IdentityServerBFF.Infrastructure.Services;
 
 using IdentityServerBFF;
 
@@ -107,6 +109,18 @@ builder.Services.AddHttpClient("kong", c =>
     ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
 
+// Đăng kí ICatalogBffApi
+builder.Services.AddHttpClient<ICatalogBffApi, CatalogBffApi>(c =>
+{
+    c.BaseAddress = new Uri(kongUrl);
+    c.DefaultRequestHeaders.Add("apikey", kongApiKey);
+    c.Timeout = TimeSpan.FromSeconds(5);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+});
+
 // HttpClient để gọi Basket
 builder.Services.AddHttpClient("basket", (sp, c) =>
 {
@@ -142,6 +156,7 @@ app.UseAuthorization();
 
 app.MapBffAuthApi();
 app.MapBffManagementEndpoints();
+app.MapBffPublicApi();
 
 app.MapGet("/debug/user", (ClaimsPrincipal user) =>
 {
@@ -173,16 +188,6 @@ app.MapGet("/api/kong-check", async (IHttpClientFactory f) =>
     var body = await res.Content.ReadAsStringAsync();
     return Results.Content(body, "application/json");
 });
-
-// BFF thông qua Kong để gọi Catalog.API
-app.MapGet("/api/catalog/items", async (IHttpClientFactory f) =>
-{
-    var http = f.CreateClient("kong");
-    var res = await http.GetAsync("/catalog/api/catalog/items");
-    var json = await res.Content.ReadAsStringAsync();
-    return Results.Content(json, "application/json");
-});
-
 
 // GET /bff-api/basket
 app.MapGet("/bff-api/basket", async (HttpContext ctx, IHttpClientFactory f) =>
