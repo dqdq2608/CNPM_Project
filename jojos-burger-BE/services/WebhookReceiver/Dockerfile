@@ -18,7 +18,7 @@ COPY ["services/EventBus/EventBus.csproj", "services/EventBus/"]
 COPY ["services/EventBusRabbitMQ/EventBusRabbitMQ.csproj", "services/EventBusRabbitMQ/"]
 COPY ["services/eShop.ServiceDefaults/eShop.ServiceDefaults.csproj", "services/eShop.ServiceDefaults/"]
 COPY ["services/PaymentProcessor/PaymentProcessor.csproj", "services/PaymentProcessor/"]
-# COPY ["services/Payment.Providers/Payment.Providers.csproj", "services/Payment.Providers/"]
+COPY ["services/Payment.IntergrationEvents/Payment.IntegrationEvents.csproj", "services/Payment.IntergrationEvents/"]
 
 RUN dotnet restore "services/WebhookReceiver/WebhookReceiver.csproj"
 

@@ -2,7 +2,7 @@
 using eShop.EventBus.Abstractions;
 using eShop.EventBus.Events;
 using Microsoft.Extensions.Logging;
-using eShop.PaymentProcessor.IntegrationEvents.Events;   // 👈 THÊM DÒNG NÀY
+using Payment.IntegrationEvents.Events;
 
 namespace eShop.PaymentProcessor.IntegrationEvents.EventHandling;
 public class OrderStatusChangedToStockConfirmedIntegrationEventHandler(

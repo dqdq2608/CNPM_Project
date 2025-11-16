@@ -82,6 +82,17 @@ services:
       - ids
     networks: [appnet]
 
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # UI: http://localhost:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks: [appnet]
+
   paymentprocessor:
     build:
       context: .
@@ -92,8 +103,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
     ports:
       - "5226:5226"
-    # depends_on:
-    #   - rabbitmq   # nếu bạn dùng RabbitMQ
+    depends_on:
+      - rabbitmq   # nếu bạn dùng RabbitMQ
     networks: [appnet]
 
   webhookreceiver:
@@ -106,8 +117,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
     ports:
       - "5022:5022"
-    # depends_on:
-    #   - rabbitmq
+    depends_on:
+      - rabbitmq
     networks: [appnet]
 
   catalog-db:

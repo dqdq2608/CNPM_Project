@@ -1,5 +1,5 @@
 ﻿using eShop.PaymentProcessor.IntegrationEvents.EventHandling;
-using eShop.PaymentProcessor.IntegrationEvents.Events;
+using Payment.IntegrationEvents.Events;
 using eShop.ServiceDefaults;
 using Payment.Providers.Abstractions;
 using Payment.Providers.PayOS;
@@ -11,8 +11,13 @@ builder.AddServiceDefaults();
 
 // Đăng ký EventBus + subscription cho handler thanh toán
 builder.AddRabbitMqEventBus("EventBus")
-       .AddSubscription<OrderStatusChangedToStockConfirmedIntegrationEvent,
-                        OrderStatusChangedToStockConfirmedIntegrationEventHandler>();
+       .AddSubscription<
+           OrderStatusChangedToStockConfirmedIntegrationEvent,
+           OrderStatusChangedToStockConfirmedIntegrationEventHandler>();
+
+// Handler xử lý event OrderStatusChangedToStockConfirmed
+builder.Services.AddTransient<
+    OrderStatusChangedToStockConfirmedIntegrationEventHandler>();
 
 // Cấu hình PayOS
 builder.Services.Configure<PayOsOptions>(

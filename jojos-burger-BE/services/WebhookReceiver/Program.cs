@@ -1,6 +1,6 @@
 using eShop.EventBus;
 using eShop.ServiceDefaults;
-using WebhookReceiver.Endpoints;
+using WebhookReceiver.PayOS.Endpoints;
 using WebhookReceiver.PayOS.Handlers;
 using WebhookReceiver.PayOS.Services;
 
@@ -10,7 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 // Đăng ký EventBus với RabbitMQ (y chang các service khác)
-// builder.AddRabbitMqEventBus("EventBus");
+builder.AddRabbitMqEventBus("EventBus");
 
 // Đăng ký DI cho PayOS webhook
 builder.Services.AddSingleton<PayOsSignatureVerifier>();

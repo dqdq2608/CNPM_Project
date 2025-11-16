@@ -13,20 +13,19 @@ EXPOSE 5226
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy csproj cho các project liên quan
+# COPY csproj của tất cả project được PaymentProcessor reference
 COPY ["services/PaymentProcessor/PaymentProcessor.csproj", "services/PaymentProcessor/"]
 COPY ["services/EventBus/EventBus.csproj", "services/EventBus/"]
 COPY ["services/EventBusRabbitMQ/EventBusRabbitMQ.csproj", "services/EventBusRabbitMQ/"]
 COPY ["services/eShop.ServiceDefaults/eShop.ServiceDefaults.csproj", "services/eShop.ServiceDefaults/"]
 COPY ["services/Payment.Providers/Payment.Providers.csproj", "services/Payment.Providers/"]
+COPY ["services/Payment.IntergrationEvents/Payment.IntegrationEvents.csproj", "services/Payment.IntergrationEvents/"]
 
-# Restore nuget cho PaymentProcessor (tự kéo theo mấy project còn lại)
 RUN dotnet restore "services/PaymentProcessor/PaymentProcessor.csproj"
 
-# Copy toàn bộ source
+# copy toàn bộ source sau khi đã restore xong
 COPY . .
 
-# Build (không publish) để compile
 WORKDIR "/src/services/PaymentProcessor"
 RUN dotnet publish "PaymentProcessor.csproj" -c Release -o /app/publish
 

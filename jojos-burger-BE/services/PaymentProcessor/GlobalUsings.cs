@@ -8,3 +8,4 @@ global using eShop.EventBus.Events;
 
 global using Payment.Providers.Abstractions;
 global using Payment.Providers.PayOS;
+global using Payment.IntegrationEvents.Events;
