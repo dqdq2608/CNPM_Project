@@ -1,4 +1,7 @@
 ﻿using System.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using eShop.ServiceDefaults;
+using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.AspNetCore.Hosting;
 

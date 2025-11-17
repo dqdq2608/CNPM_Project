@@ -82,32 +82,43 @@ services:
       - ids
     networks: [appnet]
 
-  webhook-receiver:
-    build:
-      context: ./services/WebhookReceiver
-      dockerfile: Dockerfile
-    container_name: webhook-receiver
-    environment:
-      ASPNETCORE_ENVIRONMENT: "Development"
-      # đặt secret nếu muốn bật HMAC verify (khớp với token khi đăng ký ở eShop)
-      Webhooks__Secret: "${WEBHOOKS_SECRET:-}"   # để trống cũng được
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
     ports:
-      - "6105:6105"        # mở ra host để bạn test; prod có thể bỏ
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:6105/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # UI: http://localhost:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     networks: [appnet]
 
-  webhook-publisher:
+  paymentprocessor:
     build:
-      context: ./services/WebhookPublisher
-    container_name: webhook-publisher
+      context: .
+      dockerfile: services/PaymentProcessor/Dockerfile
+    container_name: paymentprocessor
     environment:
-      ASPNETCORE_ENVIRONMENT: "Development"
-    ports: ["6110:6110"]
+      ASPNETCORE_URLS: http://+:5226
+      ASPNETCORE_ENVIRONMENT: Development
+    ports:
+      - "5226:5226"
+    depends_on:
+      - rabbitmq   # nếu bạn dùng RabbitMQ
+    networks: [appnet]
+
+  webhookreceiver:
+    build:
+      context: .
+      dockerfile: services/WebhookReceiver/Dockerfile
+    container_name: webhookreceiver
+    environment:
+      ASPNETCORE_URLS: http://+:5022
+      ASPNETCORE_ENVIRONMENT: Development
+    ports:
+      - "5022:5022"
+    depends_on:
+      - rabbitmq
     networks: [appnet]
 
   catalog-db:
@@ -167,6 +178,44 @@ services:
     ports:
       - "5005:8080"       # map ra host để debug swagger: http://localhost:5005
     networks: [appnet]
+  
+    # === Ordering DB (PostgreSQL internal cho Ordering) ===
+  ordering-db:
+    image: postgres:16
+    container_name: ordering-db
+    environment:
+      POSTGRES_USER: ordering
+      POSTGRES_PASSWORD: ordering_pwd
+      POSTGRES_DB: orderingdb
+    ports:
+      - "5436:5432"   # optional: để debug từ host, có thể bỏ nếu không cần
+    volumes:
+      - ordering_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ordering -d orderingdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [appnet]
+
+  # === Ordering.API (Order service từ eShop) ===
+  ordering-api:
+    build:
+      context: .
+      dockerfile: services/Ordering.API/Dockerfile
+    container_name: ordering-api
+    depends_on:
+      ordering-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      # Connection string cho OrderingContext (tùy bạn đặt tên trong appsettings)
+      ConnectionStrings__OrderingDB: "Host=ordering-db;Port=5432;Database=orderingdb;Username=ordering;Password=ordering_pwd;Include Error Detail=true"
+    ports:
+      - "7003:8080"   # ví dụ: http://localhost:7003 để mở swagger của Ordering.API
+    networks: [appnet]
 
 
 networks:
@@ -175,3 +224,4 @@ networks:
 volumes:
   ids_data:
   catalog_pgdata:
+  ordering_pgdata:

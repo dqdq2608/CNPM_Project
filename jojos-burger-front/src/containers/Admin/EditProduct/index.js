@@ -30,7 +30,6 @@ import {
   deleteCatalogItem,
 } from "../../../services/api/catalog";
 
-// dùng lại style ảnh + icon edit/delete của ListProducts
 import {
   Img,
   EditIconImg,
@@ -55,7 +54,7 @@ export default function EditProduct() {
   const [restaurants, setRestaurants] = useState([]);
   const [fileName, setFileName] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false); // popup
+  const [open, setOpen] = useState(false);
 
   const {
     register,
@@ -89,13 +88,21 @@ export default function EditProduct() {
           fetchCatalog({ pageIndex: 0, pageSize: 100, onlyAvailable: false }),
         ]);
 
+        // types: [{ id, name, pictureUri }]
         const mappedCats = (types || []).map((t) => ({
-          id: t.id,
-          name: t.type,
+          id: t.id ?? t.Id ?? t.value,
+          name:
+            t.name ??
+            t.type ??
+            t.Type ??
+            t.label ??
+            "",
         }));
+
+        // rests: [{ restaurantId, name, ... }]
         const mappedRests = (rests || []).map((r) => ({
-          id: r.restaurantId,
-          name: r.name,
+          id: r.restaurantId ?? r.id ?? r.Id ?? r.value,
+          name: r.name ?? r.Name ?? "",
         }));
 
         setCategories(mappedCats);
@@ -148,9 +155,22 @@ export default function EditProduct() {
       error: "Failed to update product.",
     });
 
-    // Cập nhật list bên ngoài bảng
+    // Cập nhật lại list products trong state
+    const updatedRaw = { ...selectedProduct.raw, ...payload };
+    const updatedProduct = {
+      ...selectedProduct,
+      name: payload.name,
+      price: payload.price,
+      formatedPrice: new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+      }).format(payload.price ?? 0),
+      raw: updatedRaw,
+      // url vẫn là /items/{id}/pic nên không đổi
+    };
+
     setProducts((prev) =>
-      prev.map((p) => (p.id === selectedProduct.id ? { ...p, ...payload } : p))
+      prev.map((p) => (p.id === selectedProduct.id ? updatedProduct : p))
     );
 
     setOpen(false);
@@ -173,7 +193,6 @@ export default function EditProduct() {
 
     setProducts((prev) => prev.filter((p) => p.id !== product.id));
 
-    // nếu đang mở popup cho sản phẩm này thì đóng lại
     if (selectedProduct && selectedProduct.id === product.id) {
       setOpen(false);
       setSelectedProduct(null);
@@ -202,9 +221,6 @@ export default function EditProduct() {
 
   return (
     <Container>
-      {/* KHÔNG còn chữ "Edit / Delete Products" to nữa */}
-
-      {/* BẢNG DANH SÁCH SẢN PHẨM */}
       <TableContainer component={Paper}>
         <Table sx={{ minWidth: 650 }} aria-label="products table">
           <TableHead>
@@ -221,9 +237,7 @@ export default function EditProduct() {
             {products.map((product) => (
               <TableRow
                 key={product.id}
-                sx={{
-                  "&:last-child td, &:last-child th": { border: 0 },
-                }}
+                sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
               >
                 <TableCell component="th" scope="row">
                   {product.name}
@@ -245,7 +259,7 @@ export default function EditProduct() {
                     onClick={() => {
                       setSelectedProduct(product);
                       fillFormFromProduct(product);
-                      setOpen(true); // mở popup
+                      setOpen(true);
                     }}
                   />
                   <DeleteIcon
@@ -287,7 +301,7 @@ export default function EditProduct() {
 
               <div>
                 <Label>Price</Label>
-                <Input type="number" {...register("price")} />
+                <Input type="number" step="1" min="0" {...register("price")} />
                 <ErrorMessage>{errors.price?.message}</ErrorMessage>
               </div>
 

@@ -1,12 +1,20 @@
-import api, { ensureCsrfToken } from "./api";
+import { bffPublicApi } from "./bffPublicApi";
 
-// /bff/user trả mảng [{ type, value }]
 export async function fetchCurrentUser() {
-  await ensureCsrfToken(); // chắc có CSRF
-  const r = await api.get("/bff/user"); // cần cookie __Host-bff
-  const claims = r.data || [];
-  const map = Object.fromEntries(claims.map((c) => [c.type, c.value]));
-  // Ưu tiên: name → email → sub
-  const displayName = map["name"] || map["email"] || map["sub"] || "User";
-  return { claims: map, displayName };
+  await bffPublicApi.initAntiforgery();
+
+  const dto = await bffPublicApi.getUser();
+  if (!dto) return null;
+
+  const entries = dto.raw || [];
+  const claims = Object.fromEntries(entries.map((c) => [c.type, c.value]));
+
+  const displayName =
+    dto.name ||
+    claims["name"] ||
+    claims["email"] ||
+    claims["sub"] ||
+    "User";
+
+  return { claims, displayName, dto };
 }

@@ -49,9 +49,7 @@ async function deleteCatalogType(id) {
 }
 
 async function fetchRestaurants() {
-  const url = `${BASE}/api/catalog/restaurants`;
-  const { data } = await catalogHttp.get(url);
-  // data: [{ restaurantId, name, address, lat, lng }]
+  const { data } = await catalogHttp.get('/restaurants');
   return data;
 }
 
@@ -120,20 +118,18 @@ async function fetchCatalogItemById(id) {
 */
 
 async function createCatalogItem(productPayload) {
-  const url = `${BASE}/api/catalog/items`;
-  await catalogHttp.post(url, productPayload);
+  await catalogHttp.post('/items', productPayload);
 }
 
 /** Cập nhật CatalogItem (v1: PUT /items, id nằm trong body) */
 async function updateCatalogItem(productPayload) {
-  const url = `${BASE}/api/catalog/items`;
-  await catalogHttp.put(url, productPayload);
+  await catalogHttp.put('/items', productPayload);
 }
+
 
 /** Xoá CatalogItem: DELETE /items/{id} */
 async function deleteCatalogItem(id) {
-  const url = `${BASE}/api/catalog/items/${id}`;
-  await catalogHttp.delete(url);
+  await catalogHttp.delete(`/items/${id}`);
 }
 
 /* ===== Default export để giữ tương thích với code cũ (import catalog from ...) =====

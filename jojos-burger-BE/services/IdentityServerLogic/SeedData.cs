@@ -1,12 +1,11 @@
-//IdentityServerLogic/SeedData.cs
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
-using System.Security.Claims;
 using Duende.IdentityServer.EntityFramework.DbContexts;
 using Duende.IdentityServer.EntityFramework.Mappers;
+using IdentityServerLogic.Identity;
 
 namespace IdentityServerLogic
 {
@@ -21,110 +20,121 @@ namespace IdentityServerLogic
             var userMgr = sp.GetRequiredService<UserManager<ApplicationUser>>();
             var roleMgr = sp.GetRequiredService<RoleManager<IdentityRole>>();
 
-            Log.Information("Seeding IdentityServer via WebApplication...");
+            Log.Information("Seeding IdentityServer...");
 
-            // ⚠️ Giả định DB đã được Migrate trước đó (Program.cs đã làm)
-            // Xóa dữ liệu cũ
+            // 1. Seed cấu hình IdentityServer
             configDb.Clients.RemoveRange(configDb.Clients);
             configDb.IdentityResources.RemoveRange(configDb.IdentityResources);
             configDb.ApiScopes.RemoveRange(configDb.ApiScopes);
             configDb.ApiResources.RemoveRange(configDb.ApiResources);
             await configDb.SaveChangesAsync();
 
-            // Seed lại dữ liệu cấu hình IDS
-            foreach (var res in Config.IdentityResources.ToList())
+            foreach (var res in Config.IdentityResources)
                 configDb.IdentityResources.Add(res.ToEntity());
-            foreach (var scopeDef in Config.ApiScopes.ToList())
+            foreach (var scopeDef in Config.ApiScopes)
                 configDb.ApiScopes.Add(scopeDef.ToEntity());
-            foreach (var apiRes in Config.ApiResources.ToList())
+            foreach (var apiRes in Config.ApiResources)
                 configDb.ApiResources.Add(apiRes.ToEntity());
-            foreach (var client in Config.Clients.ToList())
+            foreach (var client in Config.Clients)
                 configDb.Clients.Add(client.ToEntity());
+
             await configDb.SaveChangesAsync();
+            Log.Information("Seeded IdentityServer configuration data.");
 
-            Log.Information("Seeded configuration data.");
+            // 2. Roles
+            var roles = new[] { "RestaurantAdmin", "Customer" };
 
-            // Tạo roles
-            if (!await roleMgr.RoleExistsAsync("Admin"))
-                await roleMgr.CreateAsync(new IdentityRole("Admin"));
-            if (!await roleMgr.RoleExistsAsync("User"))
-                await roleMgr.CreateAsync(new IdentityRole("User"));
-
-            // USER ADMIN
-            const string adminEmail = "admin@gmail.com";
-            const string adminPassword = "123456";
-
-            var existingAdmin = await userMgr.FindByEmailAsync(adminEmail);
-            if (existingAdmin != null)
-                await userMgr.DeleteAsync(existingAdmin);
-
-            var adminUser = new ApplicationUser
+            foreach (var role in roles)
             {
-                UserName = adminEmail,
-                Email = adminEmail,
-                EmailConfirmed = true
+                if (!await roleMgr.RoleExistsAsync(role))
+                {
+                    await roleMgr.CreateAsync(new IdentityRole(role));
+                }
+            }
+
+            // 3. Seed Restaurant Admin users
+            var restaurants = new[]
+            {
+                new { Id = "rest-001", Name = "Jojo Burger Q1" },
+                new { Id = "rest-002", Name = "Jojo Burger Q3" },
+                new { Id = "rest-003", Name = "Jojo Burger Q7" }
             };
 
-            var adminResult = await userMgr.CreateAsync(adminUser, adminPassword);
-            if (adminResult.Succeeded)
+            foreach (var r in restaurants)
             {
-                await userMgr.AddToRoleAsync(adminUser, "Admin");
-                await userMgr.AddClaimsAsync(adminUser, new[]
+                var email = $"owner.{r.Id}@gmail.com";
+
+                var existing = await userMgr.FindByEmailAsync(email);
+                if (existing != null)
                 {
-                    new Claim("name", "Admin User"),
-                    new Claim("preferred_username", "admin"),
-                    new Claim("email", adminEmail),
-                    new Claim("given_name", "Quan"),
-                    new Claim("family_name", "Dang"),
-                    new Claim("role", "Admin")
-                });
+                    await userMgr.DeleteAsync(existing);
+                }
 
-                Log.Information("Created Admin user + claims: {Email}", adminEmail);
+                var user = new ApplicationUser
+                {
+                    UserName = email,
+                    Email = email,
+                    EmailConfirmed = true,
+                    FullName = $"Owner {r.Name}",
+                    UserType = "RestaurantAdmin",
+                    RestaurantId = r.Id,
+                    RestaurantName = r.Name
+                };
+
+                var result = await userMgr.CreateAsync(user, "123456");
+                if (!result.Succeeded)
+                {
+                    Log.Error("Error creating restaurant admin {Email}: {Errors}",
+                        email, string.Join(", ", result.Errors.Select(e => e.Description)));
+                    continue;
+                }
+
+                await userMgr.AddToRoleAsync(user, "RestaurantAdmin");
+
+                Log.Information("Created RestaurantAdmin {Email} for {RestaurantId}", email, r.Id);
             }
-            else
+
+            // 4. Seed Customer users
+            var customers = new[]
             {
-                Log.Error("Error creating admin user: {Errors}",
-                    string.Join(", ", adminResult.Errors.Select(e => e.Description)));
-            }
-
-            // USER THƯỜNG
-            const string normalEmail = "123@gmail.com";
-            const string normalPassword = "123456";
-
-            var existingUser = await userMgr.FindByEmailAsync(normalEmail);
-            if (existingUser != null)
-                await userMgr.DeleteAsync(existingUser);
-
-            var normalUser = new ApplicationUser
-            {
-                UserName = normalEmail,
-                Email = normalEmail,
-                EmailConfirmed = true
+                new { Email = "customer1@gmail.com", Name = "Customer 1" },
+                new { Email = "customer2@gmail.com", Name = "Customer 2" },
+                new { Email = "customer3@gmail.com", Name = "Customer 3" }
             };
 
-            var userResult = await userMgr.CreateAsync(normalUser, normalPassword);
-            if (userResult.Succeeded)
+            foreach (var c in customers)
             {
-                await userMgr.AddToRoleAsync(normalUser, "User");
-                await userMgr.AddClaimsAsync(normalUser, new[]
+                var existing = await userMgr.FindByEmailAsync(c.Email);
+                if (existing != null)
                 {
-                    new Claim("name", "Normal User"),
-                    new Claim("preferred_username", "dqdq"),
-                    new Claim("email", normalEmail),
-                    new Claim("given_name", "Quan"),
-                    new Claim("family_name", "Dang"),
-                    new Claim("role", "User")
-                });
+                    await userMgr.DeleteAsync(existing);
+                }
 
-                Log.Information("Created Normal user + claims: {Email}", normalEmail);
-            }
-            else
-            {
-                Log.Error("Error creating normal user: {Errors}",
-                    string.Join(", ", userResult.Errors.Select(e => e.Description)));
+                var user = new ApplicationUser
+                {
+                    UserName = c.Email,
+                    Email = c.Email,
+                    EmailConfirmed = true,
+                    FullName = c.Name,
+                    UserType = "Customer",
+                    RestaurantId = null,
+                    RestaurantName = null
+                };
+
+                var result = await userMgr.CreateAsync(user, "123456");
+                if (!result.Succeeded)
+                {
+                    Log.Error("Error creating customer {Email}: {Errors}",
+                        c.Email, string.Join(", ", result.Errors.Select(e => e.Description)));
+                    continue;
+                }
+
+                await userMgr.AddToRoleAsync(user, "Customer");
+
+                Log.Information("Created Customer {Email}", c.Email);
             }
 
-            Log.Information("Seeding completed successfully!");
+            Log.Information("Seeding IdentityServer done.");
         }
     }
 }
