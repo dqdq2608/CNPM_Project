@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Duende.IdentityServer.Licensing;
 using IdentityServerLogic;
+using IdentityServerLogic.Identity;
 using Serilog;
 using Microsoft.EntityFrameworkCore;
 using Duende.IdentityServer.EntityFramework.DbContexts;

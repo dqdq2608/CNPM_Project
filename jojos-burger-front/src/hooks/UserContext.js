@@ -6,31 +6,26 @@ import React, {
   useState,
 } from "react";
 import PropTypes from "prop-types";
-import api, { ensureCsrfToken } from "../services/api";
+import { bffAuthApi } from "../services/bffAuthApi";
 
-// read cookie
-function readCookie(name) {
-  const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  return m ? decodeURIComponent(m[1]) : null;
-}
-
-// /bff/public/user
+// Chuyển dto từ /bff/public/user thành object gọn cho FE
 async function fetchBffUser() {
-  await ensureCsrfToken();
-  const r = await api.get("/bff/public/user");
-  const u = r.data;
+  // đảm bảo đã handshake CSRF
+  await bffAuthApi.initAntiforgery();
+
+  const u = await bffAuthApi.getUser();
   if (!u) throw new Error("No user");
 
   const rawArr = Array.isArray(u.raw) ? u.raw : [];
   const claim = Object.fromEntries(rawArr.map((c) => [c.type, c.value]));
 
-  // get full name
+  // full name
   const full = [claim.given_name, claim.family_name]
     .filter(Boolean)
     .join(" ")
     .trim();
 
-  // display name on header
+  // tên hiển thị trên header
   const displayName =
     claim.name ||
     (u.name && u.name !== u.email ? u.name : null) ||
@@ -63,6 +58,7 @@ export function UserProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // load user hiện tại khi app khởi động
   useEffect(() => {
     (async () => {
       try {
@@ -76,24 +72,18 @@ export function UserProvider({ children }) {
     })();
   }, []);
 
-  // --- login qua BFF public API ---
+  // --- login qua BFF Authentication API ---
   const login = async (username, password) => {
-    await ensureCsrfToken();
-    await api.post("/bff/public/login", { username, password });
-    await ensureCsrfToken(); // CSRF mới theo session
+    // gọi BFF login (tự lo CSRF + cookie)
+    await bffAuthApi.login(username, password);
     const u = await fetchBffUser();
     setUser(u);
     return u;
   };
 
-  // --- logout qua BFF public API ---
+  // --- logout qua BFF Authentication API ---
   const logout = async () => {
-    const csrf = readCookie("__Host-bff-csrf");
-    await api.post(
-      "/bff/public/logout",
-      {},
-      { headers: csrf ? { "X-CSRF": csrf } : {} },
-    );
+    await bffAuthApi.logout();
     setUser(null);
   };
 

@@ -27,6 +27,32 @@ async function fetchCatalogTypes() {
   }));
 }
 
+async function createCatalogType(payload) {
+  const res = await catalogHttp.post("/catalogtypes", payload, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  return res.data;
+}
+
+/** Cập nhật CatalogType */
+async function updateCatalogType(id, payload) {
+  const body = { id, ...payload }; // payload: { type: "Burger" } chẳng hạn
+  const res = await catalogHttp.put("/catalogtypes", body);
+  return res.data;
+}
+
+/** Xoá CatalogType */
+async function deleteCatalogType(id) {
+  await catalogHttp.delete(`/catalogtypes/${id}`);
+}
+
+async function fetchRestaurants() {
+  const { data } = await catalogHttp.get('/restaurants');
+  return data;
+}
+
 // 🔹 Danh sách items
 async function fetchCatalog({
   pageIndex = 0,
@@ -85,12 +111,48 @@ async function fetchCatalogItemById(id) {
   return normalizeItem(data);
 }
 
+/* ===== Default export để giữ tương thích với code cũ (import catalog from ...) =====
+   - getCategories: alias của fetchCatalogTypes
+   - getProducts: alias của fetchCatalog
+   - getProductById: alias của fetchCatalogItemById
+*/
+
+async function createCatalogItem(productPayload) {
+  await catalogHttp.post('/items', productPayload);
+}
+
+/** Cập nhật CatalogItem (v1: PUT /items, id nằm trong body) */
+async function updateCatalogItem(productPayload) {
+  await catalogHttp.put('/items', productPayload);
+}
+
+
+/** Xoá CatalogItem: DELETE /items/{id} */
+async function deleteCatalogItem(id) {
+  await catalogHttp.delete(`/items/${id}`);
+}
+
+/* ===== Default export để giữ tương thích với code cũ (import catalog from ...) =====
+   - getCategories: alias của fetchCatalogTypes
+   - getProducts: alias của fetchCatalog
+   - getProductById: alias của fetchCatalogItemById
+*/
+
 const catalog = {
   fetchCatalogTypes,
+  fetchRestaurants,
   fetchCatalog,
   searchCatalogByName,
   fetchCatalogItemById,
   // alias cũ
+  createCatalogItem,
+  updateCatalogItem,
+  deleteCatalogItem,
+  createCatalogType,
+  updateCatalogType,
+  deleteCatalogType,
+
+  // Aliases cho code cũ
   getCategories: fetchCatalogTypes,
   getProducts: fetchCatalog,
   getProductById: fetchCatalogItemById,
@@ -99,7 +161,14 @@ const catalog = {
 export default catalog;
 export {
   fetchCatalogTypes,
+  fetchRestaurants,
   fetchCatalog,
   searchCatalogByName,
   fetchCatalogItemById,
+  createCatalogItem,
+  updateCatalogItem,
+  deleteCatalogItem,
+  createCatalogType,
+  updateCatalogType,
+  deleteCatalogType,
 };

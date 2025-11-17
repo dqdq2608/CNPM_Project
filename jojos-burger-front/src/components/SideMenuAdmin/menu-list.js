@@ -3,6 +3,7 @@ import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import ListIcon from "@mui/icons-material/List";
 import ShoppingBagIcon from "@mui/icons-material/ShoppingBag";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
+import EditIcon from "@mui/icons-material/Edit";
 
 import paths from "../../constants/paths";
 
@@ -31,8 +32,25 @@ const listLinks = [
     link: paths.Categories,
     icon: ListIcon,
   },
+  {
+    id: 5,
+    label: "New Category",
+    link: paths.NewCategory,
+    icon: AddBoxIcon,
+  },
 
-  { id: 5, label: "New Category", link: paths.NewCategory, icon: AddBoxIcon },
+  {
+    id: 6,
+    label: "Edit Product",
+    link: paths.EditProduct,
+    icon: EditIcon,
+  },
+  {
+    id: 7,
+    label: "Edit Category",
+    link: paths.EditCategory,
+    icon: EditIcon,
+  },
 ];
 
 export default listLinks;

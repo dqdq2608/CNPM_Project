@@ -1,92 +1,209 @@
 import { yupResolver } from "@hookform/resolvers/yup";
-import UploadIcon from "@mui/icons-material/Upload";
-import React, { useState } from "react";
+import Paper from "@mui/material/Paper";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { useHistory } from "react-router-dom/";
 import { toast } from "react-toastify";
 import * as Yup from "yup";
 
 import { ErrorMessage } from "../../../components";
-import api from "../../../services/api";
-import { Container, Label, Input, Button, LabelUpload } from "./styles";
+import {
+  fetchCatalogTypes,
+  updateCatalogType,
+  deleteCatalogType,
+} from "../../../services/api/catalog";
+import { Container, Label, Input, Button } from "./styles";
+import { EditIconImg, DeleteIcon } from "../ListCategories/styles";
+
+const schema = Yup.object().shape({
+  name: Yup.string().trim().required("Category name is required."),
+});
 
 export function EditCategory() {
-  const [fileName, setFileName] = useState(null);
-
-  const {
-    push,
-    location: {
-      state: { category },
-    },
-  } = useHistory();
-
-  const schema = Yup.object().shape({
-    name: Yup.string().required("The product must have a name."),
-  });
+  const [categories, setCategories] = useState([]);
+  const [editingCategory, setEditingCategory] = useState(null); // category đang được edit
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
-  } = useForm({ resolver: yupResolver(schema) });
+    formState: { errors, isSubmitting },
+    reset,
+  } = useForm({
+    resolver: yupResolver(schema),
+    defaultValues: { name: "" },
+  });
 
+  // ===== Load list categories =====
+  useEffect(() => {
+    async function loadCategories() {
+      try {
+        const types = await fetchCatalogTypes(); // thường trả [{ id, type, pictureUri }]
+        console.log("raw types (EditCategory):", types);
+
+        const mapped = (types || []).map((t) => ({
+          id: t.id ?? t.Id ?? t.value,
+          name:
+            t.type ??
+            t.Type ??
+            t.name ??
+            t.Name ??
+            t.label ??
+            "",
+        }));
+
+        console.log("mapped categories (EditCategory):", mapped);
+        setCategories(mapped);
+      } catch (err) {
+        console.error("Error loading catalog types:", err);
+        toast.error("Failed to load categories.");
+      }
+    }
+
+    loadCategories();
+  }, []);
+
+  // ===== Mở popup edit =====
+  function handleOpenEdit(cat) {
+    setEditingCategory(cat);
+    reset({ name: cat.name });
+  }
+
+  // ===== Đóng popup =====
+  function handleCloseDialog() {
+    setEditingCategory(null);
+    reset({ name: "" });
+  }
+
+  // ===== Submit form trong popup =====
   const onSubmit = async (data) => {
-    const categoryDataFormData = new FormData();
+    if (!editingCategory) return;
 
-    console.log(categoryDataFormData);
+    const payload = { type: data.name.trim() };
 
-    categoryDataFormData.append("name", data.name);
-    categoryDataFormData.append("categoryId", data.categoryId);
-    categoryDataFormData.append("file", data.file[0]);
+    try {
+      // updateCatalogType(id, payload) sẽ gọi BFF: PUT /api/catalog/catalogtypes
+      const req = updateCatalogType(editingCategory.id, payload);
 
-    await toast.promise(
-      api.put(`categories/${category.id}`, categoryDataFormData),
-      {
-        pending: "Editing Category...",
-        success: "Category was successfully edited.",
-        error: "Error while editing category, try again later...",
-      },
-    );
-    setTimeout(() => {
-      push("/list-categories");
-    }, 2000);
+      await toast.promise(req, {
+        pending: "Updating category...",
+        success: "Category was successfully updated.",
+        error: "Error while updating category, try again later...",
+      });
+
+      // Cập nhật lại list ở client
+      setCategories((prev) =>
+        prev.map((c) =>
+          c.id === editingCategory.id ? { ...c, name: data.name.trim() } : c
+        )
+      );
+
+      handleCloseDialog();
+    } catch (err) {
+      console.error("Update category failed:", err);
+      toast.error("Unexpected error while updating category.");
+    }
   };
+
+  // ===== Xoá category =====
+  async function handleDelete(cat) {
+    if (!window.confirm(`Delete category "${cat.name}"?`)) return;
+
+    try {
+      // deleteCatalogType(id) -> DELETE /api/catalog/catalogtypes/{id}
+      const req = deleteCatalogType(cat.id);
+
+      await toast.promise(req, {
+        pending: "Deleting category...",
+        success: "Category was successfully deleted.",
+        error: "Error while deleting category, try again later...",
+      });
+
+      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
+
+      if (editingCategory?.id === cat.id) {
+        handleCloseDialog();
+      }
+    } catch (err) {
+      console.error("Delete category failed:", err);
+      toast.error("Unexpected error while deleting category.");
+    }
+  }
 
   return (
     <Container>
-      <form noValidate onSubmit={handleSubmit(onSubmit)}>
-        <div>
-          <Label>Name</Label>
-          <Input
-            type="text"
-            {...register("name")}
-            defaultValue={category.name}
-          />
-          <ErrorMessage>{errors.name?.message}</ErrorMessage>
-        </div>
-        <div>
-          <LabelUpload>
-            {fileName || (
-              <>
-                <UploadIcon />
-                Choose image
-              </>
+      {/* BẢNG CATEGORY */}
+      <TableContainer component={Paper}>
+        <Table sx={{ minWidth: 450 }} aria-label="categories table">
+          <TableHead>
+            <TableRow>
+              <TableCell>Category</TableCell>
+              <TableCell align="right">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+
+          <TableBody>
+            {categories.map((cat) => (
+              <TableRow key={cat.id} hover>
+                <TableCell>{cat.name}</TableCell>
+                <TableCell align="right">
+                  <EditIconImg onClick={() => handleOpenEdit(cat)} />
+                  <DeleteIcon onClick={() => handleDelete(cat)} />
+                </TableCell>
+              </TableRow>
+            ))}
+
+            {categories.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={2}>No categories yet.</TableCell>
+              </TableRow>
             )}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
+      {/* POPUP EDIT */}
+      <Dialog
+        open={Boolean(editingCategory)}
+        onClose={handleCloseDialog}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>
+          {editingCategory
+            ? `Editing: ${editingCategory.name}`
+            : "Edit Category"}
+        </DialogTitle>
+
+        <form noValidate onSubmit={handleSubmit(onSubmit)}>
+          <DialogContent dividers>
+            <Label>Category name</Label>
             <Input
-              type="file"
-              accept="image/png, image/jpeg, image/jpg"
-              {...register("file")}
-              onChange={(value) => {
-                setFileName(value.target.files[0]?.name);
-              }}
+              type="text"
+              placeholder="Category name"
+              {...register("name")}
             />
-          </LabelUpload>
-          <ErrorMessage>{errors.file?.message}</ErrorMessage>
-        </div>
+            <ErrorMessage>{errors.name?.message}</ErrorMessage>
+          </DialogContent>
 
-        <Button>Edit Category</Button>
-      </form>
+          <DialogActions>
+            <Button type="button" onClick={handleCloseDialog}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              Update Category
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
     </Container>
   );
 }

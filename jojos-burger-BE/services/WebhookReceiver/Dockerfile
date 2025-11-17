@@ -1,13 +1,37 @@
-# build
+# =========================
+# 1. Runtime
+# =========================
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+WORKDIR /app
+
+EXPOSE 5022
+
+# =========================
+# 2. Build
+# =========================
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY . .
-RUN dotnet publish -c Release -o /out
 
-# run
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+# Copy csproj theo các project WebhookReceiver reference
+COPY ["services/WebhookReceiver/WebhookReceiver.csproj", "services/WebhookReceiver/"]
+COPY ["services/EventBus/EventBus.csproj", "services/EventBus/"]
+COPY ["services/EventBusRabbitMQ/EventBusRabbitMQ.csproj", "services/EventBusRabbitMQ/"]
+COPY ["services/eShop.ServiceDefaults/eShop.ServiceDefaults.csproj", "services/eShop.ServiceDefaults/"]
+COPY ["services/PaymentProcessor/PaymentProcessor.csproj", "services/PaymentProcessor/"]
+COPY ["services/Payment.IntergrationEvents/Payment.IntegrationEvents.csproj", "services/Payment.IntergrationEvents/"]
+
+RUN dotnet restore "services/WebhookReceiver/WebhookReceiver.csproj"
+
+COPY . .
+
+WORKDIR "/src/services/WebhookReceiver"
+RUN dotnet publish "WebhookReceiver.csproj" -c Release -o /app/publish
+
+# =========================
+# 3. Final
+# =========================
+FROM base AS final
 WORKDIR /app
-COPY --from=build /out .
-ENV ASPNETCORE_URLS=http://0.0.0.0:6105
-EXPOSE 6105
+COPY --from=build /app/publish .
+
 ENTRYPOINT ["dotnet", "WebhookReceiver.dll"]

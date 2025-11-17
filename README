@@ -1,12 +1,420 @@
-👉 Copy .env.example thành .env rồi chỉnh password trước khi chạy.
-Chạy Login: 
-1. "dotnet run /seed" IdentityServerLogic trước để seed data
-2. "dotnet run" IdentityServerBFF
-3. "dotnet run" IdentityServerLogic
-4. "npm run start" FE (test user: email=123@gmail.com, password=123456)
+🍔 JOJO’s Burger – Microservices E-Commerce System
+Hệ thống thương mại điện tử được xây dựng trên kiến trúc Microservices, bao gồm:
 
-Lấy certs:
-mkdir certs -Force
-mkcert -key-file certs/localhost-key.pem -cert-file certs/localhost.pem "localhost" 127.0.0.1 ::1
 
-Check api: http://localhost:7002/swagger/index.html
+Catalog Service (PostgreSQL)
+
+
+Basket Service (Redis)
+
+
+Order Service (PostgreSQL)
+
+
+Payment Service (Mock)
+
+
+IdentityServer (Authentication)
+
+
+BFF (Backend For Frontend – Duende BFF)
+
+
+Kong API Gateway
+
+
+React Frontend
+
+
+Docker Compose hỗ trợ full-stack
+
+
+
+📚 Mục Lục
+
+
+1. Giới thiệu
+
+
+2. Kiến trúc hệ thống
+
+
+3. Luồng hoạt động tổng thể
+
+
+4. Các dịch vụ
+
+
+Catalog API
+
+
+Basket API
+
+
+Order API
+
+
+Payment API
+
+
+IdentityServer
+
+
+BFF
+
+
+
+
+5. API Gateway (Kong)
+
+
+6. Frontend React
+
+
+7. Chạy hệ thống
+
+
+8. Luồng đặt hàng & thanh toán
+
+
+9. Ghi chú mở rộng
+
+
+
+🧩 1. Giới thiệu
+Jojo’s Burger là hệ thống microservices mô phỏng nền tảng thương mại điện tử:
+
+
+Người dùng đăng nhập qua IdentityServer
+
+
+FE giao tiếp BFF đảm bảo bảo mật
+
+
+Kong đứng làm API Gateway phân phối request
+
+
+Mỗi service chạy độc lập, database tách riêng
+
+
+Basket dùng Redis tốc độ cao
+
+
+Order + Payment workflow rõ ràng
+
+
+
+🏗 2. Kiến trúc hệ thống
+Sơ đồ kiến trúc tổng thể
+                            ┌───────────────────────────────────────────────┐
+                            │                React Frontend                │
+                            │  HTTPS, Axios, Cookie Auth, CSRF, Secure     │
+                            └───────────────────┬───────────────────────────┘
+                                                │ https://localhost:7082
+                                                ▼
+                                  ┌───────────────────────────────────┐
+                                  │           BFF (Duende)           │
+                                  │  /bff             /bff-api/*     │
+                                  │  Login, Cookies, CSRF, Proxy     │
+                                  └──────────────┬────────────────────┘
+                                                 │ https://localhost:8443
+                                                 ▼
+                                   ┌──────────────────────────────┐
+                                   │         Kong Gateway         │
+                                   │ Routing /catalog /basket     │
+                                   │         /order /payment      │
+                                   └────────────┬─────────────────┘
+                                                │
+     ┌─────────────────────┬────────────────────┼──────────────────────┬────────────────────────┐
+     ▼                     ▼                    ▼                      ▼                        ▼
+┌─────────────┐     ┌──────────────┐     ┌──────────────┐      ┌──────────────┐         ┌──────────────┐
+│ Catalog.API │     │ Basket.API   │     │ Order.API    │      │ Payment.API  │         │IdentityServer│
+│ PostgreSQL  │     │ Redis        │     │ PostgreSQL   │      │ Mock Provider│         │Auth + Token  │
+└─────────────┘     └──────────────┘     └──────────────┘      └──────────────┘         └──────────────┘
+
+
+🔁 3. Luồng hoạt động tổng thể
+Đăng nhập
+
+
+FE → /bff/login
+
+
+IdentityServer xác thực
+
+
+BFF set 3 cookie bảo mật:
+
+
+CookieMô tả__Host-bffSession của user__Host-bff-afAnti-forgery token__Host-bff-csrfToken CSRF real-time
+
+
+FE gọi /bff/user để lấy thông tin phiên đăng nhập
+
+
+
+Load catalog
+FE gọi:
+GET https://localhost:8443/catalog/api/catalog/catalogtypes-with-pics
+
+Kong → Catalog.API → trả danh sách category + ảnh
+
+Giỏ hàng (Basket)
+FE gọi:
+GET     /bff-api/basket
+POST    /bff-api/basket
+DELETE  /bff-api/basket
+
+BFF tự gắn header:
+X-User-Sub: <id_user>
+
+→ Basket.API → Redis
+
+Đặt hàng (Order Flow)
+
+
+FE nhấn checkout
+
+
+FE POST:
+
+
+POST /bff-api/order
+
+
+
+BFF → Order.API
+
+
+Order API tạo order (status = PendingPayment)
+
+
+Order API gọi Payment API
+
+
+Nếu thành công: status = Paid
+
+
+FE fetch lịch sử qua /bff-api/order/list
+
+
+
+🧱 4. Các dịch vụ
+4.1 Catalog.API
+
+
+Lưu sản phẩm & category
+
+
+Ảnh được trả thẳng từ API
+
+
+Database: PostgreSQL
+
+
+Kong route: /catalog/api/catalog/*
+
+
+
+4.2 Basket.API
+
+
+Lưu giỏ hàng theo buyerId = claim sub
+
+
+Lưu Redis
+
+
+API:
+
+
+GET    /api/basket
+POST   /api/basket
+DELETE /api/basket
+
+
+4.3 Order.API
+
+
+Tạo đơn hàng
+
+
+Lưu DB PostgreSQL
+
+
+Gọi Payment API
+
+
+API:
+
+
+POST /api/order
+GET  /api/order/list
+
+
+4.4 Payment.API
+
+
+Mock xử lý thanh toán
+
+
+Luôn phản hồi success (hoặc random)
+
+
+API:
+
+
+POST /api/payment
+
+
+4.5 IdentityServer
+
+
+Cấp token cho BFF
+
+
+Các scope: openid, profile, api, roles, offline_access
+
+
+
+4.6 BFF (Backend For Frontend)
+Chịu trách nhiệm:
+
+
+Login
+
+
+Cookie Auth
+
+
+CSRF
+
+
+Proxy an toàn đến services khác
+
+
+Inject header X-User-Sub
+
+
+Các route chính:
+/bff/login
+/bff/logout
+/bff/user
+/bff-api/basket
+/bff-api/order
+
+
+🌉 5. API Gateway (Kong)
+Ví dụ routing Catalog:
+- name: catalog
+  url: http://catalog-api:8080
+  routes:
+    - name: catalog-route
+      paths:
+        - /catalog/api/catalog
+      strip_path: true
+
+Basket:
+- name: basket
+  url: http://basket-api:8080
+  routes:
+    - name: basket-route
+      paths:
+        - /basket/api/basket
+      strip_path: true
+
+Order:
+- name: order
+  url: http://order-api:8080
+  routes:
+    - name: order-route
+      paths:
+        - /order/api/order
+      strip_path: true
+
+Payment:
+- name: payment
+  url: http://payment-api:8080
+  routes:
+    - name: payment-route
+      paths:
+        - /payment/api/payment
+      strip_path: true
+
+
+⚛ 6. Frontend React
+.env
+REACT_APP_API_BASE=https://localhost:7082
+REACT_APP_CATALOG_API_BASE=https://localhost:8443/catalog
+REACT_APP_BASKET_API_BASE=https://localhost:7082/bff-api/basket
+REACT_APP_ORDER_API_BASE=https://localhost:7082/bff-api/order
+
+Chạy FE
+npm install
+npm start
+
+
+🐳 7. Chạy hệ thống
+Chạy toàn bộ backend + gateway + databases:
+docker compose up --build
+
+Services sẽ chạy tại:
+ServiceURLBFFhttps://localhost:7082Konghttps://localhost:8443IdentityServerhttps://localhost:5001Catalog.APIhttp://localhost:7002Basket.APIhttp://localhost:5005Order.APIhttp://localhost:5010Payment.APIhttp://localhost:5015Frontendhttps://localhost:3000
+
+💳 8. Luồng đặt hàng & thanh toán
+1️⃣ FE lấy giỏ hàng:
+GET /bff-api/basket
+
+2️⃣ FE gửi đặt hàng:
+POST /bff-api/order
+{
+  "shippingAddress": "...",
+  "paymentMethod": "VISA"
+}
+
+3️⃣ BFF → Order.API (kèm X-User-Sub)
+4️⃣ Order.API xử lý:
+
+
+Lấy giỏ hàng từ Basket.API
+
+
+Tạo Order
+
+
+Gọi Payment API
+
+
+Lưu trạng thái
+
+
+5️⃣ FE load danh sách đơn hàng:
+GET /bff-api/order/list
+
+
+📝 9. Ghi chú mở rộng
+
+
+Có thể thêm RabbitMQ để event-driven Order & Payment
+
+
+Thêm Email service, Notification service
+
+
+Scale Redis + Postgres qua Docker Swarm / Kubernetes
+
+
+Tách Frontend & BFF hosting riêng
+
+
+
+🎉 Kết luận
+README này cung cấp đầy đủ:
+✔ Kiến trúc hệ thống
+✔ API Flow
+✔ Cách chạy Docker
+✔ Cấu hình Kong
+✔ Luồng Order + Payment
+✔ Mô tả toàn bộ microservices
+
+Nếu bạn muốn mình tạo sơ đồ kiến trúc dạng hình PNG, hoặc vẽ sequence diagram, cứ bảo mình nhé!

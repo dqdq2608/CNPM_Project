@@ -42,7 +42,9 @@ public static class CatalogApi
 
         // -------- Lookups --------
         api.MapGet("/catalogtypes", async (CatalogContext context)
-            => await context.CatalogTypes.OrderBy(x => x.Type).ToListAsync());
+            => await context.CatalogTypes
+                .OrderBy(x => x.Type)
+                .ToListAsync());
 
         // Ảnh theo typeId
         api.MapGet("/catalogtypes/{id:int}/pic", async (int id, IWebHostEnvironment env) =>
@@ -80,6 +82,11 @@ public static class CatalogApi
             return Results.Ok(types);
         });
 
+        // Tạo mới CatalogType
+        api.MapPost("/catalogtypes", CreateCatalogType);
+        api.MapPut("/catalogtypes", UpdateCatalogTypeV1);
+        api.MapDelete("/catalogtypes/{id:int}", DeleteCatalogType);
+        
         // Trả DTO phẳng để tránh serialize NetTopologySuite Point
         api.MapGet("/restaurants", async (CatalogContext context) =>
             await context.Restaurants
@@ -487,6 +494,62 @@ public static class CatalogApi
 
         services.Context.CatalogItems.Remove(item);
         await services.Context.SaveChangesAsync();
+        return TypedResults.NoContent();
+    }
+    // =======================  CATALOG TYPES CRUD  =======================
+
+    public static async Task<Results<Created, BadRequest<string>>> CreateCatalogType(
+        [AsParameters] CatalogServices services,
+        CatalogType type)
+    {
+        if (string.IsNullOrWhiteSpace(type.Type))
+            return TypedResults.BadRequest("Type name is required.");
+
+        var entity = new CatalogType
+        {
+            Type = type.Type.Trim()
+        };
+
+        services.Context.CatalogTypes.Add(entity);
+        await services.Context.SaveChangesAsync();
+
+        return TypedResults.Created($"/api/catalog/catalogtypes/{entity.Id}");
+    }
+
+
+    public static async Task<Results<Created, BadRequest<string>, NotFound<string>>> UpdateCatalogTypeV1(
+        [AsParameters] CatalogServices services,
+        CatalogType type)
+    {
+        if (type.Id <= 0)
+            return TypedResults.BadRequest("Id must be provided.");
+
+        var existing = await services.Context.CatalogTypes
+            .SingleOrDefaultAsync(t => t.Id == type.Id);
+
+        if (existing is null)
+            return TypedResults.NotFound($"CatalogType {type.Id} not found.");
+
+        existing.Type = type.Type;
+        await services.Context.SaveChangesAsync();
+
+        return TypedResults.Created($"/api/catalog/catalogtypes/{type.Id}");
+    }
+
+
+    public static async Task<Results<NoContent, NotFound>> DeleteCatalogType(
+        [AsParameters] CatalogServices services,
+        int id)
+    {
+        var existing = await services.Context.CatalogTypes
+            .SingleOrDefaultAsync(t => t.Id == id);
+
+        if (existing is null)
+            return TypedResults.NotFound();
+
+        services.Context.CatalogTypes.Remove(existing);
+        await services.Context.SaveChangesAsync();
+
         return TypedResults.NoContent();
     }
 
