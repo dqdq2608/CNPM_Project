@@ -129,6 +129,14 @@ builder.Services.AddHttpClient("basket", (sp, c) =>
     c.BaseAddress = new Uri(baseUrl);
 });
 
+// HttpClient để gọi Ordering
+builder.Services.AddHttpClient("ordering", (sp, c) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = config["Ordering:BaseUrl"] ?? "http://ordering-api";
+    c.BaseAddress = new Uri(baseUrl);
+});
+
 var app = builder.Build();
 
 app.UseForwardedHeaders(new ForwardedHeadersOptions
