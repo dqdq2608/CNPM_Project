@@ -129,6 +129,14 @@ builder.Services.AddHttpClient("basket", (sp, c) =>
     c.BaseAddress = new Uri(baseUrl);
 });
 
+// HttpClient để gọi Ordering
+builder.Services.AddHttpClient("ordering", (sp, c) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = config["Ordering:BaseUrl"] ?? "http://ordering-api";
+    c.BaseAddress = new Uri(baseUrl);
+});
+
 var app = builder.Build();
 
 app.UseForwardedHeaders(new ForwardedHeadersOptions
@@ -265,7 +273,12 @@ app.MapPost("/bff-api/basket", async (HttpContext ctx, IHttpClientFactory f) =>
     content.Headers.ContentType =
         new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
 
-    var res = await http.PostAsync("/api/basket", content);
+    // ✅ Tạo HttpRequestMessage để gắn header X-User-Sub
+    var req = new HttpRequestMessage(HttpMethod.Post, "/api/basket");
+    req.Headers.Add("X-User-Sub", sub);
+    req.Content = content;
+
+    var res = await http.SendAsync(req);
 
     ctx.Response.StatusCode = (int)res.StatusCode;
     ctx.Response.ContentType = "application/json";
