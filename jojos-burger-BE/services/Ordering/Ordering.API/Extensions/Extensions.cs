@@ -10,7 +10,7 @@ internal static class Extensions
         var services = builder.Services;
         
         // Add the authentication services to DI
-        builder.AddDefaultAuthentication();
+        // builder.AddDefaultAuthentication();
 
         // Pooling is disabled because of the following error:
         // Unhandled exception. System.InvalidOperationException:
