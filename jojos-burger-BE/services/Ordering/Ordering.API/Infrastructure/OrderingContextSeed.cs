@@ -10,11 +10,8 @@ public class OrderingContextSeed: IDbSeeder<OrderingContext>
         if (!context.CardTypes.Any())
         {
             context.CardTypes.AddRange(GetPredefinedCardTypes());
-
             await context.SaveChangesAsync();
         }
-
-        await context.SaveChangesAsync();
     }
 
     private static IEnumerable<CardType> GetPredefinedCardTypes()
