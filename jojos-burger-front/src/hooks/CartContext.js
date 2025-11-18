@@ -1,5 +1,11 @@
 import PropTypes from "prop-types";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 
 import {
   fetchBasket,
@@ -14,21 +20,22 @@ export const CartProvider = ({ children }) => {
   const [cartProducts, setCartProducts] = useState([]);
   const { user } = useUser();
 
-  const updateLocalStorage = async (products) => {
-    if (user?.sub) {
-      // user đã login → lưu theo từng user ID
-      await localStorage.setItem(
-        `jojosburger:cartInfo:${user.sub}`,
-        JSON.stringify(products)
-      );
-    } else {
-      // user chưa login → lưu 1 key chung
-      await localStorage.setItem(
-        "jojosburger:cartInfo:guest",
-        JSON.stringify(products)
-      );
-    }
-  };
+  const updateLocalStorage = useCallback(
+    async (products) => {
+      if (user?.sub) {
+        await localStorage.setItem(
+          `jojosburger:cartInfo:${user.sub}`,
+          JSON.stringify(products)
+        );
+      } else {
+        await localStorage.setItem(
+          "jojosburger:cartInfo:guest",
+          JSON.stringify(products)
+        );
+      }
+    },
+    [user?.sub] // 👈 hàm này chỉ thay đổi khi user.sub thay đổi
+  );
 
   const putProductInCart = async (product) => {
     const cartIndex = cartProducts.findIndex((prd) => prd.id === product.id);
@@ -154,7 +161,7 @@ export const CartProvider = ({ children }) => {
     };
 
     loadUserData();
-  }, [user?.sub]);
+  }, [user?.sub, updateLocalStorage]);
 
   return (
     <CartContext.Provider
