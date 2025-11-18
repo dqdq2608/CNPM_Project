@@ -5,7 +5,7 @@ namespace IdentityServerLogic
 {
     public static class Config
     {
-        // Các IdentityResource (OpenID Connect)
+        // ===== Identity Resources (OpenID Connect) =====
         public static IEnumerable<IdentityResource> IdentityResources =>
             new IdentityResource[]
             {
@@ -20,7 +20,7 @@ namespace IdentityServerLogic
                     userClaims: new[] { "role" }
                 ),
 
-                // Custom user info cho hệ thống JojoBurger
+                // Custom user info (JojoBurger)
                 new IdentityResource(
                     name: "user_info",
                     displayName: "Custom user info",
@@ -32,40 +32,48 @@ namespace IdentityServerLogic
                     })
             };
 
-        // API Resource chính
+        // ===== API RESOURCES =====
         public static IEnumerable<ApiResource> ApiResources =>
             new ApiResource[]
             {
+                // Main API
                 new ApiResource("api", "Main API")
                 {
                     Scopes = { "api" },
-
                     UserClaims =
                     {
-                        "sub",
-                        "name",
-                        "email",
-                        "role",
-                        "user_type",
-                        "restaurant_id",
-                        "restaurant_name"     
+                        "sub","name","email","role",
+                        "user_type","restaurant_id","restaurant_name"
+                    }
+                },
+
+                // 🔹 Ordering API
+                new ApiResource("orders", "Ordering API")
+                {
+                    Scopes = { "orders" },
+                    UserClaims =
+                    {
+                        "sub","name","email","role",
+                        "user_type","restaurant_id","restaurant_name"
                     }
                 }
             };
 
-        // API Scope
+        // ===== API SCOPES =====
         public static IEnumerable<ApiScope> ApiScopes =>
             new ApiScope[]
             {
                 new ApiScope("api", "Main API Scope"),
-                new ApiScope("scope1"),
-                new ApiScope("scope2")
+
+                // 🔹 Ordering API Scope
+                new ApiScope("orders", "Ordering API")
             };
 
-        // Client cho BFF (ROPC)
+        // ===== CLIENTS =====
         public static IEnumerable<Client> Clients =>
             new Client[]
             {
+                // ----- BFF (ROPC login from FE) -----
                 new Client
                 {
                     ClientId = "bff_ro",
@@ -75,7 +83,7 @@ namespace IdentityServerLogic
                     RequireClientSecret = true,
                     ClientSecrets = { new Secret("super-secret".Sha256()) },
 
-                    // Scopes BFF cần
+                    // Scopes BFF được phép call
                     AllowedScopes =
                     {
                         "openid",
@@ -84,15 +92,31 @@ namespace IdentityServerLogic
                         "roles",
                         "user_info",
                         "offline_access",
-                        "api"
+                        "api",       // Main API
+                        "orders"     // 🔹 CHO BFF GỌI ORDERING.API
                     },
 
-                    // Refresh token
                     AllowOfflineAccess = true,
                     AccessTokenLifetime = 3600,
                     RefreshTokenUsage = TokenUsage.ReUse,
                     RefreshTokenExpiration = TokenExpiration.Sliding,
-                    SlidingRefreshTokenLifetime = 1296000 // 15 ngày
+                    SlidingRefreshTokenLifetime = 1296000
+                },
+
+                // ----- Client Credentials cho Postman / backend test -----
+                new Client
+                {
+                    ClientId = "ordering_client",
+                    ClientName = "Ordering Test (client_credentials)",
+
+                    AllowedGrantTypes = GrantTypes.ClientCredentials,
+
+                    ClientSecrets =
+                    {
+                        new Secret("ordering-secret".Sha256())
+                    },
+
+                    AllowedScopes = { "orders" } // chỉ truy cập Ordering API
                 }
             };
     }
