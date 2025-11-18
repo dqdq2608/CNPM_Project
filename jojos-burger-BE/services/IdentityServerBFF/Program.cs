@@ -137,6 +137,9 @@ builder.Services.AddHttpClient("ordering", (sp, c) =>
     c.BaseAddress = new Uri(baseUrl);
 });
 
+// Đăng kí IOrderBffApi (Order có dùng nhiều HttpClient, nên dùng Scoped + IHttpClientFactory)
+builder.Services.AddScoped<IOrderBffApi, OrderBffApi>();
+
 var app = builder.Build();
 
 app.UseForwardedHeaders(new ForwardedHeadersOptions
@@ -304,5 +307,28 @@ app.MapDelete("/bff-api/basket", async (HttpContext ctx, IHttpClientFactory f) =
     ctx.Response.StatusCode = (int)res.StatusCode;
 })
 .RequireAuthorization(); // .AsBffApiEndpoint()
+
+app.MapPost("/bff-api/order", async (
+    ClaimsPrincipal user,
+    FrontCreateOrderRequest request,
+    IOrderBffApi orderBffApi) =>
+{
+    try
+    {
+        var resultJson = await orderBffApi.CreateOrderFromBasketAsync(user, request);
+        return Results.Content(resultJson, "application/json");
+    }
+    catch (InvalidOperationException ex)
+    {
+        // lỗi business (basket empty, chưa login...) → 400
+        return Results.BadRequest(new { message = ex.Message });
+    }
+    catch
+    {
+        // lỗi hệ thống → 500
+        return Results.StatusCode(500);
+    }
+})
+.RequireAuthorization();
 
 app.Run();
