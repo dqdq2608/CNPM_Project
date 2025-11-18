@@ -1,21 +1,37 @@
 // src/services/api/basket.js
-import http from "./http";
+import axios from "axios";
 
-// Lấy giỏ hàng user hiện tại
-export async function getBasket() {
-  const res = await http.get("/bff-api/basket");
-  return res.data; // { buyerId, items: [...] }
-}
+const BFF_BASE = process.env.REACT_APP_API_BASE || "https://localhost:7082";
 
-// Ghi giỏ hàng (ghi đè toàn bộ items)
-export async function saveBasket(items) {
-  const res = await http.post("/bff-api/basket", {
-    items: items || [],
-  });
+// Dùng trực tiếp root của BFF (vì Basket endpoint là /bff-api/* chứ không phải /api/*)
+const basketHttp = axios.create({
+  baseURL: BFF_BASE + "/bff-api",
+  withCredentials: true, // gửi cookie __Host-bff
+});
+
+export async function fetchBasket() {
+  const res = await basketHttp.get("/basket");
+  // res.data = { buyerId, items: [...] } theo Basket.API
   return res.data;
 }
 
-// Xóa giỏ hàng
-export async function deleteBasket() {
-  await http.delete("/bff-api/basket");
+export async function saveBasketFromCart(cartProducts) {
+  // cartProducts hiện tại có dạng { id, name, price, url, quantity }
+  const items = cartProducts.map((p) => ({
+    id: p.id.toString(), // hoặc GUID, nếu bạn có
+    productId: p.id,
+    productName: p.name,
+    unitPrice: p.price,
+    oldUnitPrice: p.price,
+    quantity: p.quantity,
+    pictureUrl: p.url,
+  }));
+
+  const payload = { items }; // BFF sẽ tự thêm buyerId
+  const res = await basketHttp.post("/basket", payload);
+  return res.data; // CustomerBasket
+}
+
+export async function clearBasketApi() {
+  await basketHttp.delete("/basket");
 }

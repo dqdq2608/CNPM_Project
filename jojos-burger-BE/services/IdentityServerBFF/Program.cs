@@ -265,7 +265,12 @@ app.MapPost("/bff-api/basket", async (HttpContext ctx, IHttpClientFactory f) =>
     content.Headers.ContentType =
         new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
 
-    var res = await http.PostAsync("/api/basket", content);
+    // ✅ Tạo HttpRequestMessage để gắn header X-User-Sub
+    var req = new HttpRequestMessage(HttpMethod.Post, "/api/basket");
+    req.Headers.Add("X-User-Sub", sub);
+    req.Content = content;
+
+    var res = await http.SendAsync(req);
 
     ctx.Response.StatusCode = (int)res.StatusCode;
     ctx.Response.ContentType = "application/json";
