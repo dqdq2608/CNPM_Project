@@ -4,7 +4,7 @@ import { useHistory } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import { useCart } from "../../hooks/CartContext";
-import api from "../../services/api";
+import { createOrderFromCart } from "../../services/api/order";
 import formatCurrency from "../../utils/formatCurrency";
 import { Button } from "../Button";
 import { Container } from "./styles";
@@ -25,20 +25,34 @@ export function CartResume() {
   }, [cartProducts, deliveryFee]);
 
   const submitOrder = async () => {
-    const order = cartProducts.map((product) => {
-      return { id: product.id, quantity: product.quantity };
-    });
+    if (!cartProducts.length) {
+      toast.error("Giỏ hàng trống");
+      return;
+    }
 
-    await toast.promise(api.post("orders", { products: order }), {
-      pending: "Registering order...",
-      success: "Order done! Food is on the way!",
-      error: "Error when processing request. Please try again later... :(",
-    });
+    try {
+      await toast.promise(
+        createOrderFromCart(cartProducts), // ✅ POST /bff-api/order
+        {
+          pending: "Registering order...",
+          success: "Order done! Food is on the way!",
+          error: "Error when processing request. Please try again later... :(",
+        }
+      );
 
-    setTimeout(() => {
-      push("/");
-      clearCart();
-    }, 1000);
+      // Order thành công → clear giỏ (FE + Redis qua BFF)
+      await clearCart();
+      setTimeout(() => {
+        push("/");
+      }, 1000);
+    } catch (e) {
+      if (e?.response?.status === 401) {
+        toast.error("Please login before checkout.");
+        push("/login");
+      } else {
+        console.error("Order error:", e);
+      }
+    }
   };
 
   return (

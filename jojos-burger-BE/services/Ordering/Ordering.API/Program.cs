@@ -61,7 +61,7 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<OrderingContext>();
-        var seeder  = services.GetRequiredService<IDbSeeder<OrderingContext>>();
+        var seeder = services.GetRequiredService<IDbSeeder<OrderingContext>>();
 
         // Đảm bảo đã apply migrations (với DB relational trong Docker)
         await context.Database.MigrateAsync();
@@ -91,8 +91,7 @@ app.UseAuthorization();
 app.MapDefaultEndpoints();
 
 var orders = app.NewVersionedApi("Orders");
-orders.MapOrdersApiV1()
-      .RequireAuthorization("orders-scope");
+orders.MapOrdersApiV1();
 
 app.UseDefaultOpenApi();
 

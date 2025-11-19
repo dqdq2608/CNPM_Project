@@ -113,6 +113,6 @@ export const EmptyCart = styled.p`
   font-weight: bold;
   color: #422800;
 `;
-export const ContainerEmptyCart = styled.p`
+export const ContainerEmptyCart = styled.div`
   width: 500px;
 `;

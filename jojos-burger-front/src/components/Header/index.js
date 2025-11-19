@@ -55,12 +55,13 @@ export function Header() {
       <ContainerLeft>
         {window.innerWidth > 950 ? (
           <>
-            <PageLink onClick={() => push("/")} isActive={pathname === "/"}>
+            <PageLink onClick={() => push("/")} $isActive={pathname === "/"}>
               Home
             </PageLink>
+
             <PageLink
               onClick={() => push("/products")}
-              isActive={pathname.includes("/products")}
+              $isActive={pathname.includes("/products")}
             >
               Products
             </PageLink>
@@ -117,8 +118,14 @@ export function Header() {
 
         <ContainerText>
           <p>Welcome {displayName}!</p>
+
           {!loading && user && (
-            <PageLinkExit onClick={logoutUser}>Logout</PageLinkExit>
+            <>
+              <PageLinkExit as="button" onClick={() => push("/my-orders")}>
+                My orders
+              </PageLinkExit>
+              <PageLinkExit onClick={logoutUser}>Logout</PageLinkExit>
+            </>
           )}
         </ContainerText>
       </ContainerRight>
