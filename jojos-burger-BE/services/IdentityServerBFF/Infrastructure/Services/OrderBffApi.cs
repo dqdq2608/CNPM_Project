@@ -73,7 +73,7 @@ public sealed class OrderBffApi : IOrderBffApi
 
             City = "HCM",
             Street = "Some street",
-            State = "",
+            State = "HCMC",
             Country = "VN",
             ZipCode = "700000",
 
@@ -84,16 +84,17 @@ public sealed class OrderBffApi : IOrderBffApi
             CardTypeId = 1,
 
             Buyer = userName,
-            Items = basket.Items.Select(it => new OrderItemDto
+            Items = basket.Items.Select(it => new BasketItemDto
             {
+                Id = it.Id,
                 ProductId = it.ProductId,
                 ProductName = it.ProductName,
                 UnitPrice = it.UnitPrice,
                 OldUnitPrice = it.OldUnitPrice,
-                PictureUrl = it.PictureUrl,
-                Units = it.Quantity,
-                Discount = 0m
+                Quantity = it.Quantity,        // ✅ đúng tên property
+                PictureUrl = it.PictureUrl
             }).ToList()
+
         };
 
         // 3. Gửi sang Ordering.API
@@ -104,7 +105,7 @@ public sealed class OrderBffApi : IOrderBffApi
             Encoding.UTF8,
             MediaTypeNames.Application.Json);
 
-        var orderingReq = new HttpRequestMessage(HttpMethod.Post, "/api/orders")
+        var orderingReq = new HttpRequestMessage(HttpMethod.Post, "/api/orders?api-version=1.0")
         {
             Content = content
         };
@@ -127,6 +128,32 @@ public sealed class OrderBffApi : IOrderBffApi
         return orderingBody;
     }
 
+    public async Task<string> GetOrdersForUserAsync(
+    ClaimsPrincipal user,
+    CancellationToken cancellationToken = default)
+    {
+        if (user?.Identity?.IsAuthenticated != true)
+            throw new InvalidOperationException("User is not authenticated.");
+
+        var orderingClient = _httpClientFactory.CreateClient("ordering");
+
+        // Vì Ordering.API dùng IdentityService nội bộ để lấy userId,
+        // nên chỉ cần forward cookie/bearer token (sau này),
+        // ở bản nới auth tạm thời thì nó cho anonymous luôn.
+        var res = await orderingClient.GetAsync("/api/orders", cancellationToken);
+        var body = await res.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!res.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Get orders for user failed: {StatusCode} - {Body}",
+                res.StatusCode, body);
+            throw new InvalidOperationException($"Get orders failed: {res.StatusCode}");
+        }
+
+        return body; // JSON danh sách orders
+    }
+
+
     // DTO nội bộ giống lúc trước
     private sealed class CustomerBasketDto
     {
@@ -136,7 +163,8 @@ public sealed class OrderBffApi : IOrderBffApi
 
     private sealed class BasketItemDto
     {
-        public int Id { get; set; }
+        public string Id { get; set; } = default!;   // ✅ giống Basket.API / Ordering
+
         public int ProductId { get; set; }
         public string ProductName { get; set; } = default!;
         public decimal UnitPrice { get; set; }
@@ -144,6 +172,7 @@ public sealed class OrderBffApi : IOrderBffApi
         public int Quantity { get; set; }
         public string PictureUrl { get; set; } = default!;
     }
+
 
     private sealed class CreateOrderRequestDto
     {
@@ -163,17 +192,9 @@ public sealed class OrderBffApi : IOrderBffApi
         public int CardTypeId { get; set; }
 
         public string Buyer { get; set; } = default!;
-        public List<OrderItemDto> Items { get; set; } = new();
+
+        // ✅ Gửi List<BasketItemDto> cho đúng với CreateOrderRequest.Items
+        public List<BasketItemDto> Items { get; set; } = new();
     }
 
-    private sealed class OrderItemDto
-    {
-        public int ProductId { get; set; }
-        public string ProductName { get; set; } = default!;
-        public decimal UnitPrice { get; set; }
-        public decimal OldUnitPrice { get; set; }
-        public string PictureUrl { get; set; } = default!;
-        public decimal Discount { get; set; }
-        public int Units { get; set; }
-    }
 }

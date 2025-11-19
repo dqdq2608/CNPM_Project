@@ -13,7 +13,8 @@ public interface IOrderBffApi
         CancellationToken cancellationToken = default
     );
 
-    // Sau này bạn có thể thêm:
-    // Task<string> GetOrdersForUserAsync(ClaimsPrincipal user, CancellationToken ct = default);
-    // Task<string> GetOrderByIdAsync(ClaimsPrincipal user, int orderId, CancellationToken ct = default);
+    Task<string> GetOrdersForUserAsync(
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default
+    );
 }

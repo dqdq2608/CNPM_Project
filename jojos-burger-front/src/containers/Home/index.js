@@ -13,7 +13,7 @@ export function Home() {
     >
       <CoverImg src={HomeCover} />
       <CategoryCarousel />
-      <OffersCarousel />
+      {/* <OffersCarousel /> */}
     </Container>
   );
 }
