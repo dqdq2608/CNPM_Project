@@ -17,4 +17,10 @@ public interface IOrderBffApi
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default
     );
+
+    Task<string> GetOrderDetailAsync(
+        ClaimsPrincipal user,
+        int orderId,
+        CancellationToken cancellationToken = default
+    );
 }

@@ -18,3 +18,14 @@ export async function createOrderFromCart(cartProducts) {
   const res = await orderHttp.post("/order", { products });
   return res.data;
 }
+
+// Lấy danh sách orders của user hiện tại
+export async function fetchMyOrders() {
+  const res = await orderHttp.get("/orders");
+  return res.data; // mảng OrderSummary từ Ordering.API
+}
+
+export async function fetchOrderDetail(orderId) {
+  const res = await orderHttp.get(`/orders/${orderId}`);
+  return res.data; // chi tiết đơn (có items)
+}

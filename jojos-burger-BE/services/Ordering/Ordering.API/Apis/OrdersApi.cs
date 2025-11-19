@@ -12,6 +12,7 @@ public static class OrdersApi
         api.MapPut("/ship", ShipOrderAsync);
         api.MapGet("{orderId:int}", GetOrderAsync);
         api.MapGet("/", GetOrdersByUserAsync);
+        api.MapGet("/byuser/{userId}", GetOrdersByUserIdAsync);
         api.MapGet("/cardtypes", GetCardTypesAsync);
         api.MapPost("/draft", CreateOrderDraftAsync);
         api.MapPost("/", CreateOrderAsync);
@@ -96,6 +97,16 @@ public static class OrdersApi
         var orders = await services.Queries.GetOrdersFromUserAsync(userId);
         return TypedResults.Ok(orders);
     }
+
+    public static async Task<Ok<IEnumerable<OrderSummary>>> GetOrdersByUserIdAsync(
+    string userId,
+    [AsParameters] OrderServices services)
+    {
+        // Không dùng IdentityService nữa, dùng trực tiếp userId từ route
+        var orders = await services.Queries.GetOrdersFromUserAsync(userId);
+        return TypedResults.Ok(orders);
+    }
+
 
     public static async Task<Ok<IEnumerable<CardType>>> GetCardTypesAsync(IOrderQueries orderQueries)
     {

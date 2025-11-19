@@ -2,9 +2,16 @@ import React from "react";
 import { Switch, Route, BrowserRouter as Router } from "react-router-dom";
 
 import paths from "../constants/paths";
+import {
+  Home,
+  Login,
+  Products,
+  Register,
+  Cart,
+  Admin,
+  MyOrders,
+} from "../containers";
 import PrivateRoute from "./private-routes";
-
-import { Home, Login, Products, Register, Cart, Admin } from "../containers";
 
 function Routes() {
   return (
@@ -15,6 +22,7 @@ function Routes() {
         <PrivateRoute exact component={Home} path="/" />
         <PrivateRoute component={Products} path="/products" />
         <PrivateRoute component={Cart} path="/cart" />
+        <PrivateRoute component={MyOrders} path="/my-orders" />
 
         <PrivateRoute component={Admin} path="/admin" isAdmin />
         <PrivateRoute component={Admin} path={paths.Order} isAdmin />

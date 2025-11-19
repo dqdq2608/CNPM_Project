@@ -133,24 +133,65 @@ public sealed class OrderBffApi : IOrderBffApi
     CancellationToken cancellationToken = default)
     {
         if (user?.Identity?.IsAuthenticated != true)
+        {
             throw new InvalidOperationException("User is not authenticated.");
+        }
+
+        var userId = user.FindFirst("sub")?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            throw new InvalidOperationException("Cannot determine user id (sub).");
+        }
 
         var orderingClient = _httpClientFactory.CreateClient("ordering");
 
-        // Vì Ordering.API dùng IdentityService nội bộ để lấy userId,
-        // nên chỉ cần forward cookie/bearer token (sau này),
-        // ở bản nới auth tạm thời thì nó cho anonymous luôn.
-        var res = await orderingClient.GetAsync("/api/orders", cancellationToken);
+        // Gọi endpoint mới: /api/orders/byuser/{userId}?api-version=1.0
+        var url = $"/api/orders/byuser/{userId}?api-version=1.0";
+
+        var res = await orderingClient.GetAsync(url, cancellationToken);
         var body = await res.Content.ReadAsStringAsync(cancellationToken);
 
         if (!res.IsSuccessStatusCode)
         {
-            _logger.LogWarning("Get orders for user failed: {StatusCode} - {Body}",
-                res.StatusCode, body);
-            throw new InvalidOperationException($"Get orders failed: {res.StatusCode}");
+            _logger.LogWarning("Get orders for user {UserId} failed: {StatusCode} - {Body}",
+                userId, res.StatusCode, body);
+
+            throw new InvalidOperationException(
+                $"Get orders failed: {(int)res.StatusCode} - {body}");
         }
 
-        return body; // JSON danh sách orders
+        return body; // JSON mảng orders
+    }
+
+    public async Task<string> GetOrderDetailAsync(
+    ClaimsPrincipal user,
+    int orderId,
+    CancellationToken cancellationToken = default)
+    {
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            throw new InvalidOperationException("User is not authenticated.");
+        }
+
+        var orderingClient = _httpClientFactory.CreateClient("ordering");
+
+        // Ở eShop, orderNumber thường trùng với Id, nên dùng luôn
+        var url = $"/api/orders/{orderId}?api-version=1.0";
+
+        var res = await orderingClient.GetAsync(url, cancellationToken);
+        var body = await res.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!res.IsSuccessStatusCode)
+        {
+            _logger.LogWarning(
+                "Get order detail failed. OrderId: {OrderId}, Status: {StatusCode} - {Body}",
+                orderId, res.StatusCode, body);
+
+            throw new InvalidOperationException(
+                $"Get order detail failed: {(int)res.StatusCode} - {body}");
+        }
+
+        return body; // JSON chi tiết đơn hàng (có items)
     }
 
 

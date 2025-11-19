@@ -356,6 +356,29 @@ app.MapGet("/bff-api/orders", async (
     {
         return Results.BadRequest(new { message = ex.Message });
     }
+    catch (Exception ex)
+    {
+        // log nếu muốn
+        Console.Error.WriteLine(ex);
+        return Results.StatusCode(500);
+    }
+})
+.RequireAuthorization();
+
+app.MapGet("/bff-api/orders/{orderId:int}", async (
+    int orderId,
+    ClaimsPrincipal user,
+    IOrderBffApi orderBffApi) =>
+{
+    try
+    {
+        var json = await orderBffApi.GetOrderDetailAsync(user, orderId);
+        return Results.Content(json, "application/json");
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { message = ex.Message });
+    }
     catch
     {
         return Results.StatusCode(500);
