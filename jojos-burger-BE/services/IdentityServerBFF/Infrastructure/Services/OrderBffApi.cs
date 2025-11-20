@@ -18,14 +18,12 @@ public sealed class OrderBffApi : IOrderBffApi
     }
 
     public async Task<string> CreateOrderFromBasketAsync(
-        ClaimsPrincipal user,
-        FrontCreateOrderRequest request,
-        CancellationToken cancellationToken = default)
+    ClaimsPrincipal user,
+    FrontCreateOrderRequest request,
+    CancellationToken cancellationToken = default)
     {
         if (user?.Identity?.IsAuthenticated != true)
-        {
             throw new InvalidOperationException("User is not authenticated.");
-        }
 
         var userId = user.FindFirst("sub")?.Value;
         var userName = user.FindFirst("name")?.Value
@@ -33,16 +31,12 @@ public sealed class OrderBffApi : IOrderBffApi
                        ?? "Unknown";
 
         if (string.IsNullOrEmpty(userId))
-        {
             throw new InvalidOperationException("User id (sub) is missing.");
-        }
 
         if (request?.products == null || request.products.Count == 0)
-        {
             throw new InvalidOperationException("Products is empty.");
-        }
 
-        // 1. Lấy basket hiện tại từ Basket.API
+        // 1. Get Basket
         var basketClient = _httpClientFactory.CreateClient("basket");
 
         var basketReq = new HttpRequestMessage(HttpMethod.Get, "/api/basket");
@@ -50,22 +44,16 @@ public sealed class OrderBffApi : IOrderBffApi
 
         var basketRes = await basketClient.SendAsync(basketReq, cancellationToken);
         if (!basketRes.IsSuccessStatusCode)
-        {
-            _logger.LogWarning("Get basket failed for user {UserId}: {StatusCode}", userId, basketRes.StatusCode);
             throw new InvalidOperationException($"Get basket failed: {basketRes.StatusCode}");
-        }
 
         var basketJson = await basketRes.Content.ReadAsStringAsync(cancellationToken);
-
         var basket = JsonSerializer.Deserialize<CustomerBasketDto>(basketJson,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
         if (basket == null || basket.Items.Count == 0)
-        {
             throw new InvalidOperationException("Basket is empty.");
-        }
 
-        // 2. Map sang CreateOrderRequestDto cho Ordering.API
+        // 2. Map sang Order
         var orderPayload = new CreateOrderRequestDto
         {
             UserId = userId,
@@ -91,10 +79,9 @@ public sealed class OrderBffApi : IOrderBffApi
                 ProductName = it.ProductName,
                 UnitPrice = it.UnitPrice,
                 OldUnitPrice = it.OldUnitPrice,
-                Quantity = it.Quantity,        // ✅ đúng tên property
+                Quantity = it.Quantity,
                 PictureUrl = it.PictureUrl
             }).ToList()
-
         };
 
         // 3. Gửi sang Ordering.API
@@ -115,18 +102,58 @@ public sealed class OrderBffApi : IOrderBffApi
         var orderingBody = await orderingRes.Content.ReadAsStringAsync(cancellationToken);
 
         if (!orderingRes.IsSuccessStatusCode)
-        {
-            _logger.LogWarning(
-                "Create order failed for user {UserId}: {StatusCode} - {Body}",
-                userId, orderingRes.StatusCode, orderingBody);
-
             throw new InvalidOperationException(
                 $"Create order failed: {(int)orderingRes.StatusCode} - {orderingBody}");
-        }
 
-        // Trả raw JSON lại cho BFF endpoint, FE có thể xài nếu cần
-        return orderingBody;
+        // Parse JSON để lấy orderId
+        var createdOrder = JsonSerializer.Deserialize<OrderCreatedResponse>(orderingBody,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        if (createdOrder == null || createdOrder.OrderId <= 0)
+            throw new InvalidOperationException("Cannot parse orderId from response.");
+
+        var orderId = createdOrder.OrderId;
+
+        // -------------------------------------
+        // 4. GỌI DELIVERY API
+        // -------------------------------------
+
+        var deliveryClient = _httpClientFactory.CreateClient("delivery");
+
+        // TODO: Lấy vị trí thực từ user/address
+        var deliveryPayload = new
+        {
+            OrderId = orderId,
+            RestaurantLat = 10.762622,
+            RestaurantLon = 106.660172,
+            CustomerLat = 10.802000,
+            CustomerLon = 106.700000
+        };
+
+        var deliveryReq = new HttpRequestMessage(HttpMethod.Post, "/api/deliveries")
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(deliveryPayload),
+                Encoding.UTF8,
+                "application/json")
+        };
+
+        var deliveryRes = await deliveryClient.SendAsync(deliveryReq, cancellationToken);
+        var deliveryBody = await deliveryRes.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!deliveryRes.IsSuccessStatusCode)
+            _logger.LogWarning("Delivery creation failed but order is OK. Status {StatusCode}. Body: {Body}",
+                deliveryRes.StatusCode, deliveryBody);
+
+        return JsonSerializer.Serialize(new
+        {
+            Order = createdOrder,
+            Delivery = deliveryRes.IsSuccessStatusCode
+                ? JsonSerializer.Deserialize<object>(deliveryBody)
+                : null
+        });
     }
+
 
     public async Task<string> GetOrdersForUserAsync(
     ClaimsPrincipal user,
@@ -194,6 +221,28 @@ public sealed class OrderBffApi : IOrderBffApi
         return body; // JSON chi tiết đơn hàng (có items)
     }
 
+    public async Task<string> GetDeliveryForOrderAsync(
+    ClaimsPrincipal user,
+    int orderId,
+    CancellationToken cancellationToken = default)
+    {
+        if (user?.Identity?.IsAuthenticated != true)
+            throw new InvalidOperationException("User is not authenticated.");
+
+        var deliveryClient = _httpClientFactory.CreateClient("delivery");
+
+        var url = $"/api/deliveries/by-order/{orderId}";
+        var res = await deliveryClient.GetAsync(url, cancellationToken);
+        var body = await res.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!res.IsSuccessStatusCode)
+            throw new InvalidOperationException(
+                $"Delivery lookup failed: {(int)res.StatusCode} - {body}");
+
+        return body;
+    }
+
+
 
     // DTO nội bộ giống lúc trước
     private sealed class CustomerBasketDto
@@ -238,4 +287,12 @@ public sealed class OrderBffApi : IOrderBffApi
         public List<BasketItemDto> Items { get; set; } = new();
     }
 
+    // DTO trả về cho FE sau khi tạo Order + (tuỳ bước sau) tạo Delivery
+    public sealed record OrderCreatedResponse
+    {
+        public int OrderId { get; init; }
+
+        // Sau này nếu có tạo Delivery kèm theo thì gán vào, còn giờ có thể để null
+        public int? DeliveryId { get; init; }
+    }
 }

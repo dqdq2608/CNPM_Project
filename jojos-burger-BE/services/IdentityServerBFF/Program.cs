@@ -386,5 +386,11 @@ app.MapGet("/bff-api/orders/{orderId:int}", async (
 })
 .RequireAuthorization();
 
+app.MapGet("/orders/{orderId:int}/delivery",
+    async (ClaimsPrincipal user, int orderId, IOrderBffApi api) =>
+    {
+        return Results.Ok(await api.GetDeliveryForOrderAsync(user, orderId));
+    });
+
 
 app.Run();
