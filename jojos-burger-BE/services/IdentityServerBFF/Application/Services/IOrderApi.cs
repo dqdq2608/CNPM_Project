@@ -25,4 +25,10 @@ public interface IOrderBffApi
     );
 
     Task<string> GetDeliveryForOrderAsync(ClaimsPrincipal user, int orderId, CancellationToken cancellationToken = default);
+
+    Task<DeliveryQuoteResponse> GetDeliveryQuoteAsync(
+    ClaimsPrincipal user,
+    DeliveryQuoteRequest request,
+    CancellationToken cancellationToken = default);
+
 }

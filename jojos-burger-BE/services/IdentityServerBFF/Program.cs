@@ -403,5 +403,27 @@ app.MapGet("/orders/{orderId:int}/delivery",
         return Results.Ok(await api.GetDeliveryForOrderAsync(user, orderId));
     });
 
+app.MapPost("/bff-api/delivery/quote", async (
+    ClaimsPrincipal user,
+    DeliveryQuoteRequest request,
+    IOrderBffApi orderBffApi) =>
+{
+    try
+    {
+        var quote = await orderBffApi.GetDeliveryQuoteAsync(user, request);
+        return Results.Json(quote);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { message = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(ex);
+        return Results.StatusCode(500);
+    }
+})
+.RequireAuthorization();
+
 
 app.Run();

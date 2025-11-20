@@ -3,15 +3,21 @@ import { useHistory } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import { useCart } from "../../hooks/CartContext";
-import { createOrderFromCart } from "../../services/api/order";
+import {
+  createOrderFromCart,
+  fetchDeliveryQuote,
+} from "../../services/api/order";
 import formatCurrency from "../../utils/formatCurrency";
 import { Button } from "../Button";
 import { Container } from "./styles";
 
 export function CartResume() {
   const [finalPrice, setFinalPrice] = useState(0);
-  // deliveryFee tạm thời vẫn hard-code, phần tính thật sẽ dùng DeliveryService sau
-  const [deliveryFee] = useState(3000);
+  // phí giao hàng tính từ BFF
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [distanceKm, setDistanceKm] = useState(null);
+  const [loadingQuote, setLoadingQuote] = useState(false);
+  const [quoteError, setQuoteError] = useState("");
 
   // địa chỉ giao hàng (demo: 1 địa chỉ match FakeGeocodingService)
   const [deliveryAddress, setDeliveryAddress] = useState(
@@ -27,7 +33,41 @@ export function CartResume() {
       return current.price * current.quantity + acc;
     }, 0);
     setFinalPrice(sumPrice);
-  }, [cartProducts, deliveryFee]);
+  }, [cartProducts]);
+
+  useEffect(() => {
+    // chưa chọn chi nhánh hoặc chưa nhập địa chỉ => không tính phí
+    if (!selectedRestaurant || !deliveryAddress.trim()) {
+      setDeliveryFee(0);
+      setDistanceKm(null);
+      setQuoteError("");
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        setLoadingQuote(true);
+        setQuoteError("");
+
+        const data = await fetchDeliveryQuote(
+          selectedRestaurant,
+          deliveryAddress
+        );
+        // BFF trả về { distanceKm, deliveryFee }
+        setDistanceKm(data.distanceKm);
+        setDeliveryFee(data.deliveryFee);
+      } catch (err) {
+        console.error("Fetch delivery quote failed:", err);
+        setQuoteError("Không tính được phí giao hàng. Vui lòng thử lại.");
+        setDeliveryFee(0);
+        setDistanceKm(null);
+      } finally {
+        setLoadingQuote(false);
+      }
+    }, 500); // debounce 500ms
+
+    return () => clearTimeout(timeoutId);
+  }, [selectedRestaurant, deliveryAddress]);
 
   const submitOrder = async () => {
     if (!cartProducts.length) {
@@ -130,10 +170,25 @@ export function CartResume() {
                 fontSize: 13,
               }}
             />
-            <p style={{ fontSize: 11, color: "#777", marginTop: 4 }}>
-              Địa chỉ này sẽ được BFF geocode để tính khoảng cách & phí giao
-              hàng trong DeliveryService.
-            </p>
+          </div>
+          {/* Trạng thái tính phí giao hàng */}
+          <div style={{ marginTop: 4 }}>
+            {loadingQuote && (
+              <p style={{ fontSize: 12, color: "#555" }}>
+                Đang tính phí giao hàng...
+              </p>
+            )}
+
+            {!loadingQuote && quoteError && (
+              <p style={{ fontSize: 12, color: "#e74c3c" }}>{quoteError}</p>
+            )}
+
+            {!loadingQuote && !quoteError && distanceKm != null && (
+              <p style={{ fontSize: 12, color: "#2c3e50" }}>
+                Khoảng cách ~ {distanceKm.toFixed(1)} km – Phí giao hàng:{" "}
+                {formatCurrency(deliveryFee)}
+              </p>
+            )}
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-// src/services/order.js
+// src/services/api/order.js
 import axios from "axios";
 
 const BFF_BASE = process.env.REACT_APP_API_BASE || "https://localhost:7082";
@@ -46,4 +46,23 @@ export async function fetchMyOrders() {
 export async function fetchOrderDetail(orderId) {
   const res = await orderHttp.get(`/orders/${orderId}`);
   return res.data; // chi tiết đơn (có items)
+}
+
+export async function fetchDeliveryQuote(selectedRestaurant, deliveryAddress) {
+  if (!selectedRestaurant || !selectedRestaurant.id) {
+    throw new Error("Missing restaurant selection");
+  }
+
+  if (!deliveryAddress || !deliveryAddress.trim()) {
+    throw new Error("Missing delivery address");
+  }
+
+  const payload = {
+    restaurantId: selectedRestaurant.id,
+    deliveryAddress: deliveryAddress.trim(),
+  };
+
+  const res = await orderHttp.post("/delivery/quote", payload);
+  // BE trả về { distanceKm, deliveryFee }
+  return res.data;
 }

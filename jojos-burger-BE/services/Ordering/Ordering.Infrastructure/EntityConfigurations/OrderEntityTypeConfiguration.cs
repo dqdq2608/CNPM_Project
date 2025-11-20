@@ -24,6 +24,11 @@ class OrderEntityTypeConfiguration : IEntityTypeConfiguration<Order>
             .Property(o => o.PaymentId)
             .HasColumnName("PaymentMethodId");
 
+        orderConfiguration
+            .Property(o => o.DeliveryFee)
+            .HasColumnType("decimal(18,2)")
+            .HasDefaultValue(0m);
+
         orderConfiguration.HasOne<PaymentMethod>()
             .WithMany()
             .HasForeignKey(o => o.PaymentId)

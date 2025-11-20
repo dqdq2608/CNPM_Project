@@ -41,6 +41,7 @@ services:
 
       Basket__BaseUrl: "http://basket-api:8080"
       Ordering__BaseUrl: "http://ordering-api:8080" 
+      Delivery__BaseUrl: "http://delivery-api:8080"
 
       BFF__Authority: "https://ids:5001"  
       BFF__ClientId: "bff_ro"
@@ -245,6 +246,7 @@ services:
       - "5437:5432"
     volumes:
       - delivery-data:/var/lib/postgresql/data
+    networks: [appnet]
 
   # === Delivery API ===
   delivery-api:
@@ -260,7 +262,8 @@ services:
       - delivery-db
     ports:
       - "5010:8080"
-
+    networks: [appnet]   
+    
 networks:
   appnet: {}
 

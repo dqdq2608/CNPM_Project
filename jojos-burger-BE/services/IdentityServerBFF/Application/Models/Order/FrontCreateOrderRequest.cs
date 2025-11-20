@@ -1,9 +1,14 @@
-public sealed record FrontOrderItem(int Id, int Quantity);
+using System.Text.Json.Serialization;
+
+public sealed record FrontOrderItem(
+    [property: JsonPropertyName("id")] int Id,
+    [property: JsonPropertyName("quantity")] int Quantity
+);
 
 public sealed record FrontCreateOrderRequest(
-    List<FrontOrderItem> Products,
+    [property: JsonPropertyName("products")] List<FrontOrderItem> Products,
 
-    Guid RestaurantId,        // 👈 chi nhánh người dùng chọn
+    [property: JsonPropertyName("restaurantId")] Guid RestaurantId,
 
-    string DeliveryAddress    // 👈 địa chỉ (string) để geocoding trong BFF
+    [property: JsonPropertyName("deliveryAddress")] string DeliveryAddress
 );

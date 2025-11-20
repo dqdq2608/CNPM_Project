@@ -19,7 +19,7 @@ public class Order
     public Buyer Buyer { get; }
 
     public OrderStatus OrderStatus { get; private set; }
-    
+
     public string Description { get; private set; }
 
     // Draft orders have this set to true. Currently we don't check anywhere the draft status of an Order, but we could do it if needed
@@ -32,8 +32,9 @@ public class Order
     // so OrderItems cannot be added from "outside the AggregateRoot" directly to the collection,
     // but only through the method OrderAggregateRoot.AddOrderItem() which includes behavior.
     private readonly List<OrderItem> _orderItems;
-   
+
     public IReadOnlyCollection<OrderItem> OrderItems => _orderItems.AsReadOnly();
+    public decimal DeliveryFee { get; private set; }
 
     public int? PaymentId { get; private set; }
 
@@ -52,7 +53,7 @@ public class Order
         _isDraft = false;
     }
 
-    public Order(string userId, string userName, Address address, int cardTypeId, string cardNumber, string cardSecurityNumber,
+    public Order(string userId, string userName, Address address, decimal deliveryFee, int cardTypeId, string cardNumber, string cardSecurityNumber,
             string cardHolderName, DateTime cardExpiration, int? buyerId = null, int? paymentMethodId = null) : this()
     {
         BuyerId = buyerId;
@@ -60,6 +61,7 @@ public class Order
         OrderStatus = OrderStatus.Submitted;
         OrderDate = DateTime.UtcNow;
         Address = address;
+        DeliveryFee = deliveryFee;
 
         // Add the OrderStarterDomainEvent to the domain events collection 
         // to be raised/dispatched when committing changes into the Database [ After DbContext.SaveChanges() ]
@@ -98,7 +100,7 @@ public class Order
         BuyerId = buyerId;
         PaymentId = paymentId;
     }
-    
+
     public void SetAwaitingValidationStatus()
     {
         if (OrderStatus == OrderStatus.Submitted)
@@ -170,6 +172,17 @@ public class Order
         }
     }
 
+    public void SetDeliveryFee(decimal fee)
+    {
+        if (fee < 0)
+        {
+            throw new OrderingDomainException("Delivery fee cannot be negative.");
+        }
+
+        DeliveryFee = fee;
+    }
+
+
     private void AddOrderStartedDomainEvent(string userId, string userName, int cardTypeId, string cardNumber,
             string cardSecurityNumber, string cardHolderName, DateTime cardExpiration)
     {
@@ -185,5 +198,7 @@ public class Order
         throw new OrderingDomainException($"Is not possible to change the order status from {OrderStatus} to {orderStatusToChange}.");
     }
 
-    public decimal GetTotal() => _orderItems.Sum(o => o.Units * o.UnitPrice);
+    public decimal GetTotal() =>
+    _orderItems.Sum(o => o.Units * o.UnitPrice) + DeliveryFee;
+
 }

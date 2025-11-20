@@ -3,6 +3,8 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using IdentityServerBFF.Application.Services;
+using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
 
 namespace IdentityServerBFF.Infrastructure.Services;
 
@@ -10,7 +12,7 @@ public sealed class OrderBffApi : IOrderBffApi
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<OrderBffApi> _logger;
-    private readonly IGeocodingService _geocoding;
+    private readonly IGeocodingService _geocodingService;
     public OrderBffApi(
     IHttpClientFactory httpClientFactory,
     ILogger<OrderBffApi> logger,
@@ -18,7 +20,7 @@ public sealed class OrderBffApi : IOrderBffApi
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
-        _geocoding = geocoding;
+        _geocodingService = geocoding;
     }
 
     public async Task<String> CreateOrderFromBasketAsync(
@@ -30,9 +32,36 @@ public sealed class OrderBffApi : IOrderBffApi
         if (string.IsNullOrEmpty(userId))
             throw new InvalidOperationException("User not authorized.");
 
+        var userName = user.FindFirst("name")?.Value
+               ?? user.FindFirst("email")?.Value
+               ?? "Unknown";
+
+        // 1️⃣ Lấy basket hiện tại từ Basket.API
+        var basketClient = _httpClientFactory.CreateClient("basket");
+
+        var basketReq = new HttpRequestMessage(HttpMethod.Get, "/api/basket");
+        basketReq.Headers.Add("X-User-Sub", userId);
+
+        var basketRes = await basketClient.SendAsync(basketReq, cancellationToken);
+        if (!basketRes.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Get basket failed for user {UserId}: {StatusCode}", userId, basketRes.StatusCode);
+            throw new InvalidOperationException($"Get basket failed: {basketRes.StatusCode}");
+        }
+
+        var basketJson = await basketRes.Content.ReadAsStringAsync(cancellationToken);
+
+        var basket = JsonSerializer.Deserialize<CustomerBasketDto>(basketJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        if (basket == null || basket.Items.Count == 0)
+        {
+            throw new InvalidOperationException("Basket is empty.");
+        }
+
         // 1️⃣ GEOCODING: lấy toạ độ khách
         var fullAddress = request.DeliveryAddress ?? "";
-        var (customerLat, customerLon) = await _geocoding.GeocodeAsync(fullAddress, cancellationToken);
+        var (customerLat, customerLon) = await _geocodingService.GeocodeAsync(fullAddress, cancellationToken);
 
         // 2️⃣ Lấy thông tin Restaurant từ Catalog API qua Kong
         var kongClient = _httpClientFactory.CreateClient("kong");
@@ -55,46 +84,67 @@ public sealed class OrderBffApi : IOrderBffApi
         var restaurantLat = restaurant.Latitude;
         var restaurantLon = restaurant.Longitude;
 
+        // 2️⃣.3. Tính distance theo Haversine (km)
+        var distanceKm = CalculateDistanceKm(restaurantLat, restaurantLon, customerLat, customerLon);
+
+        // 2️⃣.4. Tính deliveryFee từ baseFee + perKm
+        const decimal baseFee = 15;   // phí mở đầu
+        const decimal perKm = 3;      // phí mỗi km thêm
+
+        // làm tròn lên 1 chữ số thập phân hoặc nguyên tuỳ bạn
+        var distanceRounded = (decimal)Math.Round(distanceKm, 1);
+
+        // không cho nhỏ hơn 0
+        if (distanceRounded < 0)
+        {
+            distanceRounded = 0;
+        }
+
+        // ví dụ: phí = baseFee + perKm * distanceKm
+        var deliveryFee = baseFee + perKm * distanceRounded;
 
         // 3️⃣ TẠO ORDER TRONG ORDERING.API
         var orderingClient = _httpClientFactory.CreateClient("ordering");
 
         // ⚠️ Ở đây mình sử dụng CreateOrderRequestDto đã định nghĩa ở dưới class
         // để khớp với CreateOrderRequest mà Ordering.API đang mong đợi.
+        // 2. Map basket sang Items cho Ordering.API (lấy dữ liệu chuẩn từ Basket)
+
         var orderPayload = new CreateOrderRequestDto
         {
             UserId = userId,
-            UserName = user.Identity?.Name ?? userId,
-
-            // Địa chỉ: dùng luôn DeliveryAddress người dùng nhập
+            UserName = userName,
             City = "Ho Chi Minh",
-            Street = request.DeliveryAddress ?? "Unknown street",
+            Street = request.DeliveryAddress ?? string.Empty,
             State = "N/A",
             Country = "Vietnam",
             ZipCode = "700000",
 
-            // Payment info: fake dữ liệu demo cho đơn giản
-            CardNumber = "4111111111111111",
-            CardHolderName = user.Identity?.Name ?? "Demo User",
+
+            // Trong demo order eShop: dùng fake card
+            CardNumber = "1234123412341234",
+            CardHolderName = "Quan",
             CardExpiration = DateTime.UtcNow.AddYears(1),
             CardSecurityNumber = "123",
             CardTypeId = 1,
 
-            Buyer = userId,
 
-            // Items: tối thiểu phải có ProductId, Units; các field còn lại Ordering thường
-            // chỉ dùng để mapping sang domain, nhưng để an toàn ta cứ set cơ bản.
-            Items = request.Products.Select(p => new BasketItemDto
+            Buyer = userName,
+
+            DeliveryFee = deliveryFee,
+
+            Items = basket.Items.Select(it => new BasketItemDto
             {
-                Id = p.Id.ToString(),
-                ProductId = p.Id,
-                ProductName = $"Product {p.Id}",
-                UnitPrice = 0m,        // nếu Ordering tự lookup giá thì không cần,
-                OldUnitPrice = 0m,     // còn nếu không thì đây là chỗ bạn có thể nối với Basket/Catalog
-                Quantity = p.Quantity,
-                PictureUrl = string.Empty
+                Id = it.Id,
+                ProductId = it.ProductId,
+                ProductName = it.ProductName,      // ⭐ tên chuẩn từ Catalog
+                UnitPrice = it.UnitPrice,          // ⭐ giá chuẩn từ Catalog
+                OldUnitPrice = it.OldUnitPrice,
+                Quantity = it.Quantity,
+                PictureUrl = it.PictureUrl         // ⭐ ảnh chuẩn từ Catalog
             }).ToList()
         };
+
 
         var orderReq = new HttpRequestMessage(HttpMethod.Post, "/api/orders?api-version=1.0")
         {
@@ -112,12 +162,31 @@ public sealed class OrderBffApi : IOrderBffApi
         var orderRes = await orderingClient.SendAsync(orderReq, cancellationToken);
         var orderBody = await orderRes.Content.ReadAsStringAsync(cancellationToken);
 
-        if (!orderRes.IsSuccessStatusCode)
-            throw new InvalidOperationException($"Create order failed: {orderRes.StatusCode} - {orderBody}");
+        // 🔹 NEW: check body rỗng để tránh JsonException khó debug
+        if (string.IsNullOrWhiteSpace(orderBody))
+        {
+            _logger.LogError(
+                "Ordering API returned empty body when creating order. StatusCode: {StatusCode}",
+                orderRes.StatusCode);
 
-        var created = JsonSerializer.Deserialize<OrderCreatedResponse>(
-            orderBody,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            throw new InvalidOperationException("Ordering API returned empty body when creating order.");
+        }
+
+        OrderCreatedResponse? created;
+        try
+        {
+            created = JsonSerializer.Deserialize<OrderCreatedResponse>(
+                orderBody,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex,
+                "Failed to deserialize Ordering API response when creating order. Body: {Body}",
+                orderBody);
+
+            throw new InvalidOperationException("Unexpected response format from Ordering API when creating order.");
+        }
 
         if (created is null || created.OrderId <= 0)
             throw new InvalidOperationException("Ordering API returned invalid order result.");
@@ -249,6 +318,72 @@ public sealed class OrderBffApi : IOrderBffApi
         return body;
     }
 
+    private static double CalculateDistanceKm(double lat1, double lon1, double lat2, double lon2)
+    {
+        // Haversine formula
+        const double R = 6371.0; // bán kính Trái Đất (km)
+
+        double dLat = ToRadians(lat2 - lat1);
+        double dLon = ToRadians(lon2 - lon1);
+
+        double a =
+            Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+            Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) *
+            Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+
+        double c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+        return R * c;
+    }
+
+    private static double ToRadians(double angle)
+    {
+        return Math.PI * angle / 180.0;
+    }
+
+    public async Task<DeliveryQuoteResponse> GetDeliveryQuoteAsync(
+    ClaimsPrincipal user,
+    DeliveryQuoteRequest request,
+    CancellationToken cancellationToken = default)
+    {
+        if (user?.Identity?.IsAuthenticated != true)
+            throw new InvalidOperationException("User is not authenticated.");
+
+        // 1️⃣ Geocode địa chỉ khách
+        var (customerLat, customerLon) =
+            await _geocodingService.GeocodeAsync(request.DeliveryAddress, cancellationToken);
+
+        // 2️⃣ Lấy restaurant từ Catalog qua Kong (y như CreateOrderFromBasketAsync)
+        var kongClient = _httpClientFactory.CreateClient("kong");
+        var rRes = await kongClient.GetAsync("/catalog/restaurants", cancellationToken);
+        rRes.EnsureSuccessStatusCode();
+
+        var rJson = await rRes.Content.ReadAsStringAsync(cancellationToken);
+        var restaurants = JsonSerializer.Deserialize<List<RestaurantLocationDto>>(
+            rJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        ) ?? new List<RestaurantLocationDto>();
+
+        var restaurant = restaurants.FirstOrDefault(r => r.RestaurantId == request.RestaurantId);
+        if (restaurant is null)
+            throw new InvalidOperationException($"Restaurant {request.RestaurantId} was not found.");
+
+        var distanceKm = CalculateDistanceKm(
+            restaurant.Latitude,
+            restaurant.Longitude,
+            customerLat,
+            customerLon);
+
+        const decimal baseFee = 15000m;
+        const decimal perKm = 3000m;
+
+        var distanceRounded = (decimal)Math.Round(distanceKm, 1);
+        if (distanceRounded < 0) distanceRounded = 0;
+
+        var deliveryFee = baseFee + perKm * distanceRounded;
+
+        return new DeliveryQuoteResponse(distanceKm, deliveryFee);
+    }
+
 
 
     // DTO nội bộ giống lúc trước
@@ -289,6 +424,7 @@ public sealed class OrderBffApi : IOrderBffApi
         public int CardTypeId { get; set; }
 
         public string Buyer { get; set; } = default!;
+        public decimal DeliveryFee { get; set; }
 
         // ✅ Gửi List<BasketItemDto> cho đúng với CreateOrderRequest.Items
         public List<BasketItemDto> Items { get; set; } = new();
@@ -308,8 +444,13 @@ public sealed class OrderBffApi : IOrderBffApi
         public Guid RestaurantId { get; set; }
         public string Name { get; set; } = "";
         public string Address { get; set; } = "";
+
+        [JsonPropertyName("lat")]
         public double Latitude { get; set; }
+
+        [JsonPropertyName("lng")]
         public double Longitude { get; set; }
     }
+
 
 }

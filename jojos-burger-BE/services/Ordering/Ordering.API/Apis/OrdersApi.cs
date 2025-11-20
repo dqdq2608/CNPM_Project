@@ -163,7 +163,8 @@ public static class OrdersApi
                 request.CardHolderName,
                 request.CardExpiration,
                 request.CardSecurityNumber,
-                request.CardTypeId);
+                request.CardTypeId,
+                request.DeliveryFee);
 
             var requestCreateOrder = new IdentifiedCommand<CreateOrderCommand, bool>(
                 createOrderCommand,
@@ -207,11 +208,11 @@ public static class OrdersApi
                         request.UserId);
 
                     // fallback: orderId = 0
-                    return TypedResults.Ok(new { orderId = 0 });
+                    return TypedResults.Ok<object>(new { orderId = 0 });
                 }
 
                 // OrderNumber chính là Id mà FE/BFF dùng
-                return TypedResults.Ok(new { orderId = lastOrder.OrderNumber });
+                return TypedResults.Ok<object>(new { orderId = lastOrder.OrderNumber });
             }
             catch (Exception ex)
             {
@@ -221,7 +222,7 @@ public static class OrdersApi
                     request.UserId);
 
                 // fallback an toàn
-                return TypedResults.Ok(new { orderId = 0 });
+                return TypedResults.Ok<object>(new { orderId = 0 });
             }
         }
     }
@@ -242,4 +243,5 @@ public record CreateOrderRequest(
     string CardSecurityNumber,
     int CardTypeId,
     string Buyer,
-    List<BasketItem> Items);
+    List<BasketItem> Items,
+    decimal DeliveryFee);
