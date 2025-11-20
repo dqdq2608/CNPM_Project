@@ -1,4 +1,9 @@
-﻿namespace eShop.Ordering.API.Application.DomainEventHandlers;
+﻿using eShop.Ordering.Domain.AggregatesModel.OrderAggregate;
+using MediatR;
+using Microsoft.Extensions.Logging;
+using eShop.Ordering.API.Application.IntegrationEvents.Events;
+
+namespace eShop.Ordering.API.Application.DomainEventHandlers;
 
 public class OrderStatusChangedToStockConfirmedDomainEventHandler
                 : INotificationHandler<OrderStatusChangedToStockConfirmedDomainEvent>
@@ -20,14 +25,26 @@ public class OrderStatusChangedToStockConfirmedDomainEventHandler
         _orderingIntegrationEventService = orderingIntegrationEventService;
     }
 
-    public async Task Handle(OrderStatusChangedToStockConfirmedDomainEvent domainEvent, CancellationToken cancellationToken)
+    public async Task Handle(
+        OrderStatusChangedToStockConfirmedDomainEvent domainEvent,
+        CancellationToken cancellationToken)
     {
         OrderingApiTrace.LogOrderStatusUpdated(_logger, domainEvent.OrderId, OrderStatus.StockConfirmed);
 
         var order = await _orderRepository.GetAsync(domainEvent.OrderId);
-        var buyer = await _buyerRepository.FindByIdAsync(order.BuyerId.Value);
+        var buyer = await _buyerRepository.FindByIdAsync(order.BuyerId!.Value);
 
-        var integrationEvent = new OrderStatusChangedToStockConfirmedIntegrationEvent(order.Id, order.OrderStatus, buyer.Name, buyer.IdentityGuid);
+        // giả sử Order có property Total (hoặc GetTotal(), tùy bạn đặt tên)
+        var integrationEvent = new OrderStatusChangedToStockConfirmedIntegrationEvent
+        {
+            OrderId           = order.Id,
+            OrderStatus       = order.OrderStatus.ToString(),
+            BuyerName         = buyer.Name,
+            BuyerIdentityGuid = buyer.IdentityGuid,
+            Total             = order.GetTotal()
+        };
+
         await _orderingIntegrationEventService.AddAndSaveEventAsync(integrationEvent);
     }
 }
+

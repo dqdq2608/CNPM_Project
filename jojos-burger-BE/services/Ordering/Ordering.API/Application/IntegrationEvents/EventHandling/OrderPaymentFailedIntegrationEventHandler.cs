@@ -1,23 +1,47 @@
-﻿namespace eShop.Ordering.API.Application.IntegrationEvents.EventHandling;
+﻿using eShop.EventBus.Abstractions;
+using Microsoft.Extensions.Logging;
+using Payment.IntegrationEvents.Events;
+using eShop.Ordering.Domain.AggregatesModel.OrderAggregate;
+using OrderPaymentFailedIntegrationEvent = Payment.IntegrationEvents.Events.OrderPaymentFailedIntegrationEvent;
 
-public class OrderPaymentFailedIntegrationEventHandler(
-    IMediator mediator,
-    ILogger<OrderPaymentFailedIntegrationEventHandler> logger) :
-    IIntegrationEventHandler<OrderPaymentFailedIntegrationEvent>
+namespace eShop.Ordering.API.IntegrationEvents.EventHandling;
+
+public class OrderPaymentFailedIntegrationEventHandler
+    : IIntegrationEventHandler<OrderPaymentFailedIntegrationEvent>
 {
+    private readonly IOrderRepository _orderRepository;
+    private readonly ILogger<OrderPaymentFailedIntegrationEventHandler> _logger;
+
+    public OrderPaymentFailedIntegrationEventHandler(
+        IOrderRepository orderRepository,
+        ILogger<OrderPaymentFailedIntegrationEventHandler> logger)
+    {
+        _orderRepository = orderRepository;
+        _logger = logger;
+    }
+
     public async Task Handle(OrderPaymentFailedIntegrationEvent @event)
     {
-        logger.LogInformation("Handling integration event: {IntegrationEventId} - ({@IntegrationEvent})", @event.Id, @event);
+        _logger.LogInformation(
+            ">>> [ORDERING] Handling OrderPaymentFailedIntegrationEvent. OrderId={OrderId}",
+            @event.OrderId);
 
-        var command = new CancelOrderCommand(@event.OrderId);
+        var order = await _orderRepository.GetAsync(@event.OrderId);
+        if (order is null)
+        {
+            _logger.LogWarning(
+                ">>> [ORDERING] Order not found when handling OrderPaymentFailedIntegrationEvent. OrderId={OrderId}",
+                @event.OrderId);
+            return;
+        }
 
-        logger.LogInformation(
-            "Sending command: {CommandName} - {IdProperty}: {CommandId} ({@Command})",
-            command.GetGenericTypeName(),
-            nameof(command.OrderNumber),
-            command.OrderNumber,
-            command);
+        // Tuỳ nghiệp vụ: huỷ đơn hoặc set trạng thái PaymentFailed
+        order.SetCancelledStatus(); // hoặc tên method domain của bạn
 
-        await mediator.Send(command);
+        await _orderRepository.UnitOfWork.SaveEntitiesAsync();
+
+        _logger.LogInformation(
+            ">>> [ORDERING] Order {OrderId} set to PAYMENT FAILED / CANCELLED.",
+            @event.OrderId);
     }
 }

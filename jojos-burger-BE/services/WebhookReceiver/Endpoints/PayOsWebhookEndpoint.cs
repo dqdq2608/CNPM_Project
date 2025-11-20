@@ -10,10 +10,15 @@ public static class PayOsWebhookEndpoint
     {
         endpoints.MapPost("/webhooks/payos", async (
             [FromBody] PayOsWebhookRequest body,
-            PayOsWebhookHandler handler) =>
+            [FromQuery] bool? skipSignature,           // cho phép null
+            [FromServices] IPayOsWebhookHandler handler) =>
         {
-            await handler.HandleAsync(body);
-            return Results.Ok();  // cho PayOS biết đã nhận
+            // Khi test local:  ?skipSignature=true  -> bỏ verify chữ ký
+            // Khi PayOS gọi thật: không có query   -> verify chữ ký bình thường
+            var ignoreSignature = skipSignature == true;
+
+            await handler.HandleAsync(body, ignoreSignature);
+            return Results.Ok();
         });
 
         return endpoints;

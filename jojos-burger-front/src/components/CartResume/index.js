@@ -4,7 +4,7 @@ import { useHistory } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import { useCart } from "../../hooks/CartContext";
-import { createOrderFromCart } from "../../services/api/order";
+import checkout from "../../services/api/checkout";
 import formatCurrency from "../../utils/formatCurrency";
 import { Button } from "../Button";
 import { Container } from "./styles";
@@ -14,7 +14,6 @@ export function CartResume() {
   const [deliveryFee] = useState(3);
 
   const { push } = useHistory();
-
   const { cartProducts, clearCart } = useCart();
 
   useEffect(() => {
@@ -25,6 +24,63 @@ export function CartResume() {
   }, [cartProducts, deliveryFee]);
 
   const submitOrder = async () => {
+    try {
+      if (cartProducts.length === 0) {
+        toast.error("Your cart is empty!");
+        return;
+      }
+
+      // 1) Build items gửi lên BFF
+      const items = cartProducts.map((product) => ({
+        productId: product.id,
+        productName: product.name,
+        quantity: product.quantity,
+        unitPrice: product.price
+      }));
+
+      const payload = { items };
+
+      // 2) Create order qua BFF
+      const checkoutRes = await toast.promise(
+        checkout.checkoutOnline(payload),
+        {
+          pending: "Creating order...",
+          success: "Order created!",
+          error: "Could not create order"
+        }
+      );
+
+      const orderId = checkoutRes.orderId ?? checkoutRes.OrderId;
+      if (!orderId) {
+        toast.error("Order ID not found");
+        return;
+      }
+
+      // 3) Lấy paymentUrl từ BFF
+      const payRes = await toast.promise(
+        checkout.fetchPaymentLink(orderId),
+        {
+          pending: "Retrieving payment link...",
+          success: "Redirecting to PayOS...",
+          error: "Could not obtain payment link"
+        }
+      );
+
+      const paymentUrl = payRes.paymentUrl ?? payRes.PaymentUrl;
+      if (!paymentUrl) {
+        toast.error("Payment link unavailable");
+        return;
+      }
+
+      // 4) Redirect sang PayOS
+      window.location.href = paymentUrl;
+
+      // (tuỳ bạn)
+      // clearCart();
+
+    } catch (err) {
+      console.error(err);
+      toast.error("Checkout failed!");
     if (!cartProducts.length) {
       toast.error("Giỏ hàng trống");
       return;

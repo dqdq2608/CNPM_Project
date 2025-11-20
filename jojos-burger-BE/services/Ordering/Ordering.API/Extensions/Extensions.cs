@@ -1,40 +1,36 @@
-﻿using FluentValidation;
+﻿using eShop.EventBus;
+using eShop.EventBus.Abstractions;
+using eShop.Ordering.API.Application.IntegrationEvents.Events;
+using eShop.Ordering.API.IntegrationEvents.EventHandling;
+using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+
+// alias 2 event thanh toán để tránh trùng tên với event cũ trong Ordering
+using PaymentFailedIntegrationEvent = Payment.IntegrationEvents.Events.OrderPaymentFailedIntegrationEvent;
+using PaymentSucceededIntegrationEvent = Payment.IntegrationEvents.Events.OrderPaymentSucceededIntegrationEvent;
 
 internal static class Extensions
 {
     public static void AddApplicationServices(this IHostApplicationBuilder builder)
     {
         var services = builder.Services;
-        
-        // Add the authentication services to DI
-        // builder.AddDefaultAuthentication();
 
-        // Pooling is disabled because of the following error:
-        // Unhandled exception. System.InvalidOperationException:
-        // The DbContext of type 'OrderingContext' cannot be pooled because it does not have a public constructor accepting a single parameter of type DbContextOptions or has more than one constructor.
+        // DbContext
         services.AddDbContext<OrderingContext>(options =>
         {
             options.UseNpgsql(builder.Configuration.GetConnectionString("orderingdb"));
         });
-        // builder.EnrichNpgsqlDbContext<OrderingContext>();
 
-        // services.AddMigration<OrderingContext, OrderingContextSeed>();
-
-        // Add the integration services that consume the DbContext
+        // Integration event log + ordering integration service
         services.AddTransient<IIntegrationEventLogService, IntegrationEventLogService<OrderingContext>>();
-
         services.AddTransient<IOrderingIntegrationEventService, OrderingIntegrationEventService>();
-
-        // builder.AddRabbitMqEventBus("eventbus")
-        //        .AddEventBusSubscriptions();
 
         services.AddHttpContextAccessor();
         services.AddTransient<IIdentityService, IdentityService>();
 
-        // Configure mediatR
+        // MediatR + behaviors
         services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssemblyContaining(typeof(Program));
@@ -44,21 +40,32 @@ internal static class Extensions
             cfg.AddOpenBehavior(typeof(TransactionBehavior<,>));
         });
 
-        // Register the command validators for the validator behavior (validators based on FluentValidation library)
+        // FluentValidation validators
         services.AddValidatorsFromAssemblyContaining<CancelOrderCommandValidator>();
 
+        // Repositories, queries
         services.AddScoped<IOrderQueries, OrderQueries>();
         services.AddScoped<IBuyerRepository, BuyerRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IRequestManager, RequestManager>();
+
+        // ĐĂNG KÝ DI cho 2 handler payment (rất quan trọng)
+        services.AddTransient<OrderPaymentFailedIntegrationEventHandler>();
+        services.AddTransient<OrderPaymentSucceededIntegrationEventHandler>();
     }
 
+    /// <summary>
+    /// Đăng ký các subscription cho EventBus (Ordering lắng nghe các event bên ngoài).
+    /// </summary>
     private static void AddEventBusSubscriptions(this IEventBusBuilder eventBus)
     {
+        // Các event cũ của Ordering
         eventBus.AddSubscription<GracePeriodConfirmedIntegrationEvent, GracePeriodConfirmedIntegrationEventHandler>();
         eventBus.AddSubscription<OrderStockConfirmedIntegrationEvent, OrderStockConfirmedIntegrationEventHandler>();
         eventBus.AddSubscription<OrderStockRejectedIntegrationEvent, OrderStockRejectedIntegrationEventHandler>();
-        eventBus.AddSubscription<OrderPaymentFailedIntegrationEvent, OrderPaymentFailedIntegrationEventHandler>();
-        eventBus.AddSubscription<OrderPaymentSucceededIntegrationEvent, OrderPaymentSucceededIntegrationEventHandler>();
+
+        // 🔥 Các event thanh toán dùng TYPE từ Payment.IntegrationEvents.Events
+        eventBus.AddSubscription<PaymentFailedIntegrationEvent, OrderPaymentFailedIntegrationEventHandler>();
+        eventBus.AddSubscription<PaymentSucceededIntegrationEvent, OrderPaymentSucceededIntegrationEventHandler>();
     }
 }
