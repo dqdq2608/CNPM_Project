@@ -142,6 +142,17 @@ builder.Services.AddHttpClient("basket", (sp, c) =>
     c.BaseAddress = new Uri(baseUrl);
 });
 
+// HttpClient để gọi Ordering
+builder.Services.AddHttpClient("ordering", (sp, c) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = config["Ordering:BaseUrl"] ?? "http://ordering-api";
+    c.BaseAddress = new Uri(baseUrl);
+});
+
+// Đăng kí IOrderBffApi (Order có dùng nhiều HttpClient, nên dùng Scoped + IHttpClientFactory)
+builder.Services.AddScoped<IOrderBffApi, OrderBffApi>();
+
 var app = builder.Build();
 
 app.UseForwardedHeaders(new ForwardedHeadersOptions
@@ -278,7 +289,12 @@ app.MapPost("/bff-api/basket", async (HttpContext ctx, IHttpClientFactory f) =>
     content.Headers.ContentType =
         new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
 
-    var res = await http.PostAsync("/api/basket", content);
+    // ✅ Tạo HttpRequestMessage để gắn header X-User-Sub
+    var req = new HttpRequestMessage(HttpMethod.Post, "/api/basket");
+    req.Headers.Add("X-User-Sub", sub);
+    req.Content = content;
+
+    var res = await http.SendAsync(req);
 
     ctx.Response.StatusCode = (int)res.StatusCode;
     ctx.Response.ContentType = "application/json";
@@ -298,11 +314,90 @@ app.MapDelete("/bff-api/basket", async (HttpContext ctx, IHttpClientFactory f) =
     }
 
     var http = f.CreateClient("basket");
-    // xóa bằng API "delete giỏ của user hiện tại"
-    var res = await http.DeleteAsync("/api/basket");
+
+    // Tạo request DELETE /api/basket và forward buyerId qua header
+    var req = new HttpRequestMessage(HttpMethod.Delete, "/api/basket");
+    req.Headers.Add("X-User-Sub", sub);
+
+    var res = await http.SendAsync(req);
 
     ctx.Response.StatusCode = (int)res.StatusCode;
 })
 .RequireAuthorization(); // .AsBffApiEndpoint()
+
+
+app.MapPost("/bff-api/order", async (
+    ClaimsPrincipal user,
+    FrontCreateOrderRequest request,
+    IOrderBffApi orderBffApi,
+    ILogger<Program> logger) =>
+{
+    try
+    {
+        var resultJson = await orderBffApi.CreateOrderFromBasketAsync(user, request);
+        return Results.Content(resultJson, "application/json");
+    }
+    catch (InvalidOperationException ex)
+    {
+        logger.LogWarning(ex, "Business error when creating order");
+        return Results.BadRequest(new { message = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Unexpected error when creating order");
+        // tạm trả detail để debug
+        return Results.Problem(
+            title: "Unexpected error when creating order",
+            detail: ex.ToString(),
+            statusCode: 500
+        );
+    }
+})
+.RequireAuthorization();
+
+
+app.MapGet("/bff-api/orders", async (
+    ClaimsPrincipal user,
+    IOrderBffApi orderBffApi) =>
+{
+    try
+    {
+        var json = await orderBffApi.GetOrdersForUserAsync(user);
+        return Results.Content(json, "application/json");
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { message = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        // log nếu muốn
+        Console.Error.WriteLine(ex);
+        return Results.StatusCode(500);
+    }
+})
+.RequireAuthorization();
+
+app.MapGet("/bff-api/orders/{orderId:int}", async (
+    int orderId,
+    ClaimsPrincipal user,
+    IOrderBffApi orderBffApi) =>
+{
+    try
+    {
+        var json = await orderBffApi.GetOrderDetailAsync(user, orderId);
+        return Results.Content(json, "application/json");
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { message = ex.Message });
+    }
+    catch
+    {
+        return Results.StatusCode(500);
+    }
+})
+.RequireAuthorization();
+
 
 app.Run();

@@ -86,7 +86,7 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<OrderingContext>();
-        var seeder  = services.GetRequiredService<IDbSeeder<OrderingContext>>();
+        var seeder = services.GetRequiredService<IDbSeeder<OrderingContext>>();
 
         await context.Database.MigrateAsync();
         await seeder.SeedAsync(context);

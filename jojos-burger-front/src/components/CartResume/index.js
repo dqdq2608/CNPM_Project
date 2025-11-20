@@ -1,3 +1,4 @@
+// src/components/CartResume/index.js
 import React, { useState, useEffect } from "react";
 import { useHistory } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -80,6 +81,33 @@ export function CartResume() {
     } catch (err) {
       console.error(err);
       toast.error("Checkout failed!");
+    if (!cartProducts.length) {
+      toast.error("Giỏ hàng trống");
+      return;
+    }
+
+    try {
+      await toast.promise(
+        createOrderFromCart(cartProducts), // ✅ POST /bff-api/order
+        {
+          pending: "Registering order...",
+          success: "Order done! Food is on the way!",
+          error: "Error when processing request. Please try again later... :(",
+        }
+      );
+
+      // Order thành công → clear giỏ (FE + Redis qua BFF)
+      await clearCart();
+      setTimeout(() => {
+        push("/");
+      }, 1000);
+    } catch (e) {
+      if (e?.response?.status === 401) {
+        toast.error("Please login before checkout.");
+        push("/login");
+      } else {
+        console.error("Order error:", e);
+      }
     }
   };
 

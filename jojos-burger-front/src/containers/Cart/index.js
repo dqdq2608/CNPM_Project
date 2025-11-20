@@ -1,3 +1,4 @@
+// src/containers/Cart/index.js
 import React from "react";
 
 import CartCover from "../../assets/homecover.jpg";
