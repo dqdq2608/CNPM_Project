@@ -10,124 +10,128 @@ public sealed class OrderBffApi : IOrderBffApi
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<OrderBffApi> _logger;
-
-    public OrderBffApi(IHttpClientFactory httpClientFactory, ILogger<OrderBffApi> logger)
+    private readonly IGeocodingService _geocoding;
+    public OrderBffApi(
+    IHttpClientFactory httpClientFactory,
+    ILogger<OrderBffApi> logger,
+    IGeocodingService geocoding)
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+        _geocoding = geocoding;
     }
 
-    public async Task<string> CreateOrderFromBasketAsync(
+    public async Task<String> CreateOrderFromBasketAsync(
     ClaimsPrincipal user,
     FrontCreateOrderRequest request,
     CancellationToken cancellationToken = default)
     {
-        if (user?.Identity?.IsAuthenticated != true)
-            throw new InvalidOperationException("User is not authenticated.");
-
         var userId = user.FindFirst("sub")?.Value;
-        var userName = user.FindFirst("name")?.Value
-                       ?? user.FindFirst("email")?.Value
-                       ?? "Unknown";
-
         if (string.IsNullOrEmpty(userId))
-            throw new InvalidOperationException("User id (sub) is missing.");
+            throw new InvalidOperationException("User not authorized.");
 
-        if (request?.products == null || request.products.Count == 0)
-            throw new InvalidOperationException("Products is empty.");
+        // 1️⃣ GEOCODING: lấy toạ độ khách
+        var fullAddress = request.DeliveryAddress ?? "";
+        var (customerLat, customerLon) = await _geocoding.GeocodeAsync(fullAddress, cancellationToken);
 
-        // 1. Get Basket
-        var basketClient = _httpClientFactory.CreateClient("basket");
+        // 2️⃣ Lấy thông tin Restaurant từ Catalog API qua Kong
+        var kongClient = _httpClientFactory.CreateClient("kong");
 
-        var basketReq = new HttpRequestMessage(HttpMethod.Get, "/api/basket");
-        basketReq.Headers.Add("X-User-Sub", userId);
+        // đúng path: /catalog/restaurants
+        var rRes = await kongClient.GetAsync("/catalog/restaurants", cancellationToken);
+        rRes.EnsureSuccessStatusCode();
 
-        var basketRes = await basketClient.SendAsync(basketReq, cancellationToken);
-        if (!basketRes.IsSuccessStatusCode)
-            throw new InvalidOperationException($"Get basket failed: {basketRes.StatusCode}");
+        var rJson = await rRes.Content.ReadAsStringAsync(cancellationToken);
+        var restaurants = JsonSerializer.Deserialize<List<RestaurantLocationDto>>(
+            rJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        ) ?? new List<RestaurantLocationDto>();
 
-        var basketJson = await basketRes.Content.ReadAsStringAsync(cancellationToken);
-        var basket = JsonSerializer.Deserialize<CustomerBasketDto>(basketJson,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        var restaurant = restaurants.FirstOrDefault(r => r.RestaurantId == request.RestaurantId);
 
-        if (basket == null || basket.Items.Count == 0)
-            throw new InvalidOperationException("Basket is empty.");
+        if (restaurant is null)
+            throw new InvalidOperationException($"Restaurant {request.RestaurantId} was not found.");
 
-        // 2. Map sang Order
+        var restaurantLat = restaurant.Latitude;
+        var restaurantLon = restaurant.Longitude;
+
+
+        // 3️⃣ TẠO ORDER TRONG ORDERING.API
+        var orderingClient = _httpClientFactory.CreateClient("ordering");
+
+        // ⚠️ Ở đây mình sử dụng CreateOrderRequestDto đã định nghĩa ở dưới class
+        // để khớp với CreateOrderRequest mà Ordering.API đang mong đợi.
         var orderPayload = new CreateOrderRequestDto
         {
             UserId = userId,
-            UserName = userName,
+            UserName = user.Identity?.Name ?? userId,
 
-            City = "HCM",
-            Street = "Some street",
-            State = "HCMC",
-            Country = "VN",
+            // Địa chỉ: dùng luôn DeliveryAddress người dùng nhập
+            City = "Ho Chi Minh",
+            Street = request.DeliveryAddress ?? "Unknown street",
+            State = "N/A",
+            Country = "Vietnam",
             ZipCode = "700000",
 
-            CardNumber = "1234123412341234",
-            CardHolderName = userName,
+            // Payment info: fake dữ liệu demo cho đơn giản
+            CardNumber = "4111111111111111",
+            CardHolderName = user.Identity?.Name ?? "Demo User",
             CardExpiration = DateTime.UtcNow.AddYears(1),
             CardSecurityNumber = "123",
             CardTypeId = 1,
 
-            Buyer = userName,
-            Items = basket.Items.Select(it => new BasketItemDto
+            Buyer = userId,
+
+            // Items: tối thiểu phải có ProductId, Units; các field còn lại Ordering thường
+            // chỉ dùng để mapping sang domain, nhưng để an toàn ta cứ set cơ bản.
+            Items = request.Products.Select(p => new BasketItemDto
             {
-                Id = it.Id,
-                ProductId = it.ProductId,
-                ProductName = it.ProductName,
-                UnitPrice = it.UnitPrice,
-                OldUnitPrice = it.OldUnitPrice,
-                Quantity = it.Quantity,
-                PictureUrl = it.PictureUrl
+                Id = p.Id.ToString(),
+                ProductId = p.Id,
+                ProductName = $"Product {p.Id}",
+                UnitPrice = 0m,        // nếu Ordering tự lookup giá thì không cần,
+                OldUnitPrice = 0m,     // còn nếu không thì đây là chỗ bạn có thể nối với Basket/Catalog
+                Quantity = p.Quantity,
+                PictureUrl = string.Empty
             }).ToList()
         };
 
-        // 3. Gửi sang Ordering.API
-        var orderingClient = _httpClientFactory.CreateClient("ordering");
-
-        var content = new StringContent(
-            JsonSerializer.Serialize(orderPayload),
-            Encoding.UTF8,
-            MediaTypeNames.Application.Json);
-
-        var orderingReq = new HttpRequestMessage(HttpMethod.Post, "/api/orders?api-version=1.0")
+        var orderReq = new HttpRequestMessage(HttpMethod.Post, "/api/orders?api-version=1.0")
         {
-            Content = content
+            Content = new StringContent(
+                JsonSerializer.Serialize(orderPayload),
+                Encoding.UTF8,
+                "application/json")
         };
-        orderingReq.Headers.Add("x-requestid", Guid.NewGuid().ToString());
 
-        var orderingRes = await orderingClient.SendAsync(orderingReq, cancellationToken);
-        var orderingBody = await orderingRes.Content.ReadAsStringAsync(cancellationToken);
+        // 🔹 Thêm requestId vào header cho Ordering (idempotency)
+        var requestId = Guid.NewGuid().ToString();
+        orderReq.Headers.Add("x-requestid", requestId);
+        orderReq.Headers.Add("requestId", requestId);
 
-        if (!orderingRes.IsSuccessStatusCode)
-            throw new InvalidOperationException(
-                $"Create order failed: {(int)orderingRes.StatusCode} - {orderingBody}");
+        var orderRes = await orderingClient.SendAsync(orderReq, cancellationToken);
+        var orderBody = await orderRes.Content.ReadAsStringAsync(cancellationToken);
 
-        // Parse JSON để lấy orderId
-        var createdOrder = JsonSerializer.Deserialize<OrderCreatedResponse>(orderingBody,
+        if (!orderRes.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Create order failed: {orderRes.StatusCode} - {orderBody}");
+
+        var created = JsonSerializer.Deserialize<OrderCreatedResponse>(
+            orderBody,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-        if (createdOrder == null || createdOrder.OrderId <= 0)
-            throw new InvalidOperationException("Cannot parse orderId from response.");
+        if (created is null || created.OrderId <= 0)
+            throw new InvalidOperationException("Ordering API returned invalid order result.");
 
-        var orderId = createdOrder.OrderId;
-
-        // -------------------------------------
-        // 4. GỌI DELIVERY API
-        // -------------------------------------
-
+        // 4️⃣ GỌI DELIVERY SERVICE
         var deliveryClient = _httpClientFactory.CreateClient("delivery");
 
-        // TODO: Lấy vị trí thực từ user/address
         var deliveryPayload = new
         {
-            OrderId = orderId,
-            RestaurantLat = 10.762622,
-            RestaurantLon = 106.660172,
-            CustomerLat = 10.802000,
-            CustomerLon = 106.700000
+            OrderId = created.OrderId,
+            RestaurantLat = restaurantLat,
+            RestaurantLon = restaurantLon,
+            CustomerLat = customerLat,
+            CustomerLon = customerLon
         };
 
         var deliveryReq = new HttpRequestMessage(HttpMethod.Post, "/api/deliveries")
@@ -142,16 +146,19 @@ public sealed class OrderBffApi : IOrderBffApi
         var deliveryBody = await deliveryRes.Content.ReadAsStringAsync(cancellationToken);
 
         if (!deliveryRes.IsSuccessStatusCode)
-            _logger.LogWarning("Delivery creation failed but order is OK. Status {StatusCode}. Body: {Body}",
-                deliveryRes.StatusCode, deliveryBody);
-
-        return JsonSerializer.Serialize(new
         {
-            Order = createdOrder,
-            Delivery = deliveryRes.IsSuccessStatusCode
-                ? JsonSerializer.Deserialize<object>(deliveryBody)
-                : null
-        });
+            _logger.LogWarning(
+                "Delivery creation failed for Order {OrderId}. Status {Status}. Body: {Body}",
+                created.OrderId,
+                deliveryRes.StatusCode,
+                deliveryBody
+            );
+        }
+
+        var jsonResult = JsonSerializer.Serialize(created,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+        return jsonResult;
     }
 
 
@@ -295,4 +302,14 @@ public sealed class OrderBffApi : IOrderBffApi
         // Sau này nếu có tạo Delivery kèm theo thì gán vào, còn giờ có thể để null
         public int? DeliveryId { get; init; }
     }
+
+    public sealed class RestaurantLocationDto
+    {
+        public Guid RestaurantId { get; set; }
+        public string Name { get; set; } = "";
+        public string Address { get; set; } = "";
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+    }
+
 }

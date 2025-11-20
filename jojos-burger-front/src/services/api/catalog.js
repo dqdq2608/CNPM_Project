@@ -49,8 +49,37 @@ async function deleteCatalogType(id) {
 }
 
 async function fetchRestaurants() {
-  const { data } = await catalogHttp.get('/restaurants');
-  return data;
+  const { data } = await catalogHttp.get("/restaurants");
+  const list = Array.isArray(data) ? data : [];
+
+  return list.map((r) => {
+    // tuỳ backend serialize NetTopologySuite thế nào:
+    // - có thể là location.coordinates = [lon, lat]
+    // - hoặc location.x, location.y
+    const loc = r.location || {};
+    const coords = loc.coordinates || loc.Coordinates || null;
+
+    let latitude = 0;
+    let longitude = 0;
+
+    if (Array.isArray(coords) && coords.length >= 2) {
+      longitude = coords[0];
+      latitude = coords[1];
+    } else {
+      // fallback kiểu NetTopologySuite default: X = lon, Y = lat
+      longitude = loc.x ?? loc.X ?? 0;
+      latitude = loc.y ?? loc.Y ?? 0;
+    }
+
+    return {
+      id: r.restaurantId || r.id,
+      name: r.name,
+      address: r.address,
+      latitude,
+      longitude,
+      raw: r,
+    };
+  });
 }
 
 // 🔹 Danh sách items
@@ -118,14 +147,13 @@ async function fetchCatalogItemById(id) {
 */
 
 async function createCatalogItem(productPayload) {
-  await catalogHttp.post('/items', productPayload);
+  await catalogHttp.post("/items", productPayload);
 }
 
 /** Cập nhật CatalogItem (v1: PUT /items, id nằm trong body) */
 async function updateCatalogItem(productPayload) {
-  await catalogHttp.put('/items', productPayload);
+  await catalogHttp.put("/items", productPayload);
 }
-
 
 /** Xoá CatalogItem: DELETE /items/{id} */
 async function deleteCatalogItem(id) {

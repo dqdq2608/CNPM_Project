@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using CardType = eShop.Ordering.API.Application.Queries.CardType;
 using Order = eShop.Ordering.API.Application.Queries.Order;
-
+using System.Linq;
 public static class OrdersApi
 {
     public static RouteGroupBuilder MapOrdersApiV1(this IEndpointRouteBuilder app)
@@ -126,14 +126,11 @@ public static class OrdersApi
         return await services.Mediator.Send(command);
     }
 
-    public static async Task<Results<Ok, BadRequest<string>>> CreateOrderAsync(
-        [FromHeader(Name = "x-requestid")] Guid requestId,
-        CreateOrderRequest request,
-        [AsParameters] OrderServices services)
+    public static async Task<Results<Ok<object>, BadRequest<string>>> CreateOrderAsync(
+    [FromHeader(Name = "x-requestid")] Guid requestId,
+    CreateOrderRequest request,
+    [AsParameters] OrderServices services)
     {
-
-        //mask the credit card number
-
         services.Logger.LogInformation(
             "Sending command: {CommandName} - {IdProperty}: {CommandId}",
             request.GetGenericTypeName(),
@@ -146,15 +143,31 @@ public static class OrdersApi
             return TypedResults.BadRequest("RequestId is missing.");
         }
 
-        using (services.Logger.BeginScope(new List<KeyValuePair<string, object>> { new("IdentifiedCommandId", requestId) }))
+        using (services.Logger.BeginScope(new List<KeyValuePair<string, object>>
+           { new("IdentifiedCommandId", requestId) }))
         {
-            var maskedCCNumber = request.CardNumber.Substring(request.CardNumber.Length - 4).PadLeft(request.CardNumber.Length, 'X');
-            var createOrderCommand = new CreateOrderCommand(request.Items, request.UserId, request.UserName, request.City, request.Street,
-                request.State, request.Country, request.ZipCode,
-                maskedCCNumber, request.CardHolderName, request.CardExpiration,
-                request.CardSecurityNumber, request.CardTypeId);
+            var maskedCCNumber = request.CardNumber
+                .Substring(request.CardNumber.Length - 4)
+                .PadLeft(request.CardNumber.Length, 'X');
 
-            var requestCreateOrder = new IdentifiedCommand<CreateOrderCommand, bool>(createOrderCommand, requestId);
+            var createOrderCommand = new CreateOrderCommand(
+                request.Items,
+                request.UserId,
+                request.UserName,
+                request.City,
+                request.Street,
+                request.State,
+                request.Country,
+                request.ZipCode,
+                maskedCCNumber,
+                request.CardHolderName,
+                request.CardExpiration,
+                request.CardSecurityNumber,
+                request.CardTypeId);
+
+            var requestCreateOrder = new IdentifiedCommand<CreateOrderCommand, bool>(
+                createOrderCommand,
+                requestId);
 
             services.Logger.LogInformation(
                 "Sending command: {CommandName} - {IdProperty}: {CommandId} ({@Command})",
@@ -165,18 +178,54 @@ public static class OrdersApi
 
             var result = await services.Mediator.Send(requestCreateOrder);
 
-            if (result)
+            if (!result)
             {
-                services.Logger.LogInformation("CreateOrderCommand succeeded - RequestId: {RequestId}", requestId);
-            }
-            else
-            {
-                services.Logger.LogWarning("CreateOrderCommand failed - RequestId: {RequestId}", requestId);
+                services.Logger.LogWarning(
+                    "CreateOrderCommand failed - RequestId: {RequestId}",
+                    requestId);
+
+                // Có thể trả BadRequest/Problem, tuỳ bạn, tạm thời trả BadRequest
+                return TypedResults.BadRequest("CreateOrderCommand failed.");
             }
 
-            return TypedResults.Ok();
+            services.Logger.LogInformation(
+                "CreateOrderCommand succeeded - RequestId: {RequestId}",
+                requestId);
+
+            // 🔹 Sau khi tạo thành công, query lại order của user để lấy orderId mới nhất
+            try
+            {
+                var orders = await services.Queries.GetOrdersFromUserAsync(request.UserId);
+                var lastOrder = orders
+                    .OrderByDescending(o => o.Date)
+                    .FirstOrDefault();
+
+                if (lastOrder is null)
+                {
+                    services.Logger.LogWarning(
+                        "No orders found for user {UserId} after CreateOrderCommand succeeded.",
+                        request.UserId);
+
+                    // fallback: orderId = 0
+                    return TypedResults.Ok(new { orderId = 0 });
+                }
+
+                // OrderNumber chính là Id mà FE/BFF dùng
+                return TypedResults.Ok(new { orderId = lastOrder.OrderNumber });
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogError(
+                    ex,
+                    "Error when trying to load last order for user {UserId} after CreateOrderCommand succeeded.",
+                    request.UserId);
+
+                // fallback an toàn
+                return TypedResults.Ok(new { orderId = 0 });
+            }
         }
     }
+
 }
 
 public record CreateOrderRequest(

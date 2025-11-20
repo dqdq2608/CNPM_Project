@@ -9,13 +9,31 @@ const orderHttp = axios.create({
   withCredentials: true, // rất quan trọng để gửi cookie login
 });
 
-export async function createOrderFromCart(cartProducts) {
+export async function createOrderFromCart(
+  cartProducts,
+  selectedRestaurant,
+  deliveryAddress
+) {
+  if (!selectedRestaurant || !selectedRestaurant.id) {
+    throw new Error("Missing restaurant selection");
+  }
+
+  if (!deliveryAddress || !deliveryAddress.trim()) {
+    throw new Error("Missing delivery address");
+  }
+
   const products = cartProducts.map((p) => ({
     id: p.id,
     quantity: p.quantity,
   }));
 
-  const res = await orderHttp.post("/order", { products });
+  const payload = {
+    products,
+    restaurantId: selectedRestaurant.id,
+    deliveryAddress: deliveryAddress.trim(),
+  };
+
+  const res = await orderHttp.post("/order", payload);
   return res.data;
 }
 
