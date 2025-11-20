@@ -121,6 +121,19 @@ builder.Services.AddHttpClient<ICatalogBffApi, CatalogBffApi>(c =>
     ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
 
+// Đăng kí IPaymentApi
+builder.Services.AddHttpClient<IPaymentApi, CheckoutOnlineBffApi>(c =>
+{
+    c.BaseAddress = new Uri(kongUrl);
+    c.DefaultRequestHeaders.Add("apikey", kongApiKey);
+    c.Timeout = TimeSpan.FromSeconds(5);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback =
+        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+});
+
 // HttpClient để gọi Basket
 builder.Services.AddHttpClient("basket", (sp, c) =>
 {

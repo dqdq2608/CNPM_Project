@@ -185,5 +185,16 @@ public class Order
         throw new OrderingDomainException($"Is not possible to change the order status from {OrderStatus} to {orderStatusToChange}.");
     }
 
+    public void ForceSetStockConfirmedStatus()
+    {
+        if (OrderStatus != OrderStatus.StockConfirmed)
+        {
+            AddDomainEvent(new OrderStatusChangedToStockConfirmedDomainEvent(Id));
+
+            OrderStatus = OrderStatus.StockConfirmed;
+            Description = "Force confirmed stock after online checkout.";
+        }
+    }
+
     public decimal GetTotal() => _orderItems.Sum(o => o.Units * o.UnitPrice);
 }

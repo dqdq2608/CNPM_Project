@@ -9,6 +9,8 @@ public static class BffPublicApi
 
         // DOMAIN: Catalog
         bff.MapCatalogEndpoints();
+        bff.MapCheckoutEndpoints();
+        bff.MapPaymentEndpoints();
 
         // Sau này thêm:
         // bff.MapOrderEndpoints();

@@ -2,26 +2,22 @@ using eShop.EventBus;
 using eShop.ServiceDefaults;
 using WebhookReceiver.PayOS.Endpoints;
 using WebhookReceiver.PayOS.Handlers;
+using WebhookReceiver.PayOS.Models;
 using WebhookReceiver.PayOS.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// eShop defaults: logging, tracing, health, config...
 builder.AddServiceDefaults();
 
-// Đăng ký EventBus với RabbitMQ (y chang các service khác)
+// WebhookReceiver chỉ PUBLISH event ⇒ chỉ cần EventBus, không subscription
 builder.AddRabbitMqEventBus("EventBus");
 
-// Đăng ký DI cho PayOS webhook
 builder.Services.AddSingleton<PayOsSignatureVerifier>();
-builder.Services.AddTransient<PayOsWebhookHandler>();
+builder.Services.AddTransient<IPayOsWebhookHandler, PayOsWebhookHandler>();
 
 var app = builder.Build();
 
-// Health check, metrics...
 app.MapDefaultEndpoints();
-
-// Map endpoint webhook PayOS
-app.MapPayOsWebhook();
+app.MapPayOsWebhook();   // /webhooks/payos
 
 app.Run();

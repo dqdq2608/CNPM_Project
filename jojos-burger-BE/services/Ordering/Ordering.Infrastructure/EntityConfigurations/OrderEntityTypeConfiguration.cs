@@ -1,4 +1,9 @@
-﻿namespace eShop.Ordering.Infrastructure.EntityConfigurations;
+﻿using eShop.Ordering.Domain.AggregatesModel.OrderAggregate;
+using eShop.Ordering.Domain.AggregatesModel.BuyerAggregate;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace eShop.Ordering.Infrastructure.EntityConfigurations;
 
 class OrderEntityTypeConfiguration : IEntityTypeConfiguration<Order>
 {
@@ -11,7 +16,7 @@ class OrderEntityTypeConfiguration : IEntityTypeConfiguration<Order>
         orderConfiguration.Property(o => o.Id)
             .UseHiLo("orderseq");
 
-        //Address value object persisted as owned entity type supported since EF Core 2.0
+        // Address value object persisted as owned entity type
         orderConfiguration
             .OwnsOne(o => o.Address);
 
@@ -19,6 +24,11 @@ class OrderEntityTypeConfiguration : IEntityTypeConfiguration<Order>
             .Property(o => o.OrderStatus)
             .HasConversion<string>()
             .HasMaxLength(30);
+
+        // 🔧 QUAN TRỌNG: OrderDate là DateTime, map sang timestamp without time zone cho PostgreSQL
+        orderConfiguration
+            .Property(o => o.OrderDate)
+            .HasColumnType("timestamp without time zone");
 
         orderConfiguration
             .Property(o => o.PaymentId)

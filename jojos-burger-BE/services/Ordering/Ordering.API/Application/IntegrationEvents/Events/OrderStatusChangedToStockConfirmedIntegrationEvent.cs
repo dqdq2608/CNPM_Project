@@ -1,18 +1,12 @@
-﻿namespace eShop.Ordering.API.Application.IntegrationEvents.Events;
+using eShop.EventBus.Events;
+
+namespace eShop.Ordering.API.Application.IntegrationEvents.Events;
 
 public record OrderStatusChangedToStockConfirmedIntegrationEvent : IntegrationEvent
 {
-    public int OrderId { get; }
-    public OrderStatus OrderStatus { get; }
-    public string BuyerName { get; }
-    public string BuyerIdentityGuid { get; }
-
-    public OrderStatusChangedToStockConfirmedIntegrationEvent(
-        int orderId, OrderStatus orderStatus, string buyerName, string buyerIdentityGuid)
-    {
-        OrderId = orderId;
-        OrderStatus = orderStatus;
-        BuyerName = buyerName;
-        BuyerIdentityGuid = buyerIdentityGuid;
-    }
+    public int    OrderId           { get; init; }
+    public string OrderStatus       { get; init; } = default!;
+    public string BuyerName         { get; init; } = default!;
+    public string BuyerIdentityGuid { get; init; } = default!;
+    public decimal Total { get; set; }
 }

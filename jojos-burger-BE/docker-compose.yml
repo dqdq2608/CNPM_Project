@@ -106,6 +106,7 @@ services:
     environment:
       ASPNETCORE_URLS: http://+:5226
       ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__EventBus: "amqp://guest:guest@rabbitmq:5672"
     ports:
       - "5226:5226"
     depends_on:
@@ -121,6 +122,8 @@ services:
     environment:
       ASPNETCORE_URLS: http://+:5022
       ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__EventBus: "amqp://guest:guest@rabbitmq:5672"
+      EventBus__SubscriptionClientName: "webhookreceiver"
     ports:
       - "5022:5022"
     depends_on:
@@ -229,6 +232,19 @@ services:
       ConnectionStrings__EventBus: "amqp://guest:guest@rabbitmq:5672"
     ports:
       - "5224:8080"   # http://localhost:5224
+    networks: [appnet]
+  
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok
+    # forward HTTP traffic từ internet → service webhookreceiver:5022 trong docker network
+    command: http webhookreceiver:5022
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040"   # UI của ngrok để xem log, request…
+    depends_on:
+      - webhookreceiver
     networks: [appnet]
 
 networks:

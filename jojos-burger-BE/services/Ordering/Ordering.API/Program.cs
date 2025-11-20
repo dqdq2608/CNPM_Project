@@ -1,8 +1,22 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using eShop.Ordering.API.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
+
+using eShop.Ordering.API.Infrastructure;
+using eShop.Ordering.API.IntegrationEvents.EventHandling;
+using eShop.Ordering.API.Application.IntegrationEvents;
+using eShop.Ordering.API.Application.IntegrationEvents.Events;
+using eShop.Ordering.Domain.AggregatesModel.OrderAggregate;
+
+using eShop.EventBus;
+using eShop.EventBus.Abstractions;
+using Payment.IntegrationEvents.Events;
+using OrderPaymentSucceededIntegrationEvent = Payment.IntegrationEvents.Events.OrderPaymentSucceededIntegrationEvent;
+using OrderPaymentFailedIntegrationEvent = Payment.IntegrationEvents.Events.OrderPaymentFailedIntegrationEvent;   // dùng event từ Payment.IntegrationEvents
+
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,10 +29,8 @@ builder.Services.AddDbContext<OrderingContext>(options =>
 builder.Services.AddTransient<IDbSeeder<OrderingContext>, OrderingContextSeed>();
 
 // ================== AUTHENTICATION + AUTHORIZATION ==================
-// DÙNG EXTENSION DÙNG CHUNG CHO CẢ HỆ THỐNG
 builder.AddDefaultAuthentication();
 
-// Policy riêng cho Ordering: bắt buộc có scope "orders"
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("orders-scope", policy =>
@@ -36,19 +48,32 @@ builder.Services.AddProblemDetails();
 var withApiVersioning = builder.Services.AddApiVersioning();
 builder.AddDefaultOpenApi();
 
-// (nếu bạn muốn Swagger UI dev)
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // ================== EVENT BUS RABBITMQ ==================
+
+// tạo eventbus builder
 var eventBusBuilder = builder.AddRabbitMqEventBus("eventbus");
 
+// service publish integration event từ chính Ordering (đã có sẵn trong solution)
 builder.Services.AddTransient<IOrderingIntegrationEventService, OrderingIntegrationEventService>();
+
+// đăng ký handler DI cho 2 event Payment
 builder.Services.AddTransient<OrderPaymentSucceededIntegrationEventHandler>();
 builder.Services.AddTransient<OrderPaymentFailedIntegrationEventHandler>();
 
-eventBusBuilder.AddSubscription<OrderPaymentSucceededIntegrationEvent, OrderPaymentSucceededIntegrationEventHandler>();
-eventBusBuilder.AddSubscription<OrderPaymentFailedIntegrationEvent, OrderPaymentFailedIntegrationEventHandler>();
+// ⭐ KEYED HANDLERS cho EventBus mới
+builder.Services.AddKeyedTransient<IIntegrationEventHandler, OrderPaymentSucceededIntegrationEventHandler>(
+    typeof(OrderPaymentSucceededIntegrationEvent));
+
+builder.Services.AddKeyedTransient<IIntegrationEventHandler, OrderPaymentFailedIntegrationEventHandler>(
+    typeof(OrderPaymentFailedIntegrationEvent));
+
+// ⭐ Đăng ký subscription (event từ Payment → Ordering)
+eventBusBuilder
+    .AddSubscription<OrderPaymentSucceededIntegrationEvent, OrderPaymentSucceededIntegrationEventHandler>()
+    .AddSubscription<OrderPaymentFailedIntegrationEvent, OrderPaymentFailedIntegrationEventHandler>();
 
 // ================== BUILD APP ==================
 var app = builder.Build();
@@ -63,10 +88,7 @@ using (var scope = app.Services.CreateScope())
         var context = services.GetRequiredService<OrderingContext>();
         var seeder  = services.GetRequiredService<IDbSeeder<OrderingContext>>();
 
-        // Đảm bảo đã apply migrations (với DB relational trong Docker)
         await context.Database.MigrateAsync();
-
-        // Gọi seed
         await seeder.SeedAsync(context);
     }
     catch (Exception ex)
@@ -76,23 +98,27 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// ⚠️ RẤT QUAN TRỌNG: bật middleware auth
 app.UseAuthentication();
 app.UseAuthorization();
 
-// ENDPOINTS
 app.MapDefaultEndpoints();
 
 var orders = app.NewVersionedApi("Orders");
-orders.MapOrdersApiV1()
-      .RequireAuthorization("orders-scope");
+if (app.Environment.IsDevelopment())
+{
+    orders.MapOrdersApiV1();              // dev: không require token
+}
+else
+{
+    orders.MapOrdersApiV1()
+          .RequireAuthorization("orders-scope");
+}
 
 app.UseDefaultOpenApi();
 

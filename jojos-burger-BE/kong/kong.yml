@@ -22,12 +22,12 @@ services:
 
   # === CATALOG qua Kong ===
   - name: catalog
-    url: http://catalog-api:8080/api/catalog
+    url: http://catalog-api:8080
     routes:
       - name: catalog-route
         paths:
-          - /catalog
-        strip_path: true
+          - /api/catalog
+        strip_path: false
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     plugins:
       - name: cors
@@ -44,9 +44,21 @@ services:
             - "*"
           exposed_headers:
             - "*"
-          credentials: false # FE đang withCredentials:false
+          credentials: false
           max_age: 3600
 
+  # === ORDERING API qua Kong ===
+  - name: ordering-api
+    url: http://ordering-api:8080
+    routes:
+      - name: ordering-route
+        # OrdersApi đang map "api/orders" nên mình để path y chang
+        paths:
+          - /api/orders
+        strip_path: false
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+
+  # === BASKET API ===
   - name: basket-api
     url: http://basket-api:8080
     routes:
@@ -56,16 +68,20 @@ services:
         strip_path: true
         methods: ["GET", "POST", "DELETE", "OPTIONS"]
 
+  # === PAYMENT PROCESSOR ===
   - name: payment-service
-    host: paymentprocessor
-    port: 5226
-    protocol: http
+    url: http://paymentprocessor:5226
     routes:
-      - name: payment-create
+      - name: payment-route
         paths:
           - /api/payments
-        methods: [ POST ]
+        methods:
+          - GET
+          - POST
+        strip_path: false
 
+
+  # === WEBHOOK từ PayOS vào ===
   - name: payment-webhook-service
     host: webhookreceiver
     port: 5022
@@ -75,15 +91,13 @@ services:
       - name: payos-webhook
         paths:
           - /api/payment/webhooks
-        methods: [ POST ]
+        methods: [ "POST" ]
         strip_path: true
 
-# Consumer đại diện cho BFF khi gọi nội bộ
 consumers:
   - username: bff
     keyauth_credentials:
       - key: "bff-internal-api-key"
 
-# Metrics (tuỳ chọn)
 plugins:
   - name: prometheus

@@ -1,4 +1,9 @@
-﻿namespace eShop.Ordering.Infrastructure.EntityConfigurations;
+﻿using System;
+using eShop.Ordering.Domain.AggregatesModel.BuyerAggregate;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace eShop.Ordering.Infrastructure.EntityConfigurations;
 
 class PaymentMethodEntityTypeConfiguration
     : IEntityTypeConfiguration<PaymentMethod>
@@ -15,28 +20,29 @@ class PaymentMethodEntityTypeConfiguration
         paymentConfiguration.Property<int>("BuyerId");
 
         paymentConfiguration
-            .Property("_cardHolderName")
+            .Property<string>("_cardHolderName")
             .HasColumnName("CardHolderName")
             .HasMaxLength(200);
 
         paymentConfiguration
-            .Property("_alias")
+            .Property<string>("_alias")
             .HasColumnName("Alias")
             .HasMaxLength(200);
 
         paymentConfiguration
-            .Property("_cardNumber")
+            .Property<string>("_cardNumber")
             .HasColumnName("CardNumber")
             .HasMaxLength(25)
             .IsRequired();
 
+        // 🔧 QUAN TRỌNG: _expiration là DateTime, map sang timestamp without time zone
         paymentConfiguration
-            .Property("_expiration")
+            .Property<DateTime>("_expiration")
             .HasColumnName("Expiration")
-            .HasMaxLength(25);
+            .HasColumnType("timestamp without time zone");
 
         paymentConfiguration
-            .Property("_cardTypeId")
+            .Property<int>("_cardTypeId")
             .HasColumnName("CardTypeId");
 
         paymentConfiguration.HasOne(p => p.CardType)
