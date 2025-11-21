@@ -1,8 +1,7 @@
 ﻿using eShop.EventBus.Abstractions;
-using eShop.EventBus.Events;
 using Microsoft.Extensions.Logging;
 using Payment.IntegrationEvents.Events;
-using PaymentProcessor.Apis; // 👈 dùng IPaymentLinkService thay cho IPaymentProvider
+using PaymentProcessor.Apis;
 
 namespace eShop.PaymentProcessor.IntegrationEvents.EventHandling;
 
@@ -19,45 +18,48 @@ public class OrderStatusChangedToStockConfirmedIntegrationEventHandler
         ILogger<OrderStatusChangedToStockConfirmedIntegrationEventHandler> logger)
     {
         _paymentLinkService = paymentLinkService;
-        _eventBus = eventBus;
-        _logger = logger;
+        _eventBus           = eventBus;
+        _logger             = logger;
     }
 
     public async Task Handle(OrderStatusChangedToStockConfirmedIntegrationEvent @event)
     {
+        var amountVnd = @event.Total * 1000m;
         _logger.LogInformation(
-            ">>> [HANDLER] Handling OrderStatusChangedToStockConfirmedIntegrationEvent. EventId={EventId}, OrderId={OrderId}, Buyer={Buyer}, Total={Total}",
+            ">>> [HANDLER] Handling StockConfirmed event. EventId={EventId}, OrderId={OrderId}, Buyer={Buyer}, Total={Total}",
             @event.Id, @event.OrderId, @event.BuyerName, @event.Total);
 
-        // Gọi service tạo link + lưu cache (in-memory)
+        // Build thông tin thanh toán
+        var description = $"Thanh toán đơn hàng {@event.OrderId}";
+        var returnUrl   = "https://localhost:3000";
+        var cancelUrl   = "https://localhost:3000";
+
+        // Gọi service tạo link + cache
         var result = await _paymentLinkService.CreateAndCachePaymentLinkAsync(
-            orderId: @event.OrderId,
-            amount: @event.Total,
-            description: $"Thanh toán đơn hàng {@event.OrderId}",
-            returnUrl: "https://example.com/payment/success",
-            cancelUrl: "https://example.com/payment/cancel");
+            orderId:   @event.OrderId,
+            amount:    amountVnd,
+            description,
+            returnUrl,
+            cancelUrl);
 
         _logger.LogInformation(
-            ">>> [HANDLER] Payment link result for OrderId {OrderId}: IsSuccess={IsSuccess}, Url={Url}, IsNewLink={IsNewLink}, ErrorCode={ErrorCode}, ErrorMessage={ErrorMessage}",
-            @event.OrderId, result.IsSuccess, result.PaymentUrl, result.IsNewLink, result.ErrorCode, result.ErrorMessage);
+            ">>> [HANDLER] Payment service result for OrderId {OrderId}: IsSuccess={IsSuccess}, Url={Url}, ErrorCode={ErrorCode}, ErrorMessage={ErrorMessage}",
+            @event.OrderId, result.IsSuccess, result.PaymentUrl, result.ErrorCode, result.ErrorMessage);
 
-        if (!result.IsSuccess)
+        if (!result.IsSuccess || string.IsNullOrWhiteSpace(result.PaymentUrl))
         {
-            // ❌ Tạo link thất bại ⇒ xem như thanh toán fail luôn
             var failedEvt = new OrderPaymentFailedIntegrationEvent(@event.OrderId);
 
-            _logger.LogInformation(
-                ">>> [HANDLER] Publishing OrderPaymentFailedIntegrationEvent for OrderId {OrderId}",
+            _logger.LogWarning(
+                ">>> [HANDLER] Payment failed. Publishing OrderPaymentFailedIntegrationEvent for OrderId {OrderId}",
                 @event.OrderId);
 
             await _eventBus.PublishAsync(failedEvt);
             return;
         }
 
-        // ✅ Tạo link thành công: link đã được cache trong IPaymentLinkCache
-        // FE/BFF sẽ gọi API khác (vd: GET /api/payments/{orderId}) để lấy paymentUrl và redirect.
         _logger.LogInformation(
-            ">>> [HANDLER] Payment link cached for OrderId {OrderId}. Client can later redirect to: {Url}",
+            ">>> [HANDLER] Payment link created & cached for OrderId {OrderId}. Url={Url}",
             @event.OrderId, result.PaymentUrl);
     }
 }

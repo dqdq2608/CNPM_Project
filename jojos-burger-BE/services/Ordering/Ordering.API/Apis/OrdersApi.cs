@@ -139,27 +139,21 @@ public static class OrdersApi
     {
         // ====== validate nhẹ ======
         if (requestId == Guid.Empty)
-        {
-            services.Logger.LogWarning("Invalid request: x-requestid is empty");
             return TypedResults.BadRequest("RequestId is missing.");
-        }
 
         if (string.IsNullOrWhiteSpace(request.UserId))
-        {
-            services.Logger.LogWarning("Invalid request: UserId is empty");
             return TypedResults.BadRequest("UserId is required.");
-        }
 
-        if (request.Items == null || !request.Items.Any() || request.Items.Any(i => i.Quantity <= 0))
-        {
-            services.Logger.LogWarning("Invalid order items for UserId={UserId}", request.UserId);
+        if (request.Items == null || !request.Items.Any())
             return TypedResults.BadRequest("Invalid order items.");
-        }
+
 
         // ====== log thông tin cơ bản ======
-        var maskedCCNumber = request.CardNumber.Length >= 4
-            ? request.CardNumber[^4..].PadLeft(request.CardNumber.Length, 'X')
-            : "***";
+        var maskedCCNumber =
+            !string.IsNullOrEmpty(request.CardNumber) && request.CardNumber.Length >= 4
+                ? request.CardNumber[^4..].PadLeft(request.CardNumber.Length, 'X')
+                : "***";
+
 
         services.Logger.LogInformation(
             "CreateOrder requested. RequestId={RequestId}, UserId={UserId}, UserName={UserName}, Card={Card}",
@@ -169,20 +163,42 @@ public static class OrdersApi
             maskedCCNumber);
 
         // ====== build command dùng userId trong body ======
+        var city    = string.IsNullOrWhiteSpace(request.City)    ? "OnlineCity"    : request.City;
+        var street  = string.IsNullOrWhiteSpace(request.Street)  ? "OnlineStreet"  : request.Street;
+        var state   = string.IsNullOrWhiteSpace(request.State)   ? "OnlineState"   : request.State;
+        var country = string.IsNullOrWhiteSpace(request.Country) ? "VN"            : request.Country;
+        var zip     = string.IsNullOrWhiteSpace(request.ZipCode) ? "00000"         : request.ZipCode;
+
+        // card fake cho flow online (vì PayOS mới là nơi thanh toán thật)
+        var cardNumber = string.IsNullOrWhiteSpace(request.CardNumber)
+            ? "4111111111111"  // 13 chữ số để pass rule 12–19
+            : request.CardNumber;
+
+        var cardHolder = string.IsNullOrWhiteSpace(request.CardHolderName)
+            ? (request.UserName ?? "ONLINE_USER")
+            : request.CardHolderName;
+
+        var cardSec = string.IsNullOrWhiteSpace(request.CardSecurityNumber)
+            ? "000"   // 3 ký tự để pass rule
+            : request.CardSecurityNumber;
+
+        var cardTypeId = request.CardTypeId ?? 1;
+        var cardExp    = request.CardExpiration ?? DateTime.UtcNow.AddYears(3);
+
         var createOrderCommand = new CreateOrderCommand(
             request.Items,
             request.UserId,
-            request.UserName,
-            request.City,
-            request.Street,
-            request.State,
-            request.Country,
-            request.ZipCode,
-            request.CardNumber,
-            request.CardHolderName,
-            request.CardExpiration,
-            request.CardSecurityNumber,
-            request.CardTypeId);
+            request.UserName ?? string.Empty,
+            city,
+            street,
+            state,
+            country,
+            zip,
+            cardNumber,
+            cardHolder,
+            cardExp,
+            cardSec,
+            cardTypeId);
 
         var identified = new IdentifiedCommand<CreateOrderCommand, bool>(createOrderCommand, requestId);
 
@@ -258,16 +274,16 @@ public static class OrdersApi
 
 public record CreateOrderRequest(
     string UserId,
-    string UserName,
-    string City,
-    string Street,
-    string State,
-    string Country,
-    string ZipCode,
-    string CardNumber,
-    string CardHolderName,
-    DateTime CardExpiration,
-    string CardSecurityNumber,
-    int CardTypeId,
-    string Buyer,
+    string? UserName,
+    string? City,
+    string? Street,
+    string? State,
+    string? Country,
+    string? ZipCode,
+    string? CardNumber,
+    string? CardHolderName,
+    DateTime?  CardExpiration,
+    string  CardSecurityNumber,
+    int? CardTypeId,
+    string? Buyer,
     List<BasketItem> Items);

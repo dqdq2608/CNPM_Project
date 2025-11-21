@@ -24,31 +24,33 @@ export function CartResume() {
   }, [cartProducts, deliveryFee]);
 
   const submitOrder = async () => {
-    try {
-      if (cartProducts.length === 0) {
-        toast.error("Your cart is empty!");
-        return;
-      }
+    if (!cartProducts.length) {
+      toast.error("Giỏ hàng trống");
+      return;
+    }
 
-      // 1) Build items gửi lên BFF
+    try {
       const items = cartProducts.map((product) => ({
         productId: product.id,
         productName: product.name,
         quantity: product.quantity,
-        unitPrice: product.price
+        unitPrice: product.price,
+        pictureUrl: product.pictureUrl,
       }));
 
       const payload = { items };
 
-      // 2) Create order qua BFF
+      // 3) Tạo order qua BFF
       const checkoutRes = await toast.promise(
         checkout.checkoutOnline(payload),
         {
           pending: "Creating order...",
           success: "Order created!",
-          error: "Could not create order"
+          error: "Could not create order",
         }
       );
+
+      console.log("checkoutRes at FE =", checkoutRes);
 
       const orderId = checkoutRes.orderId ?? checkoutRes.OrderId;
       if (!orderId) {
@@ -56,15 +58,17 @@ export function CartResume() {
         return;
       }
 
-      // 3) Lấy paymentUrl từ BFF
+      // 4) Lấy paymentUrl
       const payRes = await toast.promise(
         checkout.fetchPaymentLink(orderId),
         {
           pending: "Retrieving payment link...",
           success: "Redirecting to PayOS...",
-          error: "Could not obtain payment link"
+          error: "Could not obtain payment link",
         }
       );
+
+      console.log("payRes at FE =", payRes);
 
       const paymentUrl = payRes.paymentUrl ?? payRes.PaymentUrl;
       if (!paymentUrl) {
@@ -72,41 +76,16 @@ export function CartResume() {
         return;
       }
 
-      // 4) Redirect sang PayOS
-      window.location.href = paymentUrl;
-
-      // (tuỳ bạn)
-      // clearCart();
-
-    } catch (err) {
-      console.error(err);
-      toast.error("Checkout failed!");
-    if (!cartProducts.length) {
-      toast.error("Giỏ hàng trống");
-      return;
-    }
-
-    try {
-      await toast.promise(
-        createOrderFromCart(cartProducts), // ✅ POST /bff-api/order
-        {
-          pending: "Registering order...",
-          success: "Order done! Food is on the way!",
-          error: "Error when processing request. Please try again later... :(",
-        }
-      );
-
-      // Order thành công → clear giỏ (FE + Redis qua BFF)
       await clearCart();
-      setTimeout(() => {
-        push("/");
-      }, 1000);
+      window.location.href = paymentUrl;
     } catch (e) {
+      console.error("Checkout error:", e);
+
       if (e?.response?.status === 401) {
         toast.error("Please login before checkout.");
         push("/login");
       } else {
-        console.error("Order error:", e);
+        toast.error("Checkout failed!");
       }
     }
   };
