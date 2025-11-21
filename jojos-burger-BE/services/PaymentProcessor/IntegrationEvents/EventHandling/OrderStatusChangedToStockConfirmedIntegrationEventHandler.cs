@@ -1,37 +1,65 @@
-﻿using Payment.Providers.Abstractions;
-using eShop.EventBus.Abstractions;
-using eShop.EventBus.Events;
+﻿using eShop.EventBus.Abstractions;
 using Microsoft.Extensions.Logging;
 using Payment.IntegrationEvents.Events;
+using PaymentProcessor.Apis;
 
 namespace eShop.PaymentProcessor.IntegrationEvents.EventHandling;
-public class OrderStatusChangedToStockConfirmedIntegrationEventHandler(
-    IPaymentProvider paymentProvider,
-    IEventBus eventBus,
-    ILogger<OrderStatusChangedToStockConfirmedIntegrationEventHandler> logger)
+
+public class OrderStatusChangedToStockConfirmedIntegrationEventHandler
     : IIntegrationEventHandler<OrderStatusChangedToStockConfirmedIntegrationEvent>
 {
+    private readonly IPaymentLinkService _paymentLinkService;
+    private readonly IEventBus _eventBus;
+    private readonly ILogger<OrderStatusChangedToStockConfirmedIntegrationEventHandler> _logger;
+
+    public OrderStatusChangedToStockConfirmedIntegrationEventHandler(
+        IPaymentLinkService paymentLinkService,
+        IEventBus eventBus,
+        ILogger<OrderStatusChangedToStockConfirmedIntegrationEventHandler> logger)
+    {
+        _paymentLinkService = paymentLinkService;
+        _eventBus           = eventBus;
+        _logger             = logger;
+    }
+
     public async Task Handle(OrderStatusChangedToStockConfirmedIntegrationEvent @event)
     {
-        logger.LogInformation("Handling event {EventId}", @event.Id);
+        var amountVnd = @event.Total * 1000m;
+        _logger.LogInformation(
+            ">>> [HANDLER] Handling StockConfirmed event. EventId={EventId}, OrderId={OrderId}, Buyer={Buyer}, Total={Total}",
+            @event.Id, @event.OrderId, @event.BuyerName, @event.Total);
 
-        var orderData = new OrderPaymentData
+        // Build thông tin thanh toán
+        var description = $"Thanh toán đơn hàng {@event.OrderId}";
+        var returnUrl   = "https://localhost:3000";
+        var cancelUrl   = "https://localhost:3000";
+
+        // Gọi service tạo link + cache
+        var result = await _paymentLinkService.CreateAndCachePaymentLinkAsync(
+            orderId:   @event.OrderId,
+            amount:    amountVnd,
+            description,
+            returnUrl,
+            cancelUrl);
+
+        _logger.LogInformation(
+            ">>> [HANDLER] Payment service result for OrderId {OrderId}: IsSuccess={IsSuccess}, Url={Url}, ErrorCode={ErrorCode}, ErrorMessage={ErrorMessage}",
+            @event.OrderId, result.IsSuccess, result.PaymentUrl, result.ErrorCode, result.ErrorMessage);
+
+        if (!result.IsSuccess || string.IsNullOrWhiteSpace(result.PaymentUrl))
         {
-            OrderId     = @event.OrderId.ToString(),
-            Amount      = 10_000m, // tạm hard-code, sau này lấy từ Order
-            Description = $"Thanh toán đơn hàng {@event.OrderId}",
-            ReturnUrl   = "https://your-frontend.com/payment/success",
-            CancelUrl   = "https://your-frontend.com/payment/cancel"
-        };
+            var failedEvt = new OrderPaymentFailedIntegrationEvent(@event.OrderId);
 
-        var result = await paymentProvider.CreatePaymentAsync(orderData);
+            _logger.LogWarning(
+                ">>> [HANDLER] Payment failed. Publishing OrderPaymentFailedIntegrationEvent for OrderId {OrderId}",
+                @event.OrderId);
 
-        IntegrationEvent evt;
-        if (result.IsSuccess)
-            evt = new OrderPaymentSucceededIntegrationEvent(@event.OrderId);
-        else
-            evt = new OrderPaymentFailedIntegrationEvent(@event.OrderId);
+            await _eventBus.PublishAsync(failedEvt);
+            return;
+        }
 
-        await eventBus.PublishAsync(evt);
+        _logger.LogInformation(
+            ">>> [HANDLER] Payment link created & cached for OrderId {OrderId}. Url={Url}",
+            @event.OrderId, result.PaymentUrl);
     }
 }

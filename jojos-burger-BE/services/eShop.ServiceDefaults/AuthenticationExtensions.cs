@@ -25,22 +25,20 @@ public static class AuthenticationExtensions
 
         string identityUrl = identitySection["Url"]?.TrimEnd('/')
                              ?? throw new InvalidOperationException("Identity:Url missing");
-        string audience     = identitySection["Audience"]
-                             ?? throw new InvalidOperationException("Identity:Audience missing");
+        string audience = identitySection["Audience"]
+                          ?? throw new InvalidOperationException("Identity:Audience missing");
 
         Console.WriteLine("==========================================");
         Console.WriteLine($"[AUTH] IdentityUrl = {identityUrl}");
         Console.WriteLine($"[AUTH] Audience    = {audience}");
         Console.WriteLine("==========================================");
 
-        // Không map "sub" → tránh đổi claim NameIdentifier
         JsonWebTokenHandler.DefaultInboundClaimTypeMap.Remove("sub");
 
-        // ====== TẠO RSA PUBLIC KEY TỪ JWKS (n, e) ======
-        // JWKS của bạn:
-        var n = "v-p6QyfPvN3SwHyS6aQj7JauiEwAb2sPblzajWcc-kGZ8XrS6K_tZTeOvzkSHkJqRockDg2-pQHPaPvzOxQ81lezwcFWPhjuV4XMus1Cup2SL3ql-Y_DH5GEptmEfaDQdXDdUyvU0AXZR6rjehZ3EcWQqYcyGgg_QhnV8dHo5kVslkXezliBg_iXF714PVNag54Agw8-9Cbce2njLxZWHUDvSqJIgRwVrLHo_OWjupy7lEtG5_UkTlrBtjlmSIKTdd4Y7iqKmrGB0hjtXx_6G5TYvbQA5mFOQHqsJkJyh5K9EBlVMR9JgIShtCWXQdgW7Zfu0nPKsx-RHhyx4E9QzQ";
-        var e = "AQAB";
-        var kid = "35DB8FB887FE2CF90D9CB1EEECB78777";
+        // 🔑 LẤY TỪ JWKS MỚI CỦA IDS
+        var n   = "uOP8LRKwMg6SpI8bK11Oi8XyBIc61qUsbJ-hOpFUfTsoqJelGF9XlFEyJbMc-9uUsLZcC_vL4Cj_KtkkpVP5CXjZtEY54ovqeAL8sg6xs423ydkU6JvcmJO9gexrfYwHXkYP9wIFtPMT0sayoh3PZ-GN-oFZStaektpXnE8TRA7BnZOjxd-kVCzugiBsYI6I78sbO5Zdz3oAiGH9yPYYNxSIFGtMnKsdDNCDjbvI_8WGARd8Au2W4eg03U5IILRoDLeuoCpkWnKouEK7GtvN5GRnibFXeuk-_yX3mTuMZre3gpjZ7x9mflE3FEsitiL9P2IT33rQSIzEKO7t8BcW1Q";
+        var e   = "AQAB";   // thường là "AQAB"
+        var kid = "01C12CC2C6AAD9BBEC72834227B7B2F1>"; // ví dụ "01C12CC2C6AAD9BBEC72834227B7B2F1"
 
         var rsa = RSA.Create();
         rsa.ImportParameters(new RSAParameters
@@ -58,8 +56,6 @@ public static class AuthenticationExtensions
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
-                // Không bắt buộc dùng Authority nữa, vì đã có key
-                // vẫn có thể để để validate issuer
                 options.Authority = identityUrl;
                 options.RequireHttpsMetadata = false;
 

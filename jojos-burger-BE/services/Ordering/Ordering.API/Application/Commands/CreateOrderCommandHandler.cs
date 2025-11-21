@@ -1,8 +1,8 @@
 ﻿namespace eShop.Ordering.API.Application.Commands;
 
+using eShop.Ordering.API.Application.IntegrationEvents.Events;
 using eShop.Ordering.Domain.AggregatesModel.OrderAggregate;
 
-// Regular CommandHandler
 public class CreateOrderCommandHandler
     : IRequestHandler<CreateOrderCommand, bool>
 {
@@ -12,8 +12,8 @@ public class CreateOrderCommandHandler
     private readonly IOrderingIntegrationEventService _orderingIntegrationEventService;
     private readonly ILogger<CreateOrderCommandHandler> _logger;
 
-    // Using DI to inject infrastructure persistence Repositories
-    public CreateOrderCommandHandler(IMediator mediator,
+    public CreateOrderCommandHandler(
+        IMediator mediator,
         IOrderingIntegrationEventService orderingIntegrationEventService,
         IOrderRepository orderRepository,
         IIdentityService identityService,
@@ -28,9 +28,21 @@ public class CreateOrderCommandHandler
 
     public async Task<bool> Handle(CreateOrderCommand message, CancellationToken cancellationToken)
     {
-        // Add Integration event to clean the basket
-        var orderStartedIntegrationEvent = new OrderStartedIntegrationEvent(message.UserId);
-        await _orderingIntegrationEventService.AddAndSaveEventAsync(orderStartedIntegrationEvent);
+        // =============================================================
+        // 1) PUBLISH OrderStartedIntegrationEvent (xoá basket)
+        // =============================================================
+        var orderStarted = new OrderStartedIntegrationEvent(message.UserId);
+        await _orderingIntegrationEventService.AddAndSaveEventAsync(orderStarted);
+
+        // =============================================================
+        // 2) Tạo Order từ Command
+        // =============================================================
+        var address = new Address(
+            message.Street,
+            message.City,
+            message.State,
+            message.Country,
+            message.ZipCode);
 
         // Add/Update the Buyer AggregateRoot
         // DDD patterns comment: Add child entities and value-objects through the Order Aggregate-Root
@@ -41,20 +53,61 @@ public class CreateOrderCommandHandler
 
         foreach (var item in message.OrderItems)
         {
-            order.AddOrderItem(item.ProductId, item.ProductName, item.UnitPrice, item.Discount, item.PictureUrl, item.Units);
+            order.AddOrderItem(
+                productId: item.ProductId,
+                productName: item.ProductName,
+                unitPrice: item.UnitPrice,
+                discount: item.Discount,
+                pictureUrl: item.PictureUrl,
+                units: item.Units);
         }
 
-        _logger.LogInformation("Creating Order - Order: {@Order}", order);
+        _logger.LogInformation("Creating Order {@Order}", order);
 
         _orderRepository.Add(order);
 
-        return await _orderRepository.UnitOfWork.SaveEntitiesAsync(cancellationToken);
+        // =============================================================
+        // 3) SAVE LẦN 1  → sẽ phát ra:
+        //      - OrderStartedIntegrationEvent
+        //      - OrderStatusChangedToSubmittedIntegrationEvent
+        // =============================================================
+        var result = await _orderRepository.UnitOfWork.SaveEntitiesAsync(cancellationToken);
+        if (!result)
+            return false;
+        
+        _logger.LogInformation(
+            ">>> [ORDERING] Order created with Id={OrderId} for UserId={UserId}",
+            order.Id,
+            message.UserId);
+
+        // =============================================================
+        // 4) AUTO CONFIRM STOCK → BẮN EVENT Payment
+        // =============================================================
+        //    This will raise:
+        //      - OrderStatusChangedToStockConfirmedDomainEvent
+        // =============================================================
+        order.ForceSetStockConfirmedStatus();
+
+        // đảm bảo EF track thay đổi
+        _orderRepository.Update(order);
+
+        // =============================================================
+        // 5) SAVE LẦN 2  → sẽ phát ra:
+        //      - OrderStatusChangedToStockConfirmedIntegrationEvent
+        // =============================================================
+        await _orderRepository.UnitOfWork.SaveEntitiesAsync(cancellationToken);
+
+
+        return true;
     }
 }
 
 
-// Use for Idempotency in Command process
-public class CreateOrderIdentifiedCommandHandler : IdentifiedCommandHandler<CreateOrderCommand, bool>
+// =============================================================
+//  Idempotency Handler
+// =============================================================
+public class CreateOrderIdentifiedCommandHandler
+    : IdentifiedCommandHandler<CreateOrderCommand, bool>
 {
     public CreateOrderIdentifiedCommandHandler(
         IMediator mediator,
@@ -65,7 +118,5 @@ public class CreateOrderIdentifiedCommandHandler : IdentifiedCommandHandler<Crea
     }
 
     protected override bool CreateResultForDuplicateRequest()
-    {
-        return true; // Ignore duplicate requests for creating order.
-    }
+        => true;
 }

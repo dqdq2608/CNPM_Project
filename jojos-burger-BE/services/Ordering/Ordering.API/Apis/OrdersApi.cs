@@ -2,6 +2,11 @@
 using CardType = eShop.Ordering.API.Application.Queries.CardType;
 using Order = eShop.Ordering.API.Application.Queries.Order;
 using System.Linq;
+using OrderStockConfirmedEvent = Payment.IntegrationEvents.Events.OrderStatusChangedToStockConfirmedIntegrationEvent;
+using eShop.EventBus.Abstractions;
+using Payment.IntegrationEvents.Events; // có cũng được, nhưng alias mới sẽ được dùng
+
+
 public static class OrdersApi
 {
     public static RouteGroupBuilder MapOrdersApiV1(this IEndpointRouteBuilder app)
@@ -16,6 +21,8 @@ public static class OrdersApi
         api.MapGet("/cardtypes", GetCardTypesAsync);
         api.MapPost("/draft", CreateOrderDraftAsync);
         api.MapPost("/", CreateOrderAsync);
+
+        api.MapPost("/test-stock-confirmed", PublishTestStockConfirmedEventAsync);
 
         return api;
     }
@@ -132,15 +139,63 @@ public static class OrdersApi
     [AsParameters] OrderServices services)
     {
         services.Logger.LogInformation(
-            "Sending command: {CommandName} - {IdProperty}: {CommandId}",
-            request.GetGenericTypeName(),
-            nameof(request.UserId),
-            request.UserId); //don't log the request as it has CC number
+            "CreateOrder requested. RequestId={RequestId}, UserId={UserId}, UserName={UserName}, Card={Card}",
+            requestId,
+            request.UserId,
+            request.UserName,
+            maskedCCNumber);
 
-        if (requestId == Guid.Empty)
+        // ====== build command dùng userId trong body ======
+        var city    = string.IsNullOrWhiteSpace(request.City)    ? "OnlineCity"    : request.City;
+        var street  = string.IsNullOrWhiteSpace(request.Street)  ? "OnlineStreet"  : request.Street;
+        var state   = string.IsNullOrWhiteSpace(request.State)   ? "OnlineState"   : request.State;
+        var country = string.IsNullOrWhiteSpace(request.Country) ? "VN"            : request.Country;
+        var zip     = string.IsNullOrWhiteSpace(request.ZipCode) ? "00000"         : request.ZipCode;
+
+        // card fake cho flow online (vì PayOS mới là nơi thanh toán thật)
+        var cardNumber = string.IsNullOrWhiteSpace(request.CardNumber)
+            ? "4111111111111"  // 13 chữ số để pass rule 12–19
+            : request.CardNumber;
+
+        var cardHolder = string.IsNullOrWhiteSpace(request.CardHolderName)
+            ? (request.UserName ?? "ONLINE_USER")
+            : request.CardHolderName;
+
+        var cardSec = string.IsNullOrWhiteSpace(request.CardSecurityNumber)
+            ? "000"   // 3 ký tự để pass rule
+            : request.CardSecurityNumber;
+
+        var cardTypeId = request.CardTypeId ?? 1;
+        var cardExp    = request.CardExpiration ?? DateTime.UtcNow.AddYears(3);
+
+        var createOrderCommand = new CreateOrderCommand(
+            request.Items,
+            request.UserId,
+            request.UserName ?? string.Empty,
+            city,
+            street,
+            state,
+            country,
+            zip,
+            cardNumber,
+            cardHolder,
+            cardExp,
+            cardSec,
+            cardTypeId);
+
+        var identified = new IdentifiedCommand<CreateOrderCommand, bool>(createOrderCommand, requestId);
+
+        services.Logger.LogInformation(
+            "Sending command: {CommandName} - Id: {CommandId}",
+            identified.GetGenericTypeName(),
+            identified.Id);
+
+        var result = await services.Mediator.Send(identified);
+
+        if (!result)
         {
-            services.Logger.LogWarning("Invalid IntegrationEvent - RequestId is missing - {@IntegrationEvent}", request);
-            return TypedResults.BadRequest("RequestId is missing.");
+            services.Logger.LogWarning("CreateOrderCommand failed - RequestId: {RequestId}", requestId);
+            return TypedResults.BadRequest("CreateOrder failed");
         }
 
         using (services.Logger.BeginScope(new List<KeyValuePair<string, object>>
@@ -225,7 +280,45 @@ public static class OrdersApi
                 return TypedResults.Ok<object>(new { orderId = 0 });
             }
         }
+
+        var response = new CreateOrderResponse(
+            createdOrder.OrderNumber,
+            (decimal)createdOrder.Total);
+
+        return TypedResults.Ok(response);
     }
+
+    // Response trả về
+    public record CreateOrderResponse(int OrderId, decimal Total);
+
+
+    public static async Task<Ok> PublishTestStockConfirmedEventAsync(
+        IEventBus eventBus,
+        ILoggerFactory loggerFactory)
+    {
+        var logger = loggerFactory.CreateLogger("OrdersApi.TestStockConfirmed");
+
+        var evt = new OrderStockConfirmedEvent
+        {
+            OrderId           = 5678,                          // order giả
+            OrderStatus       = "StockConfirmed",
+            BuyerName         = "Ordering Test Buyer",
+            BuyerIdentityGuid = Guid.NewGuid().ToString()
+        };
+
+        logger.LogInformation(
+            ">>> [ORDERING-TEST] Publishing OrderStatusChangedToStockConfirmedIntegrationEvent for OrderId {OrderId}",
+            evt.OrderId);
+
+        await eventBus.PublishAsync(evt);
+
+        logger.LogInformation(
+            ">>> [ORDERING-TEST] Published event for OrderId {OrderId}",
+            evt.OrderId);
+
+        return TypedResults.Ok();
+    }
+
 
 }
 

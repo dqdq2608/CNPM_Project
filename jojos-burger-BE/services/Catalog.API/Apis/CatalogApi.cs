@@ -67,7 +67,7 @@ public static class CatalogApi
         api.MapGet("/catalogtypes-with-pics", async (CatalogContext ctx) =>
         {
             // Base URL public qua Kong
-            const string externalBase = "https://localhost:8443/catalog";
+            const string externalBase = "https://localhost:8443/api/catalog";
 
             var types = await ctx.CatalogTypes
                 .AsNoTracking()

@@ -7,7 +7,7 @@ using WebhookReceiver.PayOS.Services;
 
 namespace WebhookReceiver.PayOS.Handlers;
 
-public class PayOsWebhookHandler
+public class PayOsWebhookHandler : IPayOsWebhookHandler
 {
     private readonly PayOsSignatureVerifier _verifier;
     private readonly IEventBus _eventBus;
@@ -23,23 +23,40 @@ public class PayOsWebhookHandler
         _logger = logger;
     }
 
-    public async Task HandleAsync(PayOsWebhookRequest body)
+    /// <summary>
+    /// Xử lý webhook PayOS.
+    /// skipSignature = true dùng để test local (bỏ qua verify chữ ký).
+    /// </summary>
+    public async Task HandleAsync(PayOsWebhookRequest? body, bool skipSignature = false)
     {
+        if (body is null)
+        {
+            _logger.LogWarning("PayOS webhook body is null");
+            return;
+        }
+
         _logger.LogInformation("Received PayOS webhook: {@Body}", body);
 
-        if (!_verifier.Verify(body))
+        // verify chữ ký (trừ khi test có skipSignature=true)
+        if (!skipSignature && !_verifier.Verify(body))
         {
             _logger.LogWarning("Invalid PayOS signature. Webhook ignored.");
             return;
         }
 
         var data = body.Data;
+        if (data is null)
+        {
+            _logger.LogWarning("PayOS webhook data is null. Body={@Body}", body);
+            return;
+        }
 
         var isSuccess =
-            body.Code == "00" &&
+            string.Equals(body.Code, "00", StringComparison.OrdinalIgnoreCase) &&
             body.Success &&
-            data.Code == "00";
+            string.Equals(data.Code, "00", StringComparison.OrdinalIgnoreCase);
 
+        // orderCode bên PayOS thường là long/int – ép sang int cho OrderId
         var orderId = (int)data.OrderCode;
 
         _logger.LogInformation(

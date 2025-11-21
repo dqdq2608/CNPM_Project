@@ -13,7 +13,7 @@ public class CatalogBffApi : ICatalogBffApi
 
     // Giả định HttpClient này đã được cấu hình BaseAddress = KONG URL
     // vd: https://localhost:8443
-    private const string CatalogBasePath = "/catalog";
+    private const string CatalogBasePath = "/api/catalog";
 
     public CatalogBffApi(HttpClient http)
     {
