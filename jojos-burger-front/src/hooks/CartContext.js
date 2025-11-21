@@ -18,6 +18,7 @@ const CartContext = createContext({});
 
 export const CartProvider = ({ children }) => {
   const [cartProducts, setCartProducts] = useState([]);
+  const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const { user } = useUser();
 
   const updateLocalStorage = useCallback(
@@ -36,6 +37,26 @@ export const CartProvider = ({ children }) => {
     },
     [user?.sub] // 👈 hàm này chỉ thay đổi khi user.sub thay đổi
   );
+
+  const updateRestaurantLocalStorage = useCallback(
+    async (restaurant) => {
+      const key = user?.sub
+        ? `jojosburger:selectedRestaurant:${user.sub}`
+        : "jojosburger:selectedRestaurant:guest";
+
+      if (restaurant) {
+        await localStorage.setItem(key, JSON.stringify(restaurant));
+      } else {
+        await localStorage.removeItem(key);
+      }
+    },
+    [user?.sub]
+  );
+
+  const selectRestaurant = async (restaurant) => {
+    setSelectedRestaurant(restaurant || null);
+    await updateRestaurantLocalStorage(restaurant || null);
+  };
 
   const putProductInCart = async (product) => {
     const cartIndex = cartProducts.findIndex((prd) => prd.id === product.id);
@@ -129,7 +150,9 @@ export const CartProvider = ({ children }) => {
       // Nếu CHƯA login → luôn cho giỏ rỗng
       if (!user?.sub) {
         setCartProducts([]);
+        setSelectedRestaurant(null);
         await updateLocalStorage([]);
+        await updateRestaurantLocalStorage(null);
         return;
       }
 
@@ -152,6 +175,22 @@ export const CartProvider = ({ children }) => {
           setCartProducts([]);
           await updateLocalStorage([]);
         }
+
+        const key = user?.sub
+          ? `jojosburger:selectedRestaurant:${user.sub}`
+          : "jojosburger:selectedRestaurant:guest";
+
+        const stored = localStorage.getItem(key);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            setSelectedRestaurant(parsed);
+          } catch {
+            setSelectedRestaurant(null);
+          }
+        } else {
+          setSelectedRestaurant(null);
+        }
       } catch (e) {
         console.error("Load basket from server failed:", e);
         // Lỗi backend -> vẫn để giỏ rỗng, tránh lẫn giỏ user cũ
@@ -161,7 +200,7 @@ export const CartProvider = ({ children }) => {
     };
 
     loadUserData();
-  }, [user?.sub, updateLocalStorage]);
+  }, [user?.sub, updateLocalStorage, updateRestaurantLocalStorage]);
 
   return (
     <CartContext.Provider
@@ -172,6 +211,8 @@ export const CartProvider = ({ children }) => {
         decreaseQuantity,
         deleteProduct,
         clearCart,
+        selectedRestaurant,
+        selectRestaurant,
       }}
     >
       {children}

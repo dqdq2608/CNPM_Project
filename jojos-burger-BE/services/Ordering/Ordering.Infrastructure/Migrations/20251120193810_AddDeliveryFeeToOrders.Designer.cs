@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using eShop.Ordering.Infrastructure;
@@ -11,9 +12,11 @@ using eShop.Ordering.Infrastructure;
 namespace Ordering.Infrastructure.Migrations
 {
     [DbContext(typeof(OrderingContext))]
-    partial class OrderingContextModelSnapshot : ModelSnapshot
+    [Migration("20251120193810_AddDeliveryFeeToOrders")]
+    partial class AddDeliveryFeeToOrders
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -139,7 +142,8 @@ namespace Ordering.Infrastructure.Migrations
                         .HasColumnName("CardTypeId");
 
                     b.Property<DateTime>("_expiration")
-                        .HasColumnType("timestamp without time zone")
+                        .HasMaxLength(25)
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("Expiration");
 
                     b.HasKey("Id");
@@ -171,7 +175,7 @@ namespace Ordering.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime>("OrderDate")
-                        .HasColumnType("timestamp without time zone");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("OrderStatus")
                         .IsRequired()

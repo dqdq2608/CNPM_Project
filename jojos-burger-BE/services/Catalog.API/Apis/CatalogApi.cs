@@ -36,7 +36,7 @@ public static class CatalogApi
         // AI semantic search (optional)
         api.MapGet("/items/withsemanticrelevance/{text:minlength(1)}", GetItemsBySemanticRelevance);
 
-        // Filter theo Type / Restaurant (thay cho Brand cũ)
+        // Filter theo Type / Restaurant
         api.MapGet("/items/type/{typeId:int}/restaurant/{restaurantId:guid?}", GetItemsByTypeAndRestaurant);
         api.MapGet("/items/restaurant/{restaurantId:guid}", GetItemsByRestaurant);
 
@@ -86,7 +86,7 @@ public static class CatalogApi
         api.MapPost("/catalogtypes", CreateCatalogType);
         api.MapPut("/catalogtypes", UpdateCatalogTypeV1);
         api.MapDelete("/catalogtypes/{id:int}", DeleteCatalogType);
-        
+
         // Trả DTO phẳng để tránh serialize NetTopologySuite Point
         api.MapGet("/restaurants", async (CatalogContext context) =>
             await context.Restaurants

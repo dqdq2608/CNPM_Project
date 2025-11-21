@@ -150,8 +150,19 @@ builder.Services.AddHttpClient("ordering", (sp, c) =>
     c.BaseAddress = new Uri(baseUrl);
 });
 
+// HttpClient để gọi Delivery
+builder.Services.AddHttpClient("delivery", (sp, c) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = config["Delivery:BaseUrl"] ?? "http://delivery-api";
+    c.BaseAddress = new Uri(baseUrl);
+});
+
 // Đăng kí IOrderBffApi (Order có dùng nhiều HttpClient, nên dùng Scoped + IHttpClientFactory)
 builder.Services.AddScoped<IOrderBffApi, OrderBffApi>();
+
+// Đăng kí IGeocodingService (Fake)
+builder.Services.AddSingleton<IGeocodingService, FakeGeocodingService>();
 
 var app = builder.Build();
 
@@ -394,6 +405,34 @@ app.MapGet("/bff-api/orders/{orderId:int}", async (
     }
     catch
     {
+        return Results.StatusCode(500);
+    }
+})
+.RequireAuthorization();
+
+app.MapGet("/orders/{orderId:int}/delivery",
+    async (ClaimsPrincipal user, int orderId, IOrderBffApi api) =>
+    {
+        return Results.Ok(await api.GetDeliveryForOrderAsync(user, orderId));
+    });
+
+app.MapPost("/bff-api/delivery/quote", async (
+    ClaimsPrincipal user,
+    DeliveryQuoteRequest request,
+    IOrderBffApi orderBffApi) =>
+{
+    try
+    {
+        var quote = await orderBffApi.GetDeliveryQuoteAsync(user, request);
+        return Results.Json(quote);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { message = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(ex);
         return Results.StatusCode(500);
     }
 })

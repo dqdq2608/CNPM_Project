@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using CardType = eShop.Ordering.API.Application.Queries.CardType;
 using Order = eShop.Ordering.API.Application.Queries.Order;
+using System.Linq;
 using OrderStockConfirmedEvent = Payment.IntegrationEvents.Events.OrderStatusChangedToStockConfirmedIntegrationEvent;
 using eShop.EventBus.Abstractions;
 using Payment.IntegrationEvents.Events; // có cũng được, nhưng alias mới sẽ được dùng
@@ -132,29 +133,11 @@ public static class OrdersApi
         return await services.Mediator.Send(command);
     }
 
-    public static async Task<Results<Ok<CreateOrderResponse>, BadRequest<string>>> CreateOrderAsync(
-        [FromHeader(Name = "x-requestid")] Guid requestId,
-        CreateOrderRequest request,
-        [AsParameters] OrderServices services)
+    public static async Task<Results<Ok<object>, BadRequest<string>>> CreateOrderAsync(
+    [FromHeader(Name = "x-requestid")] Guid requestId,
+    CreateOrderRequest request,
+    [AsParameters] OrderServices services)
     {
-        // ====== validate nhẹ ======
-        if (requestId == Guid.Empty)
-            return TypedResults.BadRequest("RequestId is missing.");
-
-        if (string.IsNullOrWhiteSpace(request.UserId))
-            return TypedResults.BadRequest("UserId is required.");
-
-        if (request.Items == null || !request.Items.Any())
-            return TypedResults.BadRequest("Invalid order items.");
-
-
-        // ====== log thông tin cơ bản ======
-        var maskedCCNumber =
-            !string.IsNullOrEmpty(request.CardNumber) && request.CardNumber.Length >= 4
-                ? request.CardNumber[^4..].PadLeft(request.CardNumber.Length, 'X')
-                : "***";
-
-
         services.Logger.LogInformation(
             "CreateOrder requested. RequestId={RequestId}, UserId={UserId}, UserName={UserName}, Card={Card}",
             requestId,
@@ -215,20 +198,87 @@ public static class OrdersApi
             return TypedResults.BadRequest("CreateOrder failed");
         }
 
-        services.Logger.LogInformation("CreateOrderCommand succeeded - RequestId: {RequestId}", requestId);
-
-        // ====== Lấy order mới tạo của đúng UserId trong body ======
-        var orders = await services.Queries.GetOrdersFromUserAsync(request.UserId);
-        var createdOrder = orders
-            .OrderByDescending(o => o.OrderNumber)
-            .FirstOrDefault();
-
-        if (createdOrder == null)
+        using (services.Logger.BeginScope(new List<KeyValuePair<string, object>>
+           { new("IdentifiedCommandId", requestId) }))
         {
-            services.Logger.LogWarning(
-                "Order created but not found in queries. UserId={UserId}", request.UserId);
+            var maskedCCNumber = request.CardNumber
+                .Substring(request.CardNumber.Length - 4)
+                .PadLeft(request.CardNumber.Length, 'X');
 
-            return TypedResults.BadRequest("Order created but cannot be loaded.");
+            var createOrderCommand = new CreateOrderCommand(
+                request.Items,
+                request.UserId,
+                request.UserName,
+                request.City,
+                request.Street,
+                request.State,
+                request.Country,
+                request.ZipCode,
+                maskedCCNumber,
+                request.CardHolderName,
+                request.CardExpiration,
+                request.CardSecurityNumber,
+                request.CardTypeId,
+                request.DeliveryFee);
+
+            var requestCreateOrder = new IdentifiedCommand<CreateOrderCommand, bool>(
+                createOrderCommand,
+                requestId);
+
+            services.Logger.LogInformation(
+                "Sending command: {CommandName} - {IdProperty}: {CommandId} ({@Command})",
+                requestCreateOrder.GetGenericTypeName(),
+                nameof(requestCreateOrder.Id),
+                requestCreateOrder.Id,
+                requestCreateOrder);
+
+            var result = await services.Mediator.Send(requestCreateOrder);
+
+            if (!result)
+            {
+                services.Logger.LogWarning(
+                    "CreateOrderCommand failed - RequestId: {RequestId}",
+                    requestId);
+
+                // Có thể trả BadRequest/Problem, tuỳ bạn, tạm thời trả BadRequest
+                return TypedResults.BadRequest("CreateOrderCommand failed.");
+            }
+
+            services.Logger.LogInformation(
+                "CreateOrderCommand succeeded - RequestId: {RequestId}",
+                requestId);
+
+            // 🔹 Sau khi tạo thành công, query lại order của user để lấy orderId mới nhất
+            try
+            {
+                var orders = await services.Queries.GetOrdersFromUserAsync(request.UserId);
+                var lastOrder = orders
+                    .OrderByDescending(o => o.Date)
+                    .FirstOrDefault();
+
+                if (lastOrder is null)
+                {
+                    services.Logger.LogWarning(
+                        "No orders found for user {UserId} after CreateOrderCommand succeeded.",
+                        request.UserId);
+
+                    // fallback: orderId = 0
+                    return TypedResults.Ok<object>(new { orderId = 0 });
+                }
+
+                // OrderNumber chính là Id mà FE/BFF dùng
+                return TypedResults.Ok<object>(new { orderId = lastOrder.OrderNumber });
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogError(
+                    ex,
+                    "Error when trying to load last order for user {UserId} after CreateOrderCommand succeeded.",
+                    request.UserId);
+
+                // fallback an toàn
+                return TypedResults.Ok<object>(new { orderId = 0 });
+            }
         }
 
         var response = new CreateOrderResponse(
@@ -274,16 +324,17 @@ public static class OrdersApi
 
 public record CreateOrderRequest(
     string UserId,
-    string? UserName,
-    string? City,
-    string? Street,
-    string? State,
-    string? Country,
-    string? ZipCode,
-    string? CardNumber,
-    string? CardHolderName,
-    DateTime?  CardExpiration,
-    string  CardSecurityNumber,
-    int? CardTypeId,
-    string? Buyer,
-    List<BasketItem> Items);
+    string UserName,
+    string City,
+    string Street,
+    string State,
+    string Country,
+    string ZipCode,
+    string CardNumber,
+    string CardHolderName,
+    DateTime CardExpiration,
+    string CardSecurityNumber,
+    int CardTypeId,
+    string Buyer,
+    List<BasketItem> Items,
+    decimal DeliveryFee);

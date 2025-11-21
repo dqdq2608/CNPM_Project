@@ -41,6 +41,7 @@ services:
 
       Basket__BaseUrl: "http://basket-api:8080"
       Ordering__BaseUrl: "http://ordering-api:8080" 
+      Delivery__BaseUrl: "http://delivery-api:8080"
 
       BFF__Authority: "https://ids:5001"  
       BFF__ClientId: "bff_ro"
@@ -248,6 +249,37 @@ services:
       - webhookreceiver
     networks: [appnet]
 
+  # === Delivery DB ===
+  delivery-db:
+    image: postgres:16
+    container_name: delivery-db
+    restart: always
+    environment:
+      POSTGRES_USER: delivery
+      POSTGRES_PASSWORD: Pass@word1
+      POSTGRES_DB: deliverydb
+    ports:
+      - "5437:5432"
+    volumes:
+      - delivery-data:/var/lib/postgresql/data
+    networks: [appnet]
+
+  # === Delivery API ===
+  delivery-api:
+    image: delivery-api
+    container_name: delivery-api
+    build:
+      context: .
+      dockerfile: services/Delivery/Delivery.API/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DeliveryDb: "Host=delivery-db;Port=5432;Database=deliverydb;Username=delivery;Password=Pass@word1"
+    depends_on:
+      - delivery-db
+    ports:
+      - "5010:8080"
+    networks: [appnet]   
+    
 networks:
   appnet: {}
 
@@ -255,3 +287,4 @@ volumes:
   ids_data:
   catalog_pgdata:
   ordering_pgdata:
+  delivery-data:
