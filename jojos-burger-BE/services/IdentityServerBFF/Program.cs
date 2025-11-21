@@ -37,7 +37,7 @@ builder.Configuration.Bind("BFF", bffConfig);
 
 // CORS cho FE https://localhost:3000
 builder.Services.AddCors(o => o.AddPolicy("fe", p => p
-    .WithOrigins("https://localhost:3000","https://jojos-burger-front.onrender.com")
+    .WithOrigins("https://localhost:3000","https://cnpm-project.onrender.com")
     .AllowAnyHeader()
     .AllowAnyMethod()
     .AllowCredentials()
