@@ -1,7 +1,7 @@
 import axios from "axios";
 
 export const BFF_BASE =
-  process.env.REACT_APP_API_BASE || "https://localhost:7082";
+  process.env.REACT_APP_API_BASE;
 
 // Axios dùng riêng cho BFF (root)
 const bffHttp = axios.create({
