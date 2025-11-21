@@ -34,16 +34,6 @@ public class CreateOrderCommandHandler
         var orderStarted = new OrderStartedIntegrationEvent(message.UserId);
         await _orderingIntegrationEventService.AddAndSaveEventAsync(orderStarted);
 
-        // =============================================================
-        // 2) Tạo Order từ Command
-        // =============================================================
-        var address = new Address(
-            message.Street,
-            message.City,
-            message.State,
-            message.Country,
-            message.ZipCode);
-
         // Add/Update the Buyer AggregateRoot
         // DDD patterns comment: Add child entities and value-objects through the Order Aggregate-Root
         // methods and constructor so validations, invariants and business logic 

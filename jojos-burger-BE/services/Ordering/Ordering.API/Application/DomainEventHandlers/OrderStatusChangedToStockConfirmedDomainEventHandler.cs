@@ -34,7 +34,6 @@ public class OrderStatusChangedToStockConfirmedDomainEventHandler
         var order = await _orderRepository.GetAsync(domainEvent.OrderId);
         var buyer = await _buyerRepository.FindByIdAsync(order.BuyerId!.Value);
 
-        // giả sử Order có property Total (hoặc GetTotal(), tùy bạn đặt tên)
         var integrationEvent = new OrderStatusChangedToStockConfirmedIntegrationEvent
         {
             OrderId           = order.Id,

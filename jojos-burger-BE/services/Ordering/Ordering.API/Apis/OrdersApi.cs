@@ -139,14 +139,14 @@ public static class OrdersApi
         [AsParameters] OrderServices services)
     {
         // ====== VALIDATE (từ nhánh dqdq) ======
-        if (requestId == Guid.Empty)
-            return TypedResults.BadRequest("RequestId is missing.");
+        // if (requestId == Guid.Empty)
+        //     return TypedResults.BadRequest("RequestId is missing.");
 
-        if (string.IsNullOrWhiteSpace(request.UserId))
-            return TypedResults.BadRequest("UserId is required.");
+        // if (string.IsNullOrWhiteSpace(request.UserId))
+        //     return TypedResults.BadRequest("UserId is required.");
 
-        if (request.Items == null || !request.Items.Any())
-            return TypedResults.BadRequest("Invalid order items.");
+        // if (request.Items == null || !request.Items.Any())
+        //     return TypedResults.BadRequest("Invalid order items.");
 
         // ====== MASKED CARD ĐỂ LOG (kết hợp 2 nhánh) ======
         var maskedCCNumber =
