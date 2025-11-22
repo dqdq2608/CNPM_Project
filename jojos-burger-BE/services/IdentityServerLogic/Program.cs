@@ -36,11 +36,13 @@ try
     }
 
     // ✅ Seed chỉ khi truyền tham số /seed
-    if (args.Contains("/seed", StringComparer.OrdinalIgnoreCase))
+    var seedFlag = Environment.GetEnvironmentVariable("RUN_SEED");
+    if (seedFlag == "true")
     {
         Log.Information("Seeding database...");
         await SeedData.EnsureSeedData(app);
-        Log.Information("Done seeding database. Exiting.");
+        Log.Information("Seeding done.");
+        return;
     }
 
     if (app.Environment.IsDevelopment())
