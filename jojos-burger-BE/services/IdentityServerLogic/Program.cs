@@ -56,15 +56,6 @@ try
         return;
     }
 
-    if (app.Environment.IsDevelopment())
-    {
-        app.Lifetime.ApplicationStopping.Register(() =>
-        {
-            var usage = app.Services.GetRequiredService<LicenseUsageSummary>();
-            Console.Write(Summary(usage));
-        });
-    }
-
     // Tắt HTTPS redirect nếu chạy container/cloud
     var disableHttpsRedirect =
         Environment.GetEnvironmentVariable("DISABLE_HTTPS_REDIRECT")?.ToLower() == "true";
