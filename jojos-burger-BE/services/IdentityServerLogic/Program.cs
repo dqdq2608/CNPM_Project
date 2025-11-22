@@ -6,6 +6,7 @@ using IdentityServerLogic.Identity;
 using Serilog;
 using Microsoft.EntityFrameworkCore;
 using Duende.IdentityServer.EntityFramework.DbContexts;
+using Microsoft.AspNetCore.HttpOverrides;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture)
@@ -21,6 +22,11 @@ try
         .ConfigureLogging()
         .ConfigureServices()
         .ConfigurePipeline();
+    
+    app.UseForwardedHeaders(new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor
+    });
 
     // ================================
     //  PostgreSQL: Tự migrate DB
