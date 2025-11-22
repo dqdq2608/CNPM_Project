@@ -25,13 +25,17 @@ try
     // ================================
     //  PostgreSQL: Tự migrate DB
     // ================================
-    using (var scope = app.Services.CreateScope())
+    var runMigrations = Environment.GetEnvironmentVariable("RUN_MIGRATIONS");
+    if (runMigrations == "true")
     {
-        var sp = scope.ServiceProvider;
+        using (var scope = app.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
 
-        await sp.GetRequiredService<PersistedGrantDbContext>().Database.MigrateAsync();
-        await sp.GetRequiredService<ConfigurationDbContext>().Database.MigrateAsync();
-        await sp.GetRequiredService<ApplicationDbContext>().Database.MigrateAsync();
+            await sp.GetRequiredService<PersistedGrantDbContext>().Database.MigrateAsync();
+            await sp.GetRequiredService<ConfigurationDbContext>().Database.MigrateAsync();
+            await sp.GetRequiredService<ApplicationDbContext>().Database.MigrateAsync();
+        }
     }
 
     // ================================
