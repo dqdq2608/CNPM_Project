@@ -90,6 +90,8 @@ internal static class HostingExtensions
                     options.Diagnostics.ChunkSize = 1024 * 1024 * 10;
                 }
 
+                options.IssuerUri = "https://ids-8mrp.onrender.com";
+
                 // nếu muốn, có thể disable key rotation ở đây để tránh lỗi license:
                 // options.KeyManagement.Enabled = false;
             })
