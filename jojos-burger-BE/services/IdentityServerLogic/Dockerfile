@@ -14,12 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 
 COPY --from=build /app ./
 
-# PORT cho Render
+# App nghe HTTP, Render lo HTTPS bên ngoài
 ENV ASPNETCORE_URLS=http://0.0.0.0:5001
 EXPOSE 5001
 
-# Persist DB + DataProtection keys
+# Nơi lưu SQLite DB + (optional) DataProtection keys
 VOLUME /data
-VOLUME /keys
 
 ENTRYPOINT ["dotnet","IdentityServerLogic.dll"]
