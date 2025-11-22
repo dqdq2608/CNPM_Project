@@ -1,6 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Json;
+using Duende.IdentityModel.Client;
+using IdentityServerBFF.Application.Identity;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 
@@ -23,11 +25,6 @@ public sealed record BffUserDto(
 
 public static class BffAuthApi
 {
-    /// Gom toàn bộ API FE cần vào 1 nhóm `/bff/public/*`
-    /// - GET  /bff/public/antiforgery
-    /// - POST /bff/public/login
-    /// - GET  /bff/public/user
-    /// - POST /bff/public/logout
     public static IEndpointRouteBuilder MapBffAuthApi(this IEndpointRouteBuilder app)
     {
         var g = app.MapGroup("/bff/public");
@@ -139,48 +136,38 @@ public static class BffAuthApi
     private static async Task<IResult> LoginHandler(
         HttpContext http,
         LoginRequest dto,
-        IHttpClientFactory httpFactory,
-        IConfiguration cfg)
+        IBffBackchannelToIds backchannel,
+        IConfiguration cfg,
+        CancellationToken ct)
     {
         var bff = cfg.GetSection("BFF").Get<Configuration>()!;
-        var ids = httpFactory.CreateClient("ids");
-
-        // URL tương đối vì HttpClient("ids") đã có BaseAddress
-        var tokenEndpoint = new Uri("/connect/token", UriKind.Relative);
-
         var scopes = string.Join(' ', bff.Scopes ?? new List<string>());
 
-        var form = new Dictionary<string, string>
+        // 1) Gọi IDS lấy token bằng ROPC qua backchannel
+        TokenResponse tokenResponse;
+        try
         {
-            ["grant_type"]    = "password",
-            ["client_id"]     = bff.ClientId!,
-            ["client_secret"] = bff.ClientSecret!,
-            ["username"]      = dto.username,
-            ["password"]      = dto.password,
-            ["scope"]         = scopes
-        };
-
-        using var req = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint)
+            tokenResponse = await backchannel.PasswordAsync(
+                dto.username,
+                dto.password,
+                scopes,
+                ct);
+        }
+        catch (Exception ex)
         {
-            Content = new FormUrlEncodedContent(form)
-        };
+            // Token error: trả nguyên thông tin lỗi về FE
+            http.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("BFF")
+                .LogError(ex, "Login failed");
 
-        var resp = await ids.SendAsync(req);
-        var body = await resp.Content.ReadAsStringAsync();
-
-        if (!resp.IsSuccessStatusCode)
-        {
-            http.Response.StatusCode = (int)resp.StatusCode;
-            return Results.Content(body, "application/json");
+            return Results.Problem("Login failed", statusCode: 400);
         }
 
-        using var doc = JsonDocument.Parse(body);
-        var root = doc.RootElement;
-        var accessToken  = root.GetProperty("access_token").GetString()!;
-        var refreshToken = root.TryGetProperty("refresh_token", out var rt) ? rt.GetString() : null;
-        var expiresIn    = root.TryGetProperty("expires_in", out var ei) ? ei.GetInt32() : 3600;
+        var accessToken  = tokenResponse.AccessToken!;
+        var refreshToken = tokenResponse.RefreshToken;
+        var expiresIn    = tokenResponse.ExpiresIn > 0 ? tokenResponse.ExpiresIn : 3600;
 
-        // 1) Lấy claim cơ bản từ access_token (JWT)
+        // 2) Lấy claim cơ bản từ access_token (JWT)
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(accessToken);
         var claims = jwt.Claims
                         .Where(c => c.Type is "sub" or "name" or "email" or "role")
@@ -193,57 +180,29 @@ public static class BffAuthApi
                 list.Add(new Claim(type, value));
         }
 
-        // 2) Gọi /connect/userinfo để lấy thêm claim (user_type, restaurant_id,...)
-        var userInfoEndpoint = new Uri("/connect/userinfo", UriKind.Relative);
-        using (var uiReq = new HttpRequestMessage(HttpMethod.Get, userInfoEndpoint))
+        // 3) Gọi /connect/userinfo qua backchannel để lấy thêm claim
+        try
         {
-            uiReq.Headers.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+            var userInfo = await backchannel.GetUserInfoAsync(accessToken, ct);
 
-            var uiResp = await ids.SendAsync(uiReq);
-            if (uiResp.IsSuccessStatusCode)
+            foreach (var ci in userInfo.Claims)
             {
-                var uiBody = await uiResp.Content.ReadAsStringAsync();
-                using var uiDoc = JsonDocument.Parse(uiBody);
-
-                foreach (var prop in uiDoc.RootElement.EnumerateObject())
-                {
-                    var t = prop.Name;
-                    var v = prop.Value;
-
-                    switch (v.ValueKind)
-                    {
-                        case JsonValueKind.String:
-                            AddClaimIfNotExists(claims, t, v.GetString()!);
-                            break;
-                        case JsonValueKind.Number:
-                            AddClaimIfNotExists(claims, t, v.GetRawText());
-                            break;
-                        case JsonValueKind.True:
-                        case JsonValueKind.False:
-                            AddClaimIfNotExists(claims, t, v.GetBoolean().ToString().ToLowerInvariant());
-                            break;
-                        case JsonValueKind.Array:
-                            foreach (var item in v.EnumerateArray())
-                            {
-                                if (item.ValueKind == JsonValueKind.String)
-                                    AddClaimIfNotExists(claims, t, item.GetString()!);
-                                else
-                                    AddClaimIfNotExists(claims, t, item.GetRawText());
-                            }
-                            break;
-                        default:
-                            break;
-                    }
-                }
+                AddClaimIfNotExists(claims, ci.Type, ci.Value);
             }
         }
+        catch (Exception ex)
+        {
+            // lỗi userinfo không phải critical -> log rồi bỏ qua
+            http.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("BFF")
+                .LogWarning(ex, "GetUserInfo failed");
+        }
 
-        // 3) Đảm bảo có "sub"
+        // 4) Đảm bảo có "sub"
         if (!claims.Any(c => c.Type == "sub"))
             claims.Add(new Claim("sub", Guid.NewGuid().ToString("N")));
 
-        // 4) Lưu session vào cookie "cookie"
+        // 5) Lưu session vào cookie "cookie"
         var identity = new ClaimsIdentity(claims, "cookie", "name", "role");
         var user = new ClaimsPrincipal(identity);
 
@@ -265,6 +224,7 @@ public static class BffAuthApi
 
         return Results.Ok(new { ok = true });
     }
+
 
     private sealed record Configuration
     {

@@ -35,7 +35,7 @@ builder.Services.AddHttpClient<IBffBackchannelToIds, BffBackchannelToIds>();
 var bffConfig = new Configuration();
 builder.Configuration.Bind("BFF", bffConfig);
 
-// CORS cho FE https://localhost:3000
+// CORS cho FE
 builder.Services.AddCors(o => o.AddPolicy("fe", p => p
     .WithOrigins("https://localhost:3000","https://cnpm-project.onrender.com")
     .AllowAnyHeader()
@@ -73,24 +73,6 @@ builder.Services.AddAntiforgery(o =>
     o.Cookie.Path = "/";
     o.Cookie.SameSite = SameSiteMode.None;
     o.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-});
-
-// HttpClient gọi IdentityServer
-builder.Services.AddHttpClient("ids", (sp, c) =>
-{
-    var cfg = sp.GetRequiredService<IConfiguration>();
-
-    // luôn có default => không còn nullable warning
-    var authority = cfg["BFF:Authority"]
-                    ?? bffConfig.Authority
-                    ?? "https://localhost:5001";
-
-    c.BaseAddress = new Uri(authority.TrimEnd('/'));
-})
-.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-{
-    ServerCertificateCustomValidationCallback =
-        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
 
 // gọi Kong

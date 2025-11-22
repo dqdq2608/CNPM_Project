@@ -29,5 +29,11 @@ namespace IdentityServerBFF.Application.Identity
         Task RevokeRefreshTokenAsync(
             string refreshToken,
             CancellationToken ct = default);
+        
+        Task<TokenResponse> PasswordAsync(
+            string username,
+            string password,
+            string scope,
+            CancellationToken ct = default);
     }
 }

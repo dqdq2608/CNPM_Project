@@ -160,5 +160,32 @@ namespace IdentityServerBFF.Infrastructure.Identity
                 throw new InvalidOperationException($"Revoke token error: {response.Error}");
             }
         }
+
+        public async Task<TokenResponse> PasswordAsync(
+            string username,
+            string password,
+            string scope,
+            CancellationToken ct = default)
+        {
+            var disco = await GetDiscoveryAsync(ct);
+
+            var response = await _httpClient.RequestPasswordTokenAsync(
+                new PasswordTokenRequest
+                {
+                    Address      = disco.TokenEndpoint,
+                    ClientId     = ClientId,
+                    ClientSecret = ClientSecret,
+                    UserName     = username,
+                    Password     = password,
+                    Scope        = scope
+                }, ct);
+
+            if (response.IsError)
+            {
+                throw new InvalidOperationException($"Password token error: {response.Error}");
+            }
+
+            return response;
+        }
     }
 }
