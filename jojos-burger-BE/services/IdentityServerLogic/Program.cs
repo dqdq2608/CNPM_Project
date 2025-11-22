@@ -22,20 +22,21 @@ try
         .ConfigureServices()
         .ConfigurePipeline();
 
-    // Migrate DB trước khi seed hoặc chạy web
+    // ================================
+    //  PostgreSQL: Tự migrate DB
+    // ================================
     using (var scope = app.Services.CreateScope())
     {
         var sp = scope.ServiceProvider;
 
-        // Duende stores
         await sp.GetRequiredService<PersistedGrantDbContext>().Database.MigrateAsync();
         await sp.GetRequiredService<ConfigurationDbContext>().Database.MigrateAsync();
-
-        // ASP.NET Identity store
         await sp.GetRequiredService<ApplicationDbContext>().Database.MigrateAsync();
     }
 
-    // ✅ Seed chỉ khi truyền tham số /seed
+    // ================================
+    //  Chỉ seed khi có ENV: RUN_SEED=true
+    // ================================
     var seedFlag = Environment.GetEnvironmentVariable("RUN_SEED");
     if (seedFlag == "true")
     {
@@ -54,7 +55,7 @@ try
         });
     }
 
-    // Cho phép tắt redirect HTTPS khi chạy container
+    // Tắt HTTPS redirect nếu chạy container/cloud
     var disableHttpsRedirect =
         Environment.GetEnvironmentVariable("DISABLE_HTTPS_REDIRECT")?.ToLower() == "true";
 
@@ -63,7 +64,7 @@ try
         app.UseHttpsRedirection();
     }
 
-    // Health endpoint đơn giản cho Docker healthcheck
+    // Healthcheck cho Render
     app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
     app.Run();

@@ -9,16 +9,14 @@ RUN dotnet publish -c Release -o /app
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 
+# (optional) có curl để healthcheck/log
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app ./
 
-# App nghe HTTP, Render lo HTTPS bên ngoài
+# chạy HTTP, Render lo HTTPS
 ENV ASPNETCORE_URLS=http://0.0.0.0:5001
 EXPOSE 5001
-
-# Nơi lưu SQLite DB + (optional) DataProtection keys
-VOLUME /data
 
 ENTRYPOINT ["dotnet","IdentityServerLogic.dll"]

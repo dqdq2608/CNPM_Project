@@ -55,13 +55,13 @@ internal static class HostingExtensions
     {
         builder.Services.AddRazorPages();
 
-        // Dùng key "Default" để khớp với env Docker: ConnectionStrings__Default
+        // Dùng key "Default" để khớp với env Docker/Render: ConnectionStrings__Default
         var connectionString = builder.Configuration.GetConnectionString("Default")
             ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured");
 
-        // ASP.NET Identity (USER STORE)
+        // ========= ASP.NET Identity (USER STORE) =========
         builder.Services.AddDbContext<ApplicationDbContext>(o =>
-            o.UseSqlite(connectionString));
+            o.UseNpgsql(connectionString));   // 🔁 đổi UseSqlite → UseNpgsql
 
         builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -76,7 +76,7 @@ internal static class HostingExtensions
             options.Password.RequireNonAlphanumeric = false;
         });
 
-        // IdentityServer + EF stores + Custom Profile
+        // ========= IdentityServer + EF stores + Custom Profile =========
         builder.Services
             .AddIdentityServer(options =>
             {
@@ -89,22 +89,24 @@ internal static class HostingExtensions
                 {
                     options.Diagnostics.ChunkSize = 1024 * 1024 * 10;
                 }
+
+                // nếu muốn, có thể disable key rotation ở đây để tránh lỗi license:
+                // options.KeyManagement.Enabled = false;
             })
             .AddAspNetIdentity<ApplicationUser>() // dùng user/role từ DB
             .AddConfigurationStore(options =>
             {
                 options.ConfigureDbContext = b =>
-                    b.UseSqlite(connectionString,
+                    b.UseNpgsql(connectionString,
                         dbOpts => dbOpts.MigrationsAssembly(typeof(Program).Assembly.FullName));
             })
             .AddOperationalStore(options =>
             {
                 options.ConfigureDbContext = b =>
-                    b.UseSqlite(connectionString,
+                    b.UseNpgsql(connectionString,
                         dbOpts => dbOpts.MigrationsAssembly(typeof(Program).Assembly.FullName));
             })
             .AddProfileService<CustomProfileService>(); // đẩy user_type/restaurant vào token
-
 
         return builder.Build();
     }
