@@ -67,7 +67,7 @@ public sealed class OrderBffApi : IOrderBffApi
         var kongClient = _httpClientFactory.CreateClient("kong");
 
         // đúng path: /catalog/restaurants
-        var rRes = await kongClient.GetAsync("/catalog/restaurants", cancellationToken);
+        var rRes = await kongClient.GetAsync("api/catalog/restaurants", cancellationToken);
         rRes.EnsureSuccessStatusCode();
 
         var rJson = await rRes.Content.ReadAsStringAsync(cancellationToken);
