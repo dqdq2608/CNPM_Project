@@ -39,7 +39,7 @@ public class CreateOrderCommandHandler
         // methods and constructor so validations, invariants and business logic 
         // make sure that consistency is preserved across the whole aggregate
         var address = new Address(message.Street, message.City, message.State, message.Country, message.ZipCode);
-        var order = new Order(message.UserId, message.UserName, address, message.DeliveryFee, message.CardTypeId, message.CardNumber, message.CardSecurityNumber, message.CardHolderName, message.CardExpiration);
+        var order = new Order(message.UserId, message.UserName, address, message.DeliveryFee, message.RestuantId, message.CardTypeId, message.CardNumber, message.CardSecurityNumber, message.CardHolderName, message.CardExpiration);
 
         foreach (var item in message.OrderItems)
         {
@@ -64,7 +64,7 @@ public class CreateOrderCommandHandler
         var result = await _orderRepository.UnitOfWork.SaveEntitiesAsync(cancellationToken);
         if (!result)
             return false;
-        
+
         _logger.LogInformation(
             ">>> [ORDERING] Order created with Id={OrderId} for UserId={UserId}",
             order.Id,

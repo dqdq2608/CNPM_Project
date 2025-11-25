@@ -20,6 +20,7 @@ public record Order
     public string Zipcode { get; init; }
     public string Country { get; init; }
     public List<Orderitem> OrderItems { get; set; }
+    public decimal DeliveryFee { get; init; }
     public decimal Total { get; set; }
 }
 

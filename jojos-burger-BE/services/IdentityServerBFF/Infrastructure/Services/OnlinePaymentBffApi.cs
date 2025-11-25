@@ -17,8 +17,25 @@ public class CheckoutOnlineBffApi : IPaymentApi
         HttpClient httpClient,
         ILogger<CheckoutOnlineBffApi> logger)
     {
-        _kong   = httpClient;   // HttpClient này đã trỏ vào Kong và có apikey
+        _kong = httpClient;   // HttpClient này đã trỏ vào Kong và có apikey
         _logger = logger;
+    }
+
+    public async Task<string> CheckoutOnlineAsync(
+    int orderId,
+    CancellationToken cancellationToken = default)
+    {
+        // chỉ lo phần payment, KHÔNG tạo Order nữa
+        var paymentUrl = await TryGetPaymentUrlAsync(orderId, cancellationToken);
+
+        var composed = new
+        {
+            orderId,
+            paymentUrl
+        };
+
+        var json = JsonSerializer.Serialize(composed, JsonOpts);
+        return json;
     }
 
     public async Task<string> CheckoutOnlineAsync(
@@ -78,8 +95,8 @@ public class CheckoutOnlineBffApi : IPaymentApi
         // 3) Gói lại response cho FE
         var composed = new
         {
-            orderId    = order.OrderId,
-            total      = order.Total,
+            orderId = order.OrderId,
+            total = order.Total,
             paymentUrl = paymentUrl // có thể null nếu chưa có link kịp
         };
 

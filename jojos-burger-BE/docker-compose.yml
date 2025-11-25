@@ -203,8 +203,6 @@ services:
       POSTGRES_DB: orderingdb
     ports:
       - "5436:5432"   # optional: để debug từ host
-    volumes:
-      - ordering_pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ordering -d orderingdb"]
       interval: 5s
@@ -242,7 +240,7 @@ services:
     # forward HTTP traffic từ internet → service webhookreceiver:5022 trong docker network
     command: http webhookreceiver:5022
     environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+      NGROK_AUTHTOKEN: 35rz5l4F3SkbCy23YLdN3io6Fpb_5rkqSGwnCmEXJTVB7C43f
     ports:
       - "4040:4040"   # UI của ngrok để xem log, request…
     depends_on:

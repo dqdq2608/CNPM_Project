@@ -122,17 +122,27 @@ builder.Services.AddHttpClient<ICatalogBffApi, CatalogBffApi>(c =>
 });
 
 // Đăng kí IPaymentApi
-builder.Services.AddHttpClient<IPaymentApi, CheckoutOnlineBffApi>(c =>
+if (builder.Environment.IsDevelopment())
 {
-    c.BaseAddress = new Uri(kongUrl);
-    c.DefaultRequestHeaders.Add("apikey", kongApiKey);
-    c.Timeout = TimeSpan.FromSeconds(5);
-})
-.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    // DEV: Fake payment, không gọi PayOS
+    builder.Services.AddScoped<IPaymentApi, FakePaymentApi>();
+}
+else
 {
-    ServerCertificateCustomValidationCallback =
-        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-});
+    // PROD: Gọi Payment service thật qua Kong
+    builder.Services.AddHttpClient<IPaymentApi, CheckoutOnlineBffApi>(c =>
+    {
+        c.BaseAddress = new Uri(kongUrl);
+        c.DefaultRequestHeaders.Add("apikey", kongApiKey);
+        c.Timeout = TimeSpan.FromSeconds(5);
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        ServerCertificateCustomValidationCallback =
+            HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+    });
+}
+
 
 // HttpClient để gọi Basket
 builder.Services.AddHttpClient("basket", (sp, c) =>
@@ -193,15 +203,17 @@ app.MapBffAuthApi();
 app.MapBffManagementEndpoints();
 app.MapBffPublicApi();
 
-app.MapGet("/debug/user", (ClaimsPrincipal user) =>
+app.MapGet("/debug/user", (ClaimsPrincipal? user) =>
 {
     var isAuth = user?.Identity?.IsAuthenticated ?? false;
 
     return Results.Json(new
     {
         isAuth,
-        name = user.Identity?.Name,
-        claims = user.Claims.Select(c => new { c.Type, c.Value })
+        name = user?.Identity?.Name,
+        claims = user?.Claims
+            .Select(c => new { c.Type, c.Value })
+            ?? Enumerable.Empty<object>()
     });
 });
 
@@ -437,6 +449,9 @@ app.MapPost("/bff-api/delivery/quote", async (
     }
 })
 .RequireAuthorization();
+
+// Payment
+app.MapDevPaymentEndpoints();
 
 
 app.Run();

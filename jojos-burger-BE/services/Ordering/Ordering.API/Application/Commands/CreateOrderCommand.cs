@@ -65,10 +65,10 @@ public class CreateOrderCommand
     {
         _orderItems = new List<OrderItemDTO>();
     }
-
+    public Guid RestuantId { get; set; }
     public CreateOrderCommand(List<BasketItem> basketItems, string userId, string userName, string city, string street, string state, string country, string zipcode,
         string cardNumber, string cardHolderName, DateTime cardExpiration,
-        string cardSecurityNumber, int cardTypeId, decimal deliveryFee)
+        string cardSecurityNumber, int cardTypeId, decimal deliveryFee, Guid restaurantId)
     {
         _orderItems = basketItems.ToOrderItemsDTO().ToList();
         UserId = userId;
@@ -84,6 +84,7 @@ public class CreateOrderCommand
         CardSecurityNumber = cardSecurityNumber;
         CardTypeId = cardTypeId;
         DeliveryFee = deliveryFee;
+        RestuantId = restaurantId;
     }
 }
 

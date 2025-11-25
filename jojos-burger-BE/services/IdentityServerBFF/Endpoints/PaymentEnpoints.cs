@@ -90,10 +90,7 @@ namespace IdentityServerBFF.Endpoints
                 // Forward đúng status code từ PaymentProcessor
                 if (!resp.IsSuccessStatusCode)
                 {
-                    // Trả nguyên status + body để dễ debug
                     return Results.StatusCode((int)resp.StatusCode);
-                    // Nếu muốn xem body lỗi:
-                    // return Results.Content(body, "application/json", (int)resp.StatusCode);
                 }
 
                 // 200 và có body => trả luôn JSON

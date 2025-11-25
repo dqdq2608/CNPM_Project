@@ -35,6 +35,7 @@ public class Order
 
     public IReadOnlyCollection<OrderItem> OrderItems => _orderItems.AsReadOnly();
     public decimal DeliveryFee { get; private set; }
+    public Guid RestaurantId { get; private set; }
 
     public int? PaymentId { get; private set; }
 
@@ -53,7 +54,7 @@ public class Order
         _isDraft = false;
     }
 
-    public Order(string userId, string userName, Address address, decimal deliveryFee, int cardTypeId, string cardNumber, string cardSecurityNumber,
+    public Order(string userId, string userName, Address address, decimal deliveryFee, Guid restaurantId, int cardTypeId, string cardNumber, string cardSecurityNumber,
             string cardHolderName, DateTime cardExpiration, int? buyerId = null, int? paymentMethodId = null) : this()
     {
         BuyerId = buyerId;
@@ -62,7 +63,7 @@ public class Order
         OrderDate = DateTime.UtcNow;
         Address = address;
         DeliveryFee = deliveryFee;
-
+        RestaurantId = restaurantId;
         // Add the OrderStarterDomainEvent to the domain events collection 
         // to be raised/dispatched when committing changes into the Database [ After DbContext.SaveChanges() ]
         AddOrderStartedDomainEvent(userId, userName, cardTypeId, cardNumber,
