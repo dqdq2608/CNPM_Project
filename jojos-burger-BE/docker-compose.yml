@@ -109,6 +109,10 @@ services:
       ASPNETCORE_URLS: http://+:5226
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__EventBus: "amqp://guest:guest@rabbitmq:5672"
+      RabbitMQ__HostName: "rabbitmq"
+      RabbitMQ__Port: "5672"
+      RabbitMQ__UserName: "guest"
+      RabbitMQ__Password: "guest"
     ports:
       - "5226:5226"
     depends_on:
@@ -125,6 +129,10 @@ services:
       ASPNETCORE_URLS: http://+:5022
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__EventBus: "amqp://guest:guest@rabbitmq:5672"
+      RabbitMQ__HostName: "rabbitmq"
+      RabbitMQ__Port: "5672"
+      RabbitMQ__UserName: "guest"
+      RabbitMQ__Password: "guest"
       EventBus__SubscriptionClientName: "webhookreceiver"
     ports:
       - "5022:5022"
@@ -224,12 +232,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://+:8080"
-
-      # phải trùng key "OrderingDb" trong Program.cs / appsettings
       ConnectionStrings__OrderingDb: "Host=ordering-db;Port=5432;Database=orderingdb;Username=ordering;Password=ordering_pwd;Include Error Detail=true"
-
-      # EventBus (RabbitMQ)
       ConnectionStrings__EventBus: "amqp://guest:guest@rabbitmq:5672"
+    command: ["sh", "-c", "sleep 8 && dotnet Ordering.API.dll"]
     ports:
       - "5224:8080"   # http://localhost:5224
     networks: [appnet]

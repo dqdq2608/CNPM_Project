@@ -200,7 +200,7 @@ public static class OrdersApi
             cardSec,
             cardTypeId,
             request.DeliveryFee,
-            request.RestaurantId);   // THÊM deliveryFee từ nhánh mquan
+            request.RestaurantId);
 
         // ====== GỬI COMMAND VỚI SCOPE LOG (từ nhánh mquan) ======
         using (services.Logger.BeginScope(new List<KeyValuePair<string, object>>

@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using IdentityServerBFF.Application.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Cors;
 
 namespace IdentityServerBFF.Endpoints
 {
@@ -10,7 +11,7 @@ namespace IdentityServerBFF.Endpoints
         public static RouteGroupBuilder MapCheckoutEndpoints(this RouteGroupBuilder group)
         {
             var checkout = group.MapGroup("/checkoutonline")
-                                .RequireAuthorization(); // bắt buộc đã login
+                                .RequireAuthorization();
 
             // POST /api/checkoutonline
             checkout.MapPost("/", async (

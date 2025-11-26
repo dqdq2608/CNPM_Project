@@ -5,15 +5,16 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import PropTypes from "prop-types";
 import React, { useEffect, useState } from "react";
 
-import api from "../../../services/api";
+import { fetchOrdersByRestaurant } from "../../../services/api/order";
 import formatDate from "../../../utils/formatDate";
 import status from "./order-status";
 import Row from "./row";
 import { Container, Menu, LinkMenu } from "./styles";
 
-function Orders() {
+function Orders({ restaurantId }) {
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [activeStatus, setActiveStatus] = useState(0);
@@ -21,13 +22,20 @@ function Orders() {
 
   useEffect(() => {
     async function loadOrders() {
-      const { data } = await api.get("orders");
+      try {
+        const data = await fetchOrdersByRestaurant(restaurantId);
 
-      setOrders(data);
-      setFilteredOrders(data);
+        setOrders(data);
+        setFilteredOrders(data);
+      } catch (err) {
+        console.error("Failed to load restaurant orders:", err);
+      }
     }
-    loadOrders();
-  }, []);
+
+    if (restaurantId) {
+      loadOrders();
+    }
+  }, [restaurantId]);
 
   function createData(order) {
     return {
@@ -50,10 +58,10 @@ function Orders() {
       setFilteredOrders(orders);
     } else {
       const statusIndex = status.findIndex(
-        (status) => status.id === activeStatus,
+        (status) => status.id === activeStatus
       );
       const newFilteredOrders = orders.filter(
-        (order) => order.status === status[statusIndex].value,
+        (order) => order.status === status[statusIndex].value
       );
       setFilteredOrders(newFilteredOrders);
     }
@@ -111,5 +119,9 @@ function Orders() {
     </Container>
   );
 }
+
+Orders.propTypes = {
+  restaurantId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+};
 
 export default Orders;

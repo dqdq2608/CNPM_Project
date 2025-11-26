@@ -15,6 +15,7 @@ using IdentityServerBFF.Infrastructure.Identity;
 using IdentityServerBFF.Application.Services;
 using IdentityServerBFF.Infrastructure.Services;
 
+
 using IdentityServerBFF;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -121,27 +122,20 @@ builder.Services.AddHttpClient<ICatalogBffApi, CatalogBffApi>(c =>
     ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
 
-// Đăng kí IPaymentApi
-if (builder.Environment.IsDevelopment())
+
+// PROD: Gọi Payment service thật qua Kong
+builder.Services.AddHttpClient<IPaymentApi, CheckoutOnlineBffApi>(c =>
 {
-    // DEV: Fake payment, không gọi PayOS
-    builder.Services.AddScoped<IPaymentApi, FakePaymentApi>();
-}
-else
+    c.BaseAddress = new Uri(kongUrl);
+    c.DefaultRequestHeaders.Add("apikey", kongApiKey);
+    c.Timeout = TimeSpan.FromSeconds(5);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 {
-    // PROD: Gọi Payment service thật qua Kong
-    builder.Services.AddHttpClient<IPaymentApi, CheckoutOnlineBffApi>(c =>
-    {
-        c.BaseAddress = new Uri(kongUrl);
-        c.DefaultRequestHeaders.Add("apikey", kongApiKey);
-        c.Timeout = TimeSpan.FromSeconds(5);
-    })
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-    {
-        ServerCertificateCustomValidationCallback =
-            HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-    });
-}
+    ServerCertificateCustomValidationCallback =
+        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+});
+
 
 
 // HttpClient để gọi Basket
@@ -450,8 +444,27 @@ app.MapPost("/bff-api/delivery/quote", async (
 })
 .RequireAuthorization();
 
-// Payment
-app.MapDevPaymentEndpoints();
+app.MapGet("/bff-api/restaurants/{restaurantId:guid}/orders",
+    async (Guid restaurantId,
+           ClaimsPrincipal user,
+           IOrderBffApi orderBffApi) =>
+    {
+        try
+        {
+            var json = await orderBffApi.GetOrdersForRestaurantAsync(user, restaurantId);
+            return Results.Content(json, "application/json");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            return Results.StatusCode(500);
+        }
+    })
+.RequireAuthorization();
 
 
 app.Run();

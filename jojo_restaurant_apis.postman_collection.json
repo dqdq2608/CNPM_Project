@@ -1,0 +1,47 @@
+{
+  "info": {
+    "name": "Jojo Burger - Restaurant APIs",
+    "_postman_id": "c2f7b4c4-0000-0000-0000-restaurant123456",
+    "description": "Collection các API liên quan tới Restaurant cho Jojo Burger BFF.\n\nLưu ý:\n- Tất cả request cần Cookie đăng nhập (__Host-bff, __Host-bff-af).\n- Thay {{bff_base_url}} bằng URL BFF của bạn (ví dụ: https://localhost:7082).\n- Thay {{restaurantId}} bằng RestaurantId (GUID) tương ứng với account RestaurantAdmin.\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "bff_base_url",
+      "value": "https://localhost:7082"
+    },
+    {
+      "key": "restaurantId",
+      "value": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    }
+  ],
+  "item": [
+    {
+      "name": "Restaurant - Get Orders by Restaurant",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Cookie",
+            "value": "__Host-bff=<paste_from_browser>; __Host-bff-af=<paste_from_browser>",
+            "description": "Lấy 2 cookie này từ trình duyệt sau khi login và dán vào đây để Postman gửi kèm session."
+          }
+        ],
+        "url": {
+          "raw": "{{bff_base_url}}/bff-api/restaurants/{{restaurantId}}/orders",
+          "host": [
+            "{{bff_base_url}}"
+          ],
+          "path": [
+            "bff-api",
+            "restaurants",
+            "{{restaurantId}}",
+            "orders"
+          ]
+        },
+        "description": "Lấy tất cả order của một nhà hàng (restaurant) thông qua BFF.\n\nHướng dẫn dùng:\n1. Đăng nhập trên web app bằng tài khoản RestaurantAdmin.\n2. Mở DevTools → Application → Cookies → domain của BFF (vd: https://localhost:7082).\n3. Copy giá trị của 2 cookie:\n   - __Host-bff\n   - __Host-bff-af\n4. Dán vào header Cookie của request này thay cho <paste_from_browser>.\n5. Đặt biến {{restaurantId}} đúng với RestaurantId (GUID) gắn với account của bạn.\n"
+      },
+      "response": []
+    }
+  ]
+}

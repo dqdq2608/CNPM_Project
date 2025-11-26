@@ -387,6 +387,35 @@ public sealed class OrderBffApi : IOrderBffApi
         return body; // JSON chi tiết đơn hàng (có items)
     }
 
+    public async Task<string> GetOrdersForRestaurantAsync(
+    ClaimsPrincipal user,
+    Guid restaurantId,
+    CancellationToken cancellationToken = default)
+    {
+        if (user?.Identity?.IsAuthenticated != true)
+            throw new InvalidOperationException("User is not authenticated.");
+
+        // TODO: tuỳ bạn: kiểm tra user có quyền quản lý restaurant này hay không
+
+        var orderingClient = _httpClientFactory.CreateClient("ordering");
+
+        var url = $"/api/orders/byrestaurant/{restaurantId}?api-version=1.0";
+        var res = await orderingClient.GetAsync(url, cancellationToken);
+        var body = await res.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!res.IsSuccessStatusCode)
+        {
+            _logger.LogWarning(
+                "Get orders for restaurant {RestaurantId} failed: {StatusCode} - {Body}",
+                restaurantId, res.StatusCode, body);
+
+            throw new InvalidOperationException(
+                $"Get restaurant orders failed: {(int)res.StatusCode} - {body}");
+        }
+
+        return body;
+    }
+
     public async Task<string> GetDeliveryForOrderAsync(
     ClaimsPrincipal user,
     int orderId,
@@ -471,7 +500,7 @@ public sealed class OrderBffApi : IOrderBffApi
 
         var deliveryFee = baseFee + perKm * distanceRounded;
 
-        return new DeliveryQuoteResponse(distanceKm, deliveryFee);
+        return new DeliveryQuoteResponse(distanceKm, deliveryFee, restaurant.Latitude, restaurant.Longitude, customerLat, customerLon);
     }
 
 

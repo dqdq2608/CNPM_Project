@@ -30,6 +30,7 @@ public record OrderSummary
     public DateTime Date { get; init; }
     public string Status { get; init; }
     public double Total { get; init; }
+    public decimal DeliveryFee { get; init; }
 }
 
 public record CardType
