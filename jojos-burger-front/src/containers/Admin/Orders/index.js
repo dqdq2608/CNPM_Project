@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import PropTypes from "prop-types"; // ⭐ thêm dòng này
 import {
   Table,
   TableBody,
@@ -20,7 +21,7 @@ import {
   Edit as EditIcon,
 } from "@mui/icons-material";
 
-import { formatDate } from "../../../utils/helpers";
+import formatDate from "../../../utils/formatDate";
 
 // 👉 dùng BFF Ordering API
 import { fetchMyOrders } from "../../../services/api/order";
@@ -105,6 +106,23 @@ function Row({ row }) {
   );
 }
 
+/* ⭐ Thêm PropTypes fix lỗi ESLint */
+Row.propTypes = {
+  row: PropTypes.shape({
+    name: PropTypes.string,
+    orderId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    date: PropTypes.string,
+    status: PropTypes.string,
+    products: PropTypes.arrayOf(
+      PropTypes.shape({
+        name: PropTypes.string,
+        quantity: PropTypes.number,
+        price: PropTypes.number,
+      })
+    ),
+  }).isRequired,
+};
+
 export default function Orders() {
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
@@ -113,11 +131,8 @@ export default function Orders() {
   useEffect(() => {
     async function loadOrders() {
       try {
-        // 👉 gọi BFF thay API cũ
         const data = await fetchMyOrders();
-
         const rows = data.map((order) => createData(order));
-
         setOrders(rows);
         setFilteredOrders(rows);
       } catch (error) {
@@ -130,7 +145,6 @@ export default function Orders() {
     loadOrders();
   }, []);
 
-  // Filter theo status
   const handleFilter = (status) => {
     setActiveStatus(status);
 
@@ -147,7 +161,6 @@ export default function Orders() {
         Orders
       </Typography>
 
-      {/* FILTER BUTTONS */}
       <Box mb={2} display="flex" gap={1}>
         {["All", "Pending", "Delivered", "Canceled"].map((status) => (
           <Button
@@ -160,7 +173,6 @@ export default function Orders() {
         ))}
       </Box>
 
-      {/* TABLE */}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -184,3 +196,6 @@ export default function Orders() {
     </div>
   );
 }
+
+/* ⭐ Nếu ESLint vẫn complain, bạn thêm: */
+Orders.propTypes = {};

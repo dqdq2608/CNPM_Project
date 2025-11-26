@@ -16,11 +16,24 @@ builder.Services.AddCors(options =>
               .AllowCredentials(); // cần cho credentials
     });
 });
+
 // Service defaults / logging / health, v.v.
 builder.AddServiceDefaults();
 builder.AddApplicationServices();
 
 builder.Services.AddProblemDetails();
+
+builder.Services.AddHttpClient("ids-admin-api", client =>
+{
+    // gọi theo tên service trong docker network
+    client.BaseAddress = new Uri("https://ids:5001");
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    // ⚠️ chỉ dùng cho môi trường dev
+    ServerCertificateCustomValidationCallback =
+        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+});
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();

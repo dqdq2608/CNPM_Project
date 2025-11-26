@@ -65,6 +65,8 @@ try
     // Health endpoint đơn giản cho Docker healthcheck
     app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
+    app.MapRestaurantAdminApi();
+
     app.Run();
 }
 catch (Exception ex) when (ex is not HostAbortedException)

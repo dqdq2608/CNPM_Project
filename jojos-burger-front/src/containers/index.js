@@ -5,3 +5,4 @@ export * from "./Register";
 export * from "./Cart";
 export * from "./Admin";
 export * from "./MyOrders";
+export * from "./AdminRestaurant";
