@@ -15,6 +15,7 @@ using IdentityServerBFF.Infrastructure.Identity;
 using IdentityServerBFF.Application.Services;
 using IdentityServerBFF.Infrastructure.Services;
 
+
 using IdentityServerBFF;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -121,7 +122,8 @@ builder.Services.AddHttpClient<ICatalogBffApi, CatalogBffApi>(c =>
     ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
 
-// Đăng kí IPaymentApi
+
+// PROD: Gọi Payment service thật qua Kong
 builder.Services.AddHttpClient<IPaymentApi, CheckoutOnlineBffApi>(c =>
 {
     c.BaseAddress = new Uri(kongUrl);
@@ -133,6 +135,8 @@ builder.Services.AddHttpClient<IPaymentApi, CheckoutOnlineBffApi>(c =>
     ServerCertificateCustomValidationCallback =
         HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
+
+
 
 // HttpClient để gọi Basket
 builder.Services.AddHttpClient("basket", (sp, c) =>
@@ -193,15 +197,17 @@ app.MapBffAuthApi();
 app.MapBffManagementEndpoints();
 app.MapBffPublicApi();
 
-app.MapGet("/debug/user", (ClaimsPrincipal user) =>
+app.MapGet("/debug/user", (ClaimsPrincipal? user) =>
 {
     var isAuth = user?.Identity?.IsAuthenticated ?? false;
 
     return Results.Json(new
     {
         isAuth,
-        name = user.Identity?.Name,
-        claims = user.Claims.Select(c => new { c.Type, c.Value })
+        name = user?.Identity?.Name,
+        claims = user?.Claims
+            .Select(c => new { c.Type, c.Value })
+            ?? Enumerable.Empty<object>()
     });
 });
 
@@ -436,6 +442,28 @@ app.MapPost("/bff-api/delivery/quote", async (
         return Results.StatusCode(500);
     }
 })
+.RequireAuthorization();
+
+app.MapGet("/bff-api/restaurants/{restaurantId:guid}/orders",
+    async (Guid restaurantId,
+           ClaimsPrincipal user,
+           IOrderBffApi orderBffApi) =>
+    {
+        try
+        {
+            var json = await orderBffApi.GetOrdersForRestaurantAsync(user, restaurantId);
+            return Results.Content(json, "application/json");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            return Results.StatusCode(500);
+        }
+    })
 .RequireAuthorization();
 
 

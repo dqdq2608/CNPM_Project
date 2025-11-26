@@ -162,11 +162,11 @@ public static class OrdersApi
             maskedCCNumber);
 
         // ====== BUILD DATA VỚI DEFAULT (từ dqdq) ======
-        var city    = string.IsNullOrWhiteSpace(request.City)    ? "OnlineCity"   : request.City;
-        var street  = string.IsNullOrWhiteSpace(request.Street)  ? "OnlineStreet" : request.Street;
-        var state   = string.IsNullOrWhiteSpace(request.State)   ? "OnlineState"  : request.State;
-        var country = string.IsNullOrWhiteSpace(request.Country) ? "VN"           : request.Country;
-        var zip     = string.IsNullOrWhiteSpace(request.ZipCode) ? "00000"        : request.ZipCode;
+        var city = string.IsNullOrWhiteSpace(request.City) ? "OnlineCity" : request.City;
+        var street = string.IsNullOrWhiteSpace(request.Street) ? "OnlineStreet" : request.Street;
+        var state = string.IsNullOrWhiteSpace(request.State) ? "OnlineState" : request.State;
+        var country = string.IsNullOrWhiteSpace(request.Country) ? "VN" : request.Country;
+        var zip = string.IsNullOrWhiteSpace(request.ZipCode) ? "00000" : request.ZipCode;
 
         // card fake cho flow online (vì PayOS mới là nơi thanh toán thật)
         var rawCardNumber = string.IsNullOrWhiteSpace(request.CardNumber)
@@ -182,7 +182,7 @@ public static class OrdersApi
             : request.CardSecurityNumber;
 
         var cardTypeId = request.CardTypeId ?? 1;
-        var cardExp    = request.CardExpiration ?? DateTime.UtcNow.AddYears(3);
+        var cardExp = request.CardExpiration ?? DateTime.UtcNow.AddYears(3);
 
         // ====== TẠO COMMAND (gộp, có DeliveryFee của mquan) ======
         var createOrderCommand = new CreateOrderCommand(
@@ -199,7 +199,8 @@ public static class OrdersApi
             cardExp,
             cardSec,
             cardTypeId,
-            request.DeliveryFee);   // THÊM deliveryFee từ nhánh mquan
+            request.DeliveryFee,
+            request.RestaurantId);
 
         // ====== GỬI COMMAND VỚI SCOPE LOG (từ nhánh mquan) ======
         using (services.Logger.BeginScope(new List<KeyValuePair<string, object>>
@@ -290,9 +291,9 @@ public static class OrdersApi
 
         var evt = new OrderStockConfirmedEvent
         {
-            OrderId           = 5678,                          // order giả
-            OrderStatus       = "StockConfirmed",
-            BuyerName         = "Ordering Test Buyer",
+            OrderId = 5678,                          // order giả
+            OrderStatus = "StockConfirmed",
+            BuyerName = "Ordering Test Buyer",
             BuyerIdentityGuid = Guid.NewGuid().ToString()
         };
 
@@ -327,4 +328,5 @@ public record CreateOrderRequest(
     int? CardTypeId,
     string Buyer,
     List<BasketItem> Items,
-    decimal DeliveryFee);
+    decimal DeliveryFee,
+    Guid RestaurantId);

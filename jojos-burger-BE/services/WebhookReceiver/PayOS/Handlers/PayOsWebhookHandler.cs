@@ -57,10 +57,12 @@ public class PayOsWebhookHandler : IPayOsWebhookHandler
             string.Equals(data.Code, "00", StringComparison.OrdinalIgnoreCase);
 
         // orderCode bên PayOS thường là long/int – ép sang int cho OrderId
-        var orderId = (int)data.OrderCode;
+        var rawOrderCode = body.Data.OrderCode;
+        int orderId = (int)(rawOrderCode / 100000);
 
         _logger.LogInformation(
-            "PayOS webhook parsed. OrderId={OrderId}, IsSuccess={IsSuccess}, Amount={Amount}",
+            "PayOS webhook parsed.RawOrderCode={RawOrderCode}, OrderId={OrderId}, IsSuccess={IsSuccess}, Amount={Amount}",
+            rawOrderCode,
             orderId,
             isSuccess,
             data.Amount);

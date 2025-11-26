@@ -3,6 +3,8 @@ import React, { useEffect, useState } from "react";
 import { useHistory } from "react-router-dom";
 import { toast } from "react-toastify";
 
+// 1. IMPORT COMPONENT BẢN ĐỒ
+import DroneDeliveryMap from "../../components/DroneDeliveryMap";
 import { fetchMyOrders, fetchOrderDetail } from "../../services/api/order";
 import {
   Container,
@@ -16,7 +18,7 @@ export function MyOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
-  const [details, setDetails] = useState({}); // { [orderId]: detail }
+  const [details, setDetails] = useState({});
   const [loadingDetailId, setLoadingDetailId] = useState(null);
 
   const { push } = useHistory();
@@ -43,16 +45,13 @@ export function MyOrders() {
   }, [push]);
 
   const toggleOrder = async (id) => {
-    // nếu đang mở -> đóng lại
     if (expandedId === id) {
       setExpandedId(null);
       return;
     }
 
-    // mở order này
     setExpandedId(id);
 
-    // nếu đã có detail rồi thì không gọi lại
     if (details[id]) return;
 
     try {
@@ -84,12 +83,41 @@ export function MyOrders() {
         const isOpen = expandedId === id;
 
         const detail = details[id];
-        // tuỳ vào DTO chi tiết mà Ordering trả về
         const items =
           detail?.orderItems ||
           detail?.orderitems ||
           detail?.orderitemsDto ||
           [];
+
+        // --- PHẦN TÍNH TOÁN ---
+        const deliveryFee =
+          detail?.deliveryFee ??
+          detail?.DeliveryFee ??
+          order.deliveryFee ??
+          order.DeliveryFee ??
+          0;
+
+        const finalTotal = order.total ?? order.Total ?? 0;
+
+        let subTotal = 0;
+        if (items.length > 0) {
+          subTotal = items.reduce((sum, item) => {
+            const price = item.unitPrice ?? item.UnitPrice ?? 0;
+            const qty = item.units ?? item.quantity ?? item.Units ?? 0;
+            return sum + price * qty;
+          }, 0);
+        } else {
+          subTotal = finalTotal - deliveryFee;
+        }
+        // ---------------------
+
+        // LOGIC CHECK TỌA ĐỘ
+        // Kiểm tra xem đã có dữ liệu tọa độ chưa
+        // Sử dụng toán tử ?? để bắt cả trường hợp viết hoa/thường
+        const hasCoords =
+          detail &&
+          (detail.originLat ?? detail.OriginLat) &&
+          (detail.destLat ?? detail.DestLat);
 
         return (
           <OrderCard key={id}>
@@ -123,14 +151,47 @@ export function MyOrders() {
                   </p>
                 )}
 
+                {/* --- HIỂN THỊ MAP (ĐÃ BỎ ĐIỀU KIỆN isShipped) --- */}
+                {detail && (
+                  <div style={{ marginBottom: 16, marginTop: 8 }}>
+                    {hasCoords ? (
+                      <div
+                        style={{
+                          border: "1px solid #ddd",
+                          borderRadius: 8,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <DroneDeliveryMap
+                          originLat={detail.originLat ?? detail.OriginLat}
+                          originLng={detail.originLon ?? detail.OriginLon}
+                          destLat={detail.destLat ?? detail.DestLat}
+                          destLng={detail.destLon ?? detail.DestLon}
+                        />
+                      </div>
+                    ) : (
+                      <p
+                        style={{
+                          fontSize: 13,
+                          fontStyle: "italic",
+                          color: "#666",
+                        }}
+                      >
+                        Chưa có thông tin lộ trình bay (Thiếu tọa độ).
+                      </p>
+                    )}
+                  </div>
+                )}
+                {/* ------------------------------------------------ */}
+
                 {detail && (
                   <OrderItems>
                     {items.map((item, idx) => (
                       <li key={item.productId ?? idx}>
-                        <span>{item.productName}</span>
+                        <span>{item.productName ?? item.ProductName}</span>
                         <span>
-                          {item.units ?? item.quantity} x $
-                          {(item.unitPrice ?? 0).toFixed(2)}
+                          {item.units ?? item.quantity ?? item.Units} x $
+                          {(item.unitPrice ?? item.UnitPrice ?? 0).toFixed(2)}
                         </span>
                       </li>
                     ))}
@@ -140,9 +201,46 @@ export function MyOrders() {
             )}
 
             <OrderFooter>
-              <span>
-                Total: ${(order.total ?? order.Total ?? 0).toFixed(2)}
-              </span>
+              {isOpen ? (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-end",
+                    gap: "4px",
+                  }}
+                >
+                  <span style={{ fontSize: "14px", color: "#555" }}>
+                    Subtotal: ${subTotal.toFixed(2)}
+                  </span>
+                  <span style={{ fontSize: "14px", color: "#555" }}>
+                    Delivery Fee: ${Number(deliveryFee).toFixed(2)}
+                  </span>
+                  <div
+                    style={{
+                      borderTop: "1px solid #ccc",
+                      marginTop: "4px",
+                      paddingTop: "4px",
+                      width: "100%",
+                      textAlign: "right",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontWeight: "bold",
+                        fontSize: "16px",
+                        color: "#d32f2f",
+                      }}
+                    >
+                      Total: ${Number(finalTotal).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <span style={{ fontWeight: "bold" }}>
+                  Total: ${Number(finalTotal).toFixed(2)}
+                </span>
+              )}
             </OrderFooter>
           </OrderCard>
         );

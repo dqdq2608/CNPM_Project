@@ -48,6 +48,15 @@ export async function fetchOrderDetail(orderId) {
   return res.data; // chi tiết đơn (có items)
 }
 
+export async function fetchOrdersByRestaurant(restaurantId) {
+  if (!restaurantId) {
+    throw new Error("Missing restaurantId");
+  }
+
+  const res = await orderHttp.get(`/restaurants/${restaurantId}/orders`);
+  return res.data; // mảng orders của nhà hàng
+}
+
 export async function fetchDeliveryQuote(selectedRestaurant, deliveryAddress) {
   if (!selectedRestaurant || !selectedRestaurant.id) {
     throw new Error("Missing restaurant selection");
