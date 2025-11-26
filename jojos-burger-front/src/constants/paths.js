@@ -6,6 +6,10 @@ const paths = {
   Categories: "/list-categories",
   NewCategory: "/new-category",
   EditCategory: "/edit-category",
+
+  Restaurants: "/admin-restaurant",
+  NewRestaurant: "/admin-restaurant/new",
+  EditRestaurant: "/admin-restaurant/edit",
 };
 
 export default paths;

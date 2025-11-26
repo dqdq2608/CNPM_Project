@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Net.Http.Json;                // ⭐ thêm
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NetTopologySuite.Geometries;         // ⭐ thêm
 using eShop.Catalog.API.Services;
 using eShop.Catalog.API.Model;
+using System.Net;
 
 namespace eShop.Catalog.API;
 
@@ -16,6 +19,17 @@ public sealed class RestaurantDto
     public string Address { get; set; } = default!;
     public double Lat { get; set; }   // NTS: Y = latitude
     public double Lng { get; set; }   // NTS: X = longitude
+    public string AdminEmail { get; set; } = string.Empty;
+}
+
+// ⭐ Request khi tạo nhà hàng + account admin
+public sealed class CreateRestaurantWithAdminRequest
+{
+    public string Name { get; set; } = default!;
+    public string Address { get; set; } = default!;
+    public double? Lat { get; set; }
+    public double? Lng { get; set; }
+    public string? Email { get; set; } // email admin nhà hàng
 }
 
 public sealed record CatalogTypeDto(int Id, string Type, string PictureUri);
@@ -101,6 +115,15 @@ public static class CatalogApi
                     Lng = r.Location != null ? r.Location.X : 0  // X = Lng
                 })
                 .ToListAsync());
+
+        // ⭐ Tạo nhà hàng + account admin bên IDS
+        api.MapPost("/restaurants-with-admin", CreateRestaurantWithAdmin);
+        api.MapGet("/admin/restaurants", GetRestaurantsForAdmin);
+        // Cập nhật thông tin nhà hàng
+        api.MapPut("/restaurants/{id:guid}", UpdateRestaurant);
+
+        // Xoá nhà hàng + tài khoản admin bên IDS
+        api.MapDelete("/restaurants/{id:guid}", DeleteRestaurantWithAdmin);
 
         // -------- Items (mutations) --------
         api.MapPut("/items", UpdateItem);
@@ -200,8 +223,6 @@ public static class CatalogApi
         return TypedResults.Ok((object)dto);
     }
 
-
-
     public static async Task<Ok<PaginatedItems<CatalogItem>>> GetItemsByName(
         [AsParameters] PaginationRequest paginationRequest,
         [AsParameters] CatalogServices services,
@@ -298,11 +319,11 @@ public static class CatalogApi
             // Chuẩn hoá tên: bỏ khoảng trắng, lower, thay space bằng '-', '_'…
             var candidates = new[]
             {
-            name,
-            name.Replace(" ", ""),
-            name.Replace(" ", "-"),
-            name.Replace(" ", "_")
-        }
+                name,
+                name.Replace(" ", ""),
+                name.Replace(" ", "-"),
+                name.Replace(" ", "_")
+            }
             .Select(s => s.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -320,8 +341,6 @@ public static class CatalogApi
             return null;
         }
     }
-
-
 
     // AI semantic (in-memory distance)
     public static async Task<Results<BadRequest<string>, Ok<PaginatedItems<CatalogItem>>>> GetItemsBySemanticRelevance(
@@ -496,6 +515,7 @@ public static class CatalogApi
         await services.Context.SaveChangesAsync();
         return TypedResults.NoContent();
     }
+
     // =======================  CATALOG TYPES CRUD  =======================
 
     public static async Task<Results<Created, BadRequest<string>>> CreateCatalogType(
@@ -516,7 +536,6 @@ public static class CatalogApi
         return TypedResults.Created($"/api/catalog/catalogtypes/{entity.Id}");
     }
 
-
     public static async Task<Results<Created, BadRequest<string>, NotFound<string>>> UpdateCatalogTypeV1(
         [AsParameters] CatalogServices services,
         CatalogType type)
@@ -536,7 +555,6 @@ public static class CatalogApi
         return TypedResults.Created($"/api/catalog/catalogtypes/{type.Id}");
     }
 
-
     public static async Task<Results<NoContent, NotFound>> DeleteCatalogType(
         [AsParameters] CatalogServices services,
         int id)
@@ -552,6 +570,228 @@ public static class CatalogApi
 
         return TypedResults.NoContent();
     }
+
+    // ---------- RESTAURANT + ADMIN ACCOUNT ----------
+
+    public static async Task<Results<Ok<object>, BadRequest<string>>> CreateRestaurantWithAdmin(
+        CreateRestaurantWithAdminRequest? request,
+        CatalogContext context,
+        IHttpClientFactory httpClientFactory)
+    {
+        // 1) Validate request
+        if (request is null)
+            return TypedResults.BadRequest("Request body is required (JSON).");
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return TypedResults.BadRequest("Restaurant name is required.");
+
+
+        // 2) Generate email trước khi insert vào DB
+        string adminEmail;
+
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            // đếm số restaurant hiện có
+            var totalRestaurants = await context.Restaurants.CountAsync();
+            var nextCode = (totalRestaurants + 1).ToString("000");
+
+            adminEmail = $"owner.rest-{nextCode}@gmail.com";
+        }
+        else
+        {
+            adminEmail = request.Email.Trim();
+        }
+
+
+        // 3) Tạo entity Restaurant trước
+        var restaurant = new Restaurant
+        {
+            RestaurantId = Guid.NewGuid(),
+            Name = request.Name.Trim(),
+            Address = request.Address?.Trim() ?? string.Empty,
+            AdminEmail = adminEmail   // ✔️ đặt đúng thời điểm (email đã tồn tại)
+        };
+
+        if (request.Lat.HasValue && request.Lng.HasValue)
+        {
+            restaurant.Location = new NetTopologySuite.Geometries.Point(
+                request.Lng.Value,
+                request.Lat.Value
+            ) { SRID = 4326 };
+        }
+
+        context.Restaurants.Add(restaurant);
+        await context.SaveChangesAsync();
+
+
+        // 4) Call IDS để tạo admin account
+        var client = httpClientFactory.CreateClient("ids-admin-api");
+
+        var payload = new
+        {
+            RestaurantId = restaurant.RestaurantId.ToString(),
+            RestaurantName = restaurant.Name,
+            Email = adminEmail
+        };
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await client.PostAsJsonAsync("/api/restaurant-admins", payload);
+        }
+        catch (Exception ex)
+        {
+            // rollback nếu IDS lỗi
+            context.Restaurants.Remove(restaurant);
+            await context.SaveChangesAsync();
+
+            return TypedResults.BadRequest($"Lỗi khi gọi IDS: {ex.Message}");
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            // rollback nếu tạo user thất bại
+            context.Restaurants.Remove(restaurant);
+            await context.SaveChangesAsync();
+
+            var err = await response.Content.ReadAsStringAsync();
+            return TypedResults.BadRequest($"Không tạo được tài khoản admin nhà hàng: {err}");
+        }
+
+        var adminResult = await response.Content.ReadFromJsonAsync<object>();
+
+
+        // 5) Build response
+        var dto = new RestaurantDto
+        {
+            RestaurantId = restaurant.RestaurantId,
+            Name = restaurant.Name,
+            Address = restaurant.Address,
+            Lat = restaurant.Location?.Y ?? 0,
+            Lng = restaurant.Location?.X ?? 0,
+            AdminEmail = restaurant.AdminEmail
+        };
+
+        return TypedResults.Ok((object)new
+        {
+            Restaurant = dto,
+            Admin = adminResult,
+            AdminEmail = adminEmail
+        });
+    }
+
+    public static async Task<Ok<List<RestaurantDto>>> GetRestaurantsForAdmin(
+        CatalogContext context)
+    {
+        var list = await context.Restaurants
+            .AsNoTracking()
+            .OrderBy(x => x.Name)
+            .Select(r => new RestaurantDto
+            {
+                RestaurantId = r.RestaurantId,
+                Name = r.Name,
+                Address = r.Address,
+                Lat = r.Location != null ? r.Location.Y : 0,
+                Lng = r.Location != null ? r.Location.X : 0,
+                AdminEmail = r.AdminEmail ?? string.Empty
+            })
+            .ToListAsync();
+
+        return TypedResults.Ok(list);
+    }
+    public static async Task<Results<NoContent, NotFound, BadRequest<string>>> UpdateRestaurant(
+        Guid id,
+        CreateRestaurantWithAdminRequest request,
+        CatalogContext context)
+    {
+        if (request is null)
+            return TypedResults.BadRequest("Request body is required.");
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return TypedResults.BadRequest("Restaurant name is required.");
+
+        var restaurant = await context.Restaurants
+            .FirstOrDefaultAsync(r => r.RestaurantId == id);
+
+        if (restaurant is null)
+            return TypedResults.NotFound();
+
+        restaurant.Name    = request.Name.Trim();
+        restaurant.Address = request.Address?.Trim() ?? string.Empty;
+
+        if (request.Lat.HasValue && request.Lng.HasValue)
+        {
+            restaurant.Location = new Point(request.Lng.Value, request.Lat.Value)
+            {
+                SRID = 4326
+            };
+        }
+        else
+        {
+            restaurant.Location = null;
+        }
+
+        // (tuỳ nhu cầu) KHÔNG đổi AdminEmail ở đây cho dễ quản lý
+        await context.SaveChangesAsync();
+
+        return TypedResults.NoContent();
+    }
+    public static async Task<Results<NoContent, NotFound, BadRequest<string>>> DeleteRestaurantWithAdmin(
+        Guid id,
+        CatalogContext context,
+        IHttpClientFactory httpClientFactory)
+    {
+        var restaurant = await context.Restaurants
+            .FirstOrDefaultAsync(r => r.RestaurantId == id);
+
+        if (restaurant is null)
+            return TypedResults.NotFound();
+
+        // -----------------------------
+        // 1) Xoá tài khoản admin bên IDS
+        // -----------------------------
+        if (!string.IsNullOrWhiteSpace(restaurant.AdminEmail))
+        {
+            var client = httpClientFactory.CreateClient("ids-admin-api");
+            var encodedEmail = Uri.EscapeDataString(restaurant.AdminEmail);
+
+            HttpResponseMessage resp;
+            try
+            {
+                resp = await client.DeleteAsync($"/api/restaurant-admins/by-email/{encodedEmail}");
+            }
+            catch (Exception ex)
+            {
+                return TypedResults.BadRequest($"Lỗi khi gọi IDS: {ex.Message}");
+            }
+
+            // Nếu IDS báo NotFound thì coi như người dùng đã bị xoá → bỏ qua
+            if (!resp.IsSuccessStatusCode && resp.StatusCode != HttpStatusCode.NotFound)
+            {
+                var msg = await resp.Content.ReadAsStringAsync();
+                return TypedResults.BadRequest($"Không xoá được tài khoản admin bên IDS: {msg}");
+            }
+        }
+
+        // -----------------------------
+        // 2) Xoá toàn bộ món thuộc nhà hàng
+        // -----------------------------
+        var items = await context.CatalogItems
+            .Where(ci => ci.RestaurantId == id)
+            .ToListAsync();
+
+        if (items.Count > 0)
+            context.CatalogItems.RemoveRange(items);
+
+        // -----------------------------
+        // 3) Xoá nhà hàng trong Catalog
+        // -----------------------------
+        context.Restaurants.Remove(restaurant);
+        await context.SaveChangesAsync();
+
+        return TypedResults.NoContent();
+    }
+
 
     // ---------- Helpers ----------
 

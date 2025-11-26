@@ -10,6 +10,7 @@ import {
   Cart,
   Admin,
   MyOrders,
+  AdminRestaurant
 } from "../containers";
 import PrivateRoute from "./private-routes";
 
@@ -17,6 +18,7 @@ function Routes() {
   return (
     <Router>
       <Switch>
+        <Route component={AdminRestaurant} path={paths.Restaurants} />
         <Route component={Login} path="/login" />
         <Route component={Register} path="/register" />
         <PrivateRoute exact component={Home} path="/" />

@@ -5,6 +5,7 @@ import { ToastContainer } from "react-toastify";
 import AppProvider from "./hooks";
 import Routes from "./routes/routes";
 import GlobalStyles from "./styles/globalStyles";
+import "leaflet/dist/leaflet.css";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
