@@ -69,10 +69,6 @@ export function RestaurantSelector() {
               <Info>
                 <strong>{r.name}</strong>
                 <Address>{r.address}</Address>
-                <Small>
-                  Lat: {r.latitude?.toFixed?.(5) ?? r.latitude} – Lon:{" "}
-                  {r.longitude?.toFixed?.(5) ?? r.longitude}
-                </Small>
               </Info>
             </Item>
           );

@@ -47,21 +47,21 @@ namespace PaymentProcessor.Apis
             string cancelUrl,
             CancellationToken ct = default)
         {
-            // Nếu bạn muốn dùng lại link cũ, có thể bật đoạn này:
-            // var existing = _cache.Get(orderId);
-            // if (!string.IsNullOrWhiteSpace(existing))
-            // {
-            //     _logger.LogInformation("[PAYMENT] Reuse cached payment link for OrderId={OrderId}: {Url}", orderId, existing);
-            //     return new PaymentLinkResult(true, existing, false, null, null);
-            // }
+            //Nếu bạn muốn dùng lại link cũ, có thể bật đoạn này:
+            var existing = _cache.Get(orderId);
+            if (!string.IsNullOrWhiteSpace(existing))
+            {
+                _logger.LogInformation("[PAYMENT] Reuse cached payment link for OrderId={OrderId}: {Url}", orderId, existing);
+                return new PaymentLinkResult(true, existing, false, null, null);
+            }
 
             var request = new CreatePaymentRequest
             {
-                OrderId     = orderId,
-                Amount      = amount,
+                OrderId = orderId,
+                Amount = amount,
                 Description = description,
-                ReturnUrl   = returnUrl,
-                CancelUrl   = cancelUrl
+                ReturnUrl = returnUrl,
+                CancelUrl = cancelUrl
             };
 
             _logger.LogInformation(

@@ -18,7 +18,6 @@ public interface IPaymentApi
     /// (UserId, UserName, Address, Card..., Items)
     /// </param>
     /// <param name="cancellationToken"></param>
-    Task<string> CheckoutOnlineAsync(
-        string bodyJson,
-        CancellationToken cancellationToken = default);
+    Task<string> CheckoutOnlineAsync(int orderId, CancellationToken cancellationToken = default);
+    Task<string> CheckoutOnlineAsync(string bodyJson, CancellationToken cancellationToken = default);
 }

@@ -55,9 +55,22 @@ namespace IdentityServerLogic
             // 3. Seed Restaurant Admin users
             var restaurants = new[]
             {
-                new { Id = "rest-001", Name = "Jojo Burger Q1" },
-                new { Id = "rest-002", Name = "Jojo Burger Q3" },
-                new { Id = "rest-003", Name = "Jojo Burger Q7" }
+                new
+                {
+                    Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                    Name = "Jojo Burger - Q1"
+                },
+                new
+                {
+                    Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+                    Name = "Jojo Burger - Q3"
+                },
+                // Nếu bạn có seed Q7 bên Restaurant service thì thêm luôn ở đây:
+                // new
+                // {
+                //     Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+                //     Name = "Jojo Burger - Q7"
+                // },
             };
 
             foreach (var r in restaurants)
@@ -77,7 +90,7 @@ namespace IdentityServerLogic
                     EmailConfirmed = true,
                     FullName = $"Owner {r.Name}",
                     UserType = "RestaurantAdmin",
-                    RestaurantId = r.Id,
+                    RestaurantId = r.Id.ToString(),
                     RestaurantName = r.Name
                 };
 

@@ -3,11 +3,11 @@ import { useHistory } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import { useCart } from "../../hooks/CartContext";
+import { fetchPaymentLink } from "../../services/api/checkout";
 import {
-  createOrderFromCart,
   fetchDeliveryQuote,
+  createOrderFromCart,
 } from "../../services/api/order";
-import checkout from "../../services/api/checkout";
 import formatCurrency from "../../utils/formatCurrency";
 import { Button } from "../Button";
 import { Container } from "./styles";
@@ -87,59 +87,43 @@ export function CartResume() {
     }
 
     try {
-      await toast.promise(
-        createOrderFromCart(cartProducts, selectedRestaurant, deliveryAddress), // ✅ giờ gửi đủ products + restaurantId + deliveryAddress
+      // 1) Tạo Order (và Delivery) qua BFF
+      const orderResult = await toast.promise(
+        createOrderFromCart(cartProducts, selectedRestaurant, deliveryAddress),
         {
-          pending: "Đang tạo đơn hàng...",
-          success: "Đặt hàng thành công! Đồ ăn đang trên đường tới bạn 🚀",
-          error:
-            "Xử lý đơn hàng thất bại. Vui lòng thử lại sau hoặc kiểm tra kết nối.",
+          pending: "Đang tạo đơn & giao hàng...",
+          success: "Tạo đơn hàng thành công!",
+          error: "Tạo đơn thất bại, vui lòng thử lại.",
         }
       );
 
-      const items = cartProducts.map((product) => ({
-        productId: product.id,
-        productName: product.name,
-        quantity: product.quantity,
-        unitPrice: product.price,
-        pictureUrl: product.pictureUrl,
-      }));
+      console.log("orderResult from BFF =", orderResult);
 
-      const payload = { items };
+      const orderId =
+        orderResult.orderId ?? orderResult.OrderId ?? orderResult.orderID; // phòng khi BE map khác
 
-      // 3) Tạo order qua BFF
-      const checkoutRes = await toast.promise(
-        checkout.checkoutOnline(payload),
-        {
-          pending: "Creating order...",
-          success: "Order created!",
-          error: "Could not create order",
-        }
-      );
-
-      console.log("checkoutRes at FE =", checkoutRes);
-
-      const orderId = checkoutRes.orderId ?? checkoutRes.OrderId;
       if (!orderId) {
-        toast.error("Order ID not found");
+        toast.error("Không tìm được Order ID từ server.");
         return;
       }
 
-      // 4) Lấy paymentUrl
-      const payRes = await toast.promise(
-        checkout.fetchPaymentLink(orderId),
-        {
-          pending: "Retrieving payment link...",
-          success: "Redirecting to PayOS...",
-          error: "Could not obtain payment link",
-        }
-      );
+      // Nếu BFF đã trả sẵn paymentUrl thì dùng luôn
+      let paymentUrl = orderResult.paymentUrl ?? orderResult.PaymentUrl ?? null;
 
-      console.log("payRes at FE =", payRes);
-
-      const paymentUrl = payRes.paymentUrl ?? payRes.PaymentUrl;
+      // 2) Nếu chưa có paymentUrl thì gọi endpoint /payments/{orderId}
       if (!paymentUrl) {
-        toast.error("Payment link unavailable");
+        const payRes = await toast.promise(fetchPaymentLink(orderId), {
+          pending: "Đang lấy link thanh toán...",
+          success: "Chuẩn bị chuyển tới cổng thanh toán...",
+          error: "Không lấy được link thanh toán.",
+        });
+
+        console.log("payRes at FE =", payRes);
+        paymentUrl = payRes.paymentUrl ?? payRes.PaymentUrl ?? null;
+      }
+
+      if (!paymentUrl) {
+        toast.error("Không tìm được link thanh toán cho đơn hàng này.");
         return;
       }
 
@@ -153,9 +137,10 @@ export function CartResume() {
         push("/login");
       } else {
         console.error("Order error:", e);
-        // nếu lỗi do thiếu restaurant/address ở FE, createOrderFromCart sẽ throw Error thường:
         if (!e.response) {
           toast.error(e.message || "Có lỗi xảy ra khi tạo đơn.");
+        } else {
+          toast.error("Có lỗi xảy ra khi xử lý đơn hàng.");
         }
       }
     }
@@ -232,8 +217,7 @@ export function CartResume() {
 
             {!loadingQuote && !quoteError && distanceKm != null && (
               <p style={{ fontSize: 12, color: "#2c3e50" }}>
-                Khoảng cách ~ {distanceKm.toFixed(1)} km – Phí giao hàng:{" "}
-                {formatCurrency(deliveryFee)}
+                Distance ~ {distanceKm.toFixed(1)}
               </p>
             )}
           </div>

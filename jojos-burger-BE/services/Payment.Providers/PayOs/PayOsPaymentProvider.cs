@@ -4,22 +4,23 @@ using System.Text;
 using Microsoft.Extensions.Options;
 using Payment.Providers.Abstractions;
 using Payment.Providers.PayOS;
+using Microsoft.Extensions.Logging;
 
 namespace Payment.Providers.PayOS;
 // 🔹 data bên trong field "data"
 internal sealed class PayOsCreatePaymentData
 {
     public string? checkoutUrl { get; set; }
-    public long   orderCode    { get; set; }
-    public int    amount       { get; set; }
-    public string? status      { get; set; }
+    public long orderCode { get; set; }
+    public int amount { get; set; }
+    public string? status { get; set; }
 }
 
 // 🔹 response wrapper { code, desc, data, signature }
 internal sealed class PayOsCreatePaymentResponse
 {
-    public string? code      { get; set; }
-    public string? desc      { get; set; }
+    public string? code { get; set; }
+    public string? desc { get; set; }
     public PayOsCreatePaymentData? data { get; set; }
     public string? signature { get; set; }
 }
@@ -28,25 +29,33 @@ public class PayOsPaymentProvider : IPaymentProvider
 {
     private readonly HttpClient _httpClient;
     private readonly PayOsOptions _options;
+    private readonly ILogger<PayOsPaymentProvider> _logger;
 
-    public PayOsPaymentProvider(HttpClient httpClient, IOptions<PayOsOptions> options)
+    public PayOsPaymentProvider(HttpClient httpClient, IOptions<PayOsOptions> options, ILogger<PayOsPaymentProvider> logger)
     {
         _httpClient = httpClient;
-        _options    = options.Value;
+        _options = options.Value;
+        _logger = logger;
     }
 
     public async Task<PaymentResult> CreatePaymentAsync(OrderPaymentData order)
     {
-        long orderCode;
-        if (!long.TryParse(order.OrderId, out orderCode))
+        if (!int.TryParse(order.OrderId, out var orderIdInt))
         {
-            orderCode = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            _logger.LogError("Invalid OrderId '{OrderId}' when creating PayOS payment", order.OrderId);
+            return PaymentResult.Failed("INVALID_ORDER_ID", "OrderId is not a valid integer");
         }
+        var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds() % 100000;
+        long orderCode = orderIdInt * 100000 + ts;
 
-        var amountInt  = (int)order.Amount;
-        var returnUrl  = order.ReturnUrl ?? "https://your-frontend.com/payment/success";
-        var cancelUrl  = order.CancelUrl ?? "https://your-frontend.com/payment/cancel";
-        var desc       = order.Description ?? $"Thanh toán đơn hàng {order.OrderId}";
+        _logger.LogInformation(
+            "[PAYOS] Encoded orderCode = {orderCode} from OrderId = {orderId}",
+            orderCode, orderIdInt
+        );
+        var amountInt = (int)order.Amount;
+        var returnUrl = order.ReturnUrl ?? "https://localhost:3000/payment/success";
+        var cancelUrl = order.CancelUrl ?? "https://localhost:3000/payment/cancel";
+        var desc = order.Description ?? $"Thanh toán đơn hàng {order.OrderId}";
 
         // rawSignature theo docs PayOS
         var rawSignature =
@@ -60,12 +69,12 @@ public class PayOsPaymentProvider : IPaymentProvider
 
         var payload = new
         {
-            orderCode   = orderCode,
-            amount      = amountInt,
+            orderCode = orderCode,
+            amount = amountInt,
             description = desc,
-            cancelUrl   = cancelUrl,
-            returnUrl   = returnUrl,
-            signature   = signature
+            cancelUrl = cancelUrl,
+            returnUrl = returnUrl,
+            signature = signature
         };
 
         var url = _options.BaseUrl.TrimEnd('/') + "/v2/payment-requests";
@@ -76,7 +85,7 @@ public class PayOsPaymentProvider : IPaymentProvider
         };
 
         request.Headers.Add("x-client-id", _options.ClientId);
-        request.Headers.Add("x-api-key",   _options.ApiKey);
+        request.Headers.Add("x-api-key", _options.ApiKey);
         if (!string.IsNullOrWhiteSpace(_options.PartnerCode))
         {
             request.Headers.Add("x-partner-code", _options.PartnerCode);

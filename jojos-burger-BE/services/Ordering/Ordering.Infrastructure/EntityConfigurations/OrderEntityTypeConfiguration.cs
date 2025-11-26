@@ -39,6 +39,10 @@ class OrderEntityTypeConfiguration : IEntityTypeConfiguration<Order>
             .HasColumnType("decimal(18,2)")
             .HasDefaultValue(0m);
 
+        orderConfiguration
+            .Property(o => o.RestaurantId)
+            .IsRequired();
+
         orderConfiguration.HasOne<PaymentMethod>()
             .WithMany()
             .HasForeignKey(o => o.PaymentId)
