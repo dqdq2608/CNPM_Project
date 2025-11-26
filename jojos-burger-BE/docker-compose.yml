@@ -141,25 +141,25 @@ services:
     networks: [appnet]
 
   # === Catalog DB (PostgreSQL) ===
-  catalog-db:
-    build:
-      context: .
-      dockerfile: db/Dockerfile.db
-    container_name: catalog-db
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-catalogdb}
-    ports:
-      - "5435:5432"
-    volumes:
-      - catalog_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-catalogdb}"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    networks: [appnet]
+  # catalog-db:
+  #   build:
+  #     context: .
+  #     dockerfile: db/Dockerfile.db
+  #   container_name: catalog-db
+  #   environment:
+  #     POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  #     POSTGRES_DB: ${POSTGRES_DB:-catalogdb}
+  #   ports:
+  #     - "5435:5432"
+  #   volumes:
+  #     - catalog_pgdata:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-catalogdb}"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 20
+  #   networks: [appnet]
 
   # === Catalog API ===
   catalog-api:
@@ -167,12 +167,12 @@ services:
       context: .
       dockerfile: services/Catalog.API/Dockerfile
     container_name: catalog-api
-    depends_on:
-      catalog-db:
-        condition: service_healthy
+    # depends_on:
+    #   catalog-db:
+    #     condition: service_healthy
     env_file: .env
     environment:
-      ConnectionStrings__catalogdb: "Host=catalog-db;Port=5432;Database=${POSTGRES_DB:-catalogdb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};Include Error Detail=true"
+      ConnectionStrings__catalogdb: "Host=aws-1-ap-southeast-1.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.ydchytgmtmhrrjdceinh;Password=jojos-burer123;Ssl Mode=Require;Trust Server Certificate=true;Include Error Detail=true;"
     ports:
       - "7002:8080"
     networks: [appnet]

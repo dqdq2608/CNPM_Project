@@ -416,11 +416,13 @@ app.MapGet("/bff-api/orders/{orderId:int}", async (
 })
 .RequireAuthorization();
 
-app.MapGet("/orders/{orderId:int}/delivery",
+app.MapGet("/bff-api/orders/{orderId:int}/delivery",
     async (ClaimsPrincipal user, int orderId, IOrderBffApi api) =>
     {
-        return Results.Ok(await api.GetDeliveryForOrderAsync(user, orderId));
-    });
+        var json = await api.GetDeliveryForOrderAsync(user, orderId);
+        return Results.Content(json, "application/json");
+    })
+    .RequireAuthorization();
 
 app.MapPost("/bff-api/delivery/quote", async (
     ClaimsPrincipal user,

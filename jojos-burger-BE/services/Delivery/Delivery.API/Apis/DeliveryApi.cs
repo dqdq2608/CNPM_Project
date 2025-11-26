@@ -70,8 +70,16 @@ public static class DeliveryApi
         await db.SaveChangesAsync();
 
         return Results.Created($"/api/deliveries/{delivery.Id}",
-            new DeliveryResponse(delivery.Id, delivery.OrderId,
-                delivery.DistanceKm, delivery.DeliveryFee, delivery.Status.ToString()));
+            new DeliveryResponse(
+                delivery.Id,
+                delivery.OrderId,
+                delivery.RestaurantLat,
+                delivery.RestaurantLon,
+                delivery.CustomerLat,
+                delivery.CustomerLon,
+                delivery.DistanceKm,
+                delivery.DeliveryFee,
+                delivery.Status.ToString()));
     }
 
     static async Task<IResult> StartDeliveryAsync(int id, DeliveryDbContext db)
@@ -83,9 +91,17 @@ public static class DeliveryApi
         delivery.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
-        return Results.Ok(new DeliveryResponse(
-            delivery.Id, delivery.OrderId, delivery.DistanceKm,
-            delivery.DeliveryFee, delivery.Status.ToString()));
+        return Results.Ok(
+            new DeliveryResponse(
+            delivery.Id,
+            delivery.OrderId,
+            delivery.RestaurantLat,
+            delivery.RestaurantLon,
+            delivery.CustomerLat,
+            delivery.CustomerLon,
+            delivery.DistanceKm,
+            delivery.DeliveryFee,
+            delivery.Status.ToString()));
     }
 
     static async Task<IResult> ReleaseDeliveryAsync(int id, DeliveryDbContext db)
@@ -98,8 +114,15 @@ public static class DeliveryApi
         await db.SaveChangesAsync();
 
         return Results.Ok(new DeliveryResponse(
-            delivery.Id, delivery.OrderId, delivery.DistanceKm,
-            delivery.DeliveryFee, delivery.Status.ToString()));
+            delivery.Id,
+            delivery.OrderId,
+            delivery.RestaurantLat,
+            delivery.RestaurantLon,
+            delivery.CustomerLat,
+            delivery.CustomerLon,
+            delivery.DistanceKm,
+            delivery.DeliveryFee,
+            delivery.Status.ToString()));
     }
 
     static async Task<IResult> GetByOrderAsync(int orderId, DeliveryDbContext db)
@@ -110,7 +133,15 @@ public static class DeliveryApi
         if (delivery is null) return Results.NotFound();
 
         return Results.Ok(new DeliveryResponse(
-            delivery.Id, delivery.OrderId, delivery.DistanceKm,
-            delivery.DeliveryFee, delivery.Status.ToString()));
+            delivery.Id,
+            delivery.OrderId,
+            delivery.RestaurantLat,
+            delivery.RestaurantLon,
+            delivery.CustomerLat,
+            delivery.CustomerLon,
+            delivery.DistanceKm,
+            delivery.DeliveryFee,
+            delivery.Status.ToString())
+        );
     }
 }
