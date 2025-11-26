@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Filters;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace IdentityServerLogic;
 
@@ -59,9 +60,9 @@ internal static class HostingExtensions
         var connectionString = builder.Configuration.GetConnectionString("Default")
             ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured");
 
-        // ASP.NET Identity (USER STORE)
+        // 🔄 ASP.NET Identity (USER STORE) → dùng Postgres (Npgsql) thay vì SQLite
         builder.Services.AddDbContext<ApplicationDbContext>(o =>
-            o.UseSqlite(connectionString));
+            o.UseNpgsql(connectionString));
 
         builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -94,17 +95,16 @@ internal static class HostingExtensions
             .AddConfigurationStore(options =>
             {
                 options.ConfigureDbContext = b =>
-                    b.UseSqlite(connectionString,
+                    b.UseNpgsql(connectionString,
                         dbOpts => dbOpts.MigrationsAssembly(typeof(Program).Assembly.FullName));
             })
             .AddOperationalStore(options =>
             {
                 options.ConfigureDbContext = b =>
-                    b.UseSqlite(connectionString,
+                    b.UseNpgsql(connectionString,
                         dbOpts => dbOpts.MigrationsAssembly(typeof(Program).Assembly.FullName));
             })
             .AddProfileService<CustomProfileService>(); // đẩy user_type/restaurant vào token
-
 
         return builder.Build();
     }

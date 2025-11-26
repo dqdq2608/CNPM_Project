@@ -13,9 +13,8 @@ services:
       ASPNETCORE_Kestrel__Certificates__Default__Path: "/https/localhost.pem"
       ASPNETCORE_Kestrel__Certificates__Default__KeyPath: "/https/localhost-key.pem"
       DISABLE_HTTPS_REDIRECT: "false"
-      ConnectionStrings__Default: "Data Source=/data/IdentityServer.db"
+      ConnectionStrings__Default: "Host=ep-rough-mountain-a1gy8bdl-pooler.ap-southeast-1.aws.neon.tech;Port=5432;Database=neondb;Username=neondb_owner;Password=npg_0HugRTp1zJlZ;Ssl Mode=Require;Trust Server Certificate=true"
     volumes:
-      - ids_data:/data
       - ./certs:/https:ro
     ports:
       - "5001:5001"
@@ -245,7 +244,7 @@ services:
     # forward HTTP traffic từ internet → service webhookreceiver:5022 trong docker network
     command: http webhookreceiver:5022
     environment:
-      NGROK_AUTHTOKEN: 35rz5l4F3SkbCy23YLdN3io6Fpb_5rkqSGwnCmEXJTVB7C43f
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
     ports:
       - "4040:4040"   # UI của ngrok để xem log, request…
     depends_on:
@@ -287,7 +286,6 @@ networks:
   appnet: {}
 
 volumes:
-  ids_data:
   catalog_pgdata:
   ordering_pgdata:
   delivery-data:
