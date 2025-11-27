@@ -3,6 +3,7 @@ using Delivery.API.Dtos.Responses;
 using Delivery.Domain;
 using Delivery.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Delivery.API.Clients;
 
 namespace Delivery.API.Apis;
 
@@ -13,10 +14,10 @@ public static class DeliveryApi
         var api = app.MapGroup("/api/deliveries");
 
         api.MapPost("/", CreateDeliveryAsync);
-        api.MapPost("/{id:int}/start", StartDeliveryAsync);
+        api.MapPost("/start/{orderId:int}", StartDeliveryAsync);
         api.MapPost("/{id:int}/release", ReleaseDeliveryAsync);
         api.MapGet("/by-order/{orderId:int}", GetByOrderAsync);
-
+        api.MapPost("/{orderId:int}/tick", TickDeliveryAsync);
         return app;
     }
 
@@ -82,9 +83,9 @@ public static class DeliveryApi
                 delivery.Status.ToString()));
     }
 
-    static async Task<IResult> StartDeliveryAsync(int id, DeliveryDbContext db)
+    static async Task<IResult> StartDeliveryAsync(int orderId, DeliveryDbContext db)
     {
-        var delivery = await db.DeliveryOrders.FindAsync(id);
+        var delivery = await db.DeliveryOrders.FirstOrDefaultAsync(d => d.OrderId == orderId);
         if (delivery is null) return Results.NotFound();
 
         delivery.Status = DeliveryStatus.InTransit;
@@ -103,6 +104,7 @@ public static class DeliveryApi
             delivery.DeliveryFee,
             delivery.Status.ToString()));
     }
+
 
     static async Task<IResult> ReleaseDeliveryAsync(int id, DeliveryDbContext db)
     {
@@ -143,5 +145,52 @@ public static class DeliveryApi
             delivery.DeliveryFee,
             delivery.Status.ToString())
         );
+    }
+
+    // 👇 THÊM MỚI HÀM NÀY TRONG CLASS DeliveryApi
+    static async Task<IResult> TickDeliveryAsync(
+        int orderId,
+        DeliveryDbContext db,
+        IOrderingClient orderingClient)
+    {
+        // Lấy delivery theo OrderId (vì FE làm việc với order)
+        var delivery = await db.DeliveryOrders
+            .FirstOrDefaultAsync(d => d.OrderId == orderId);
+
+        if (delivery is null) return Results.NotFound();
+
+        // Nếu đã Delivered rồi thì không cần xử lý gì thêm, trả hiện trạng
+        if (delivery.Status == DeliveryStatus.Delivered)
+        {
+            return Results.Ok(new DeliveryResponse(
+                delivery.Id,
+                delivery.OrderId,
+                delivery.RestaurantLat,
+                delivery.RestaurantLon,
+                delivery.CustomerLat,
+                delivery.CustomerLon,
+                delivery.DistanceKm,
+                delivery.DeliveryFee,
+                delivery.Status.ToString()));
+        }
+
+        // Hiện tại: 1 tick = coi như drone đã giao xong
+        delivery.Status = DeliveryStatus.Delivered;
+        delivery.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync();
+        // Sau khi drone Delivered, báo cho Ordering biết để set OrderStatus = Delivered
+        await orderingClient.MarkOrderDeliveredAsync(orderId);
+
+        return Results.Ok(new DeliveryResponse(
+            delivery.Id,
+            delivery.OrderId,
+            delivery.RestaurantLat,
+            delivery.RestaurantLon,
+            delivery.CustomerLat,
+            delivery.CustomerLon,
+            delivery.DistanceKm,
+            delivery.DeliveryFee,
+            delivery.Status.ToString()));
     }
 }
