@@ -5,7 +5,7 @@
   "dependencies": {
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.0",
-    "@hookform/resolvers": "^3.3.4",
+    "@hookform/resolvers": "^3.10.0",
     "@mui/icons-material": "^5.15.12",
     "@mui/material": "^5.15.12",
     "@mui/styled-engine-sc": "^6.0.0-alpha.17",
@@ -21,7 +21,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-elastic-carousel": "^0.11.5",
-    "react-hook-form": "^7.50.0",
+    "react-hook-form": "^7.66.1",
     "react-leaflet": "^4.2.1",
     "react-router": "^5.3.4",
     "react-router-dom": "^5.3.4",

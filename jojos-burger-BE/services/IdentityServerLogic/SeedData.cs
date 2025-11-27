@@ -22,7 +22,9 @@ namespace IdentityServerLogic
 
             Log.Information("Seeding IdentityServer...");
 
-            // 1. Seed cấu hình IdentityServer
+            // =============================
+            // 1. Seed IdentityServer configs
+            // =============================
             configDb.Clients.RemoveRange(configDb.Clients);
             configDb.IdentityResources.RemoveRange(configDb.IdentityResources);
             configDb.ApiScopes.RemoveRange(configDb.ApiScopes);
@@ -39,9 +41,11 @@ namespace IdentityServerLogic
                 configDb.Clients.Add(client.ToEntity());
 
             await configDb.SaveChangesAsync();
-            Log.Information("Seeded IdentityServer configuration data.");
+            Log.Information("✓ Seeded IdentityServer configuration data.");
 
-            // 2. Roles
+            // =============================
+            // 2. Seed Roles
+            // =============================
             var roles = new[] { "RestaurantAdmin", "Customer" };
 
             foreach (var role in roles)
@@ -51,31 +55,25 @@ namespace IdentityServerLogic
                     await roleMgr.CreateAsync(new IdentityRole(role));
                 }
             }
+            Log.Information("✓ Seeded roles.");
 
-            // 3. Seed Restaurant Admin users
+            // =============================
+            // 3. Seed Restaurant Admins
+            // =============================
             var restaurants = new[]
             {
-                new
-                {
-                    Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-                    Name = "Jojo Burger - Q1"
-                },
-                new
-                {
-                    Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-                    Name = "Jojo Burger - Q3"
-                },
-                // Nếu bạn có seed Q7 bên Restaurant service thì thêm luôn ở đây:
-                // new
-                // {
-                //     Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-                //     Name = "Jojo Burger - Q7"
-                // },
+                new { Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Name = "Jojo Burger - Q1" },
+                new { Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), Name = "Jojo Burger - Q3" },
+                // Add more restaurants here if needed
             };
 
-            foreach (var r in restaurants)
+            for (int i = 0; i < restaurants.Length; i++)
             {
-                var email = $"owner.{r.Id}@gmail.com";
+                var r = restaurants[i];
+
+                // Generate owner email: owner.rest-001@gmail.com
+                var code = (i + 1).ToString("D3");
+                var email = $"owner.rest-{code}@gmail.com";
 
                 var existing = await userMgr.FindByEmailAsync(email);
                 if (existing != null)
@@ -97,17 +95,19 @@ namespace IdentityServerLogic
                 var result = await userMgr.CreateAsync(user, "123456");
                 if (!result.Succeeded)
                 {
-                    Log.Error("Error creating restaurant admin {Email}: {Errors}",
+                    Log.Error("✗ Error creating admin {Email}: {Errors}",
                         email, string.Join(", ", result.Errors.Select(e => e.Description)));
                     continue;
                 }
 
                 await userMgr.AddToRoleAsync(user, "RestaurantAdmin");
 
-                Log.Information("Created RestaurantAdmin {Email} for {RestaurantId}", email, r.Id);
+                Log.Information("✓ Created Restaurant Admin {Email} for restaurant {Restaurant}", email, r.Name);
             }
 
-            // 4. Seed Customer users
+            // =============================
+            // 4. Seed Customers
+            // =============================
             var customers = new[]
             {
                 new { Email = "customer1@gmail.com", Name = "Customer 1" },
@@ -137,17 +137,17 @@ namespace IdentityServerLogic
                 var result = await userMgr.CreateAsync(user, "123456");
                 if (!result.Succeeded)
                 {
-                    Log.Error("Error creating customer {Email}: {Errors}",
+                    Log.Error("✗ Error creating customer {Email}: {Errors}",
                         c.Email, string.Join(", ", result.Errors.Select(e => e.Description)));
                     continue;
                 }
 
                 await userMgr.AddToRoleAsync(user, "Customer");
 
-                Log.Information("Created Customer {Email}", c.Email);
+                Log.Information("✓ Created Customer {Email}", c.Email);
             }
 
-            Log.Information("Seeding IdentityServer done.");
+            Log.Information("✔✔✔ Seeding IdentityServer completed.");
         }
     }
 }

@@ -9,6 +9,7 @@ using NetTopologySuite.Geometries;         // ⭐ thêm
 using eShop.Catalog.API.Services;
 using eShop.Catalog.API.Model;
 using System.Net;
+using System.Text.Json;
 
 namespace eShop.Catalog.API;
 
@@ -585,8 +586,7 @@ public static class CatalogApi
         if (string.IsNullOrWhiteSpace(request.Name))
             return TypedResults.BadRequest("Restaurant name is required.");
 
-
-        // 2) Generate email trước khi insert vào DB
+        // 2) Generate email trước khi call IDS (KHÔNG lưu trong DB)
         string adminEmail;
 
         if (string.IsNullOrWhiteSpace(request.Email))
@@ -602,27 +602,24 @@ public static class CatalogApi
             adminEmail = request.Email.Trim();
         }
 
-
-        // 3) Tạo entity Restaurant trước
+        // 3) Tạo entity Restaurant trong Catalog (KHÔNG có AdminEmail)
         var restaurant = new Restaurant
         {
             RestaurantId = Guid.NewGuid(),
             Name = request.Name.Trim(),
-            Address = request.Address?.Trim() ?? string.Empty,
-            AdminEmail = adminEmail   // ✔️ đặt đúng thời điểm (email đã tồn tại)
+            Address = request.Address?.Trim() ?? string.Empty
         };
 
         if (request.Lat.HasValue && request.Lng.HasValue)
         {
-            restaurant.Location = new NetTopologySuite.Geometries.Point(
-                request.Lng.Value,
-                request.Lat.Value
-            ) { SRID = 4326 };
+            restaurant.Location = new Point(request.Lng.Value, request.Lat.Value)
+            {
+                SRID = 4326
+            };
         }
 
         context.Restaurants.Add(restaurant);
         await context.SaveChangesAsync();
-
 
         // 4) Call IDS để tạo admin account
         var client = httpClientFactory.CreateClient("ids-admin-api");
@@ -660,8 +657,7 @@ public static class CatalogApi
 
         var adminResult = await response.Content.ReadFromJsonAsync<object>();
 
-
-        // 5) Build response
+        // 5) Build response DTO (AdminEmail lấy từ biến local)
         var dto = new RestaurantDto
         {
             RestaurantId = restaurant.RestaurantId,
@@ -669,7 +665,7 @@ public static class CatalogApi
             Address = restaurant.Address,
             Lat = restaurant.Location?.Y ?? 0,
             Lng = restaurant.Location?.X ?? 0,
-            AdminEmail = restaurant.AdminEmail
+            AdminEmail = adminEmail
         };
 
         return TypedResults.Ok((object)new
@@ -680,25 +676,6 @@ public static class CatalogApi
         });
     }
 
-    public static async Task<Ok<List<RestaurantDto>>> GetRestaurantsForAdmin(
-        CatalogContext context)
-    {
-        var list = await context.Restaurants
-            .AsNoTracking()
-            .OrderBy(x => x.Name)
-            .Select(r => new RestaurantDto
-            {
-                RestaurantId = r.RestaurantId,
-                Name = r.Name,
-                Address = r.Address,
-                Lat = r.Location != null ? r.Location.Y : 0,
-                Lng = r.Location != null ? r.Location.X : 0,
-                AdminEmail = r.AdminEmail ?? string.Empty
-            })
-            .ToListAsync();
-
-        return TypedResults.Ok(list);
-    }
     public static async Task<Results<NoContent, NotFound, BadRequest<string>>> UpdateRestaurant(
         Guid id,
         CreateRestaurantWithAdminRequest request,
@@ -736,6 +713,44 @@ public static class CatalogApi
 
         return TypedResults.NoContent();
     }
+
+    public static async Task<Ok<List<RestaurantDto>>> GetRestaurantsForAdmin(
+        CatalogContext context,
+        IHttpClientFactory httpClientFactory)
+    {
+        // Lấy tất cả restaurant trong Catalog
+        var restaurants = await context.Restaurants
+            .AsNoTracking()
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+
+        var result = new List<RestaurantDto>();
+
+        foreach (var r in restaurants)
+        {
+            var dto = new RestaurantDto
+            {
+                RestaurantId = r.RestaurantId,
+                Name = r.Name,
+                Address = r.Address,
+                Lat = r.Location != null ? r.Location.Y : 0,
+                Lng = r.Location != null ? r.Location.X : 0,
+                AdminEmail = string.Empty  // default, sẽ cố gắng fill từ IDS
+            };
+
+            // Thử lấy email admin từ IDS theo RestaurantId
+            var email = await FetchAdminEmailFromIdsAsync(r.RestaurantId, httpClientFactory);
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                dto.AdminEmail = email;
+            }
+
+            result.Add(dto);
+        }
+
+        return TypedResults.Ok(result);
+    }
+
     public static async Task<Results<NoContent, NotFound, BadRequest<string>>> DeleteRestaurantWithAdmin(
         Guid id,
         CatalogContext context,
@@ -748,29 +763,25 @@ public static class CatalogApi
             return TypedResults.NotFound();
 
         // -----------------------------
-        // 1) Xoá tài khoản admin bên IDS
+        // 1) Xoá tài khoản admin bên IDS THEO RestaurantId
         // -----------------------------
-        if (!string.IsNullOrWhiteSpace(restaurant.AdminEmail))
+        var client = httpClientFactory.CreateClient("ids-admin-api");
+
+        HttpResponseMessage resp;
+        try
         {
-            var client = httpClientFactory.CreateClient("ids-admin-api");
-            var encodedEmail = Uri.EscapeDataString(restaurant.AdminEmail);
+            resp = await client.DeleteAsync($"/api/restaurant-admins/by-restaurant/{id}");
+        }
+        catch (Exception ex)
+        {
+            return TypedResults.BadRequest($"Lỗi khi gọi IDS: {ex.Message}");
+        }
 
-            HttpResponseMessage resp;
-            try
-            {
-                resp = await client.DeleteAsync($"/api/restaurant-admins/by-email/{encodedEmail}");
-            }
-            catch (Exception ex)
-            {
-                return TypedResults.BadRequest($"Lỗi khi gọi IDS: {ex.Message}");
-            }
-
-            // Nếu IDS báo NotFound thì coi như người dùng đã bị xoá → bỏ qua
-            if (!resp.IsSuccessStatusCode && resp.StatusCode != HttpStatusCode.NotFound)
-            {
-                var msg = await resp.Content.ReadAsStringAsync();
-                return TypedResults.BadRequest($"Không xoá được tài khoản admin bên IDS: {msg}");
-            }
+        // Nếu IDS báo NotFound thì coi như user đã bị xoá → bỏ qua
+        if (!resp.IsSuccessStatusCode && resp.StatusCode != HttpStatusCode.NotFound)
+        {
+            var msg = await resp.Content.ReadAsStringAsync();
+            return TypedResults.BadRequest($"Không xoá được tài khoản admin bên IDS: {msg}");
         }
 
         // -----------------------------
@@ -845,4 +856,81 @@ public static class CatalogApi
         double sim = dot / (Math.Sqrt(na) * Math.Sqrt(nb));
         return 1 - sim;
     }
+
+    // DTO dùng để đọc response từ IDS
+    private sealed class RestaurantAdminLookupDto
+    {
+        public string Email { get; set; } = string.Empty;
+    }
+
+    // Helper gọi IDS để lấy email admin theo RestaurantId
+    private static async Task<string> FetchAdminEmailFromIdsAsync(
+        Guid restaurantId,
+        IHttpClientFactory httpClientFactory)
+    {
+        var client = httpClientFactory.CreateClient("ids-admin-api");
+
+        try
+        {
+            var resp = await client.GetAsync($"/api/restaurant-admins/by-restaurant/{restaurantId}");
+
+            if (!resp.IsSuccessStatusCode)
+                return string.Empty;
+
+            var json = await resp.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(json))
+                return string.Empty;
+
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            // Trường hợp phổ biến: trả về object { email: "...", ... }
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                if (TryGetEmailFromElement(root, out var email))
+                    return email;
+            }
+
+            // Nếu trả về array, lấy phần tử đầu tiên
+            if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
+            {
+                var first = root[0];
+                if (first.ValueKind == JsonValueKind.Object &&
+                    TryGetEmailFromElement(first, out var email))
+                {
+                    return email;
+                }
+            }
+
+            return string.Empty;
+        }
+        catch
+        {
+            // IDS lỗi / JSON lỗi -> không làm vỡ API, chỉ không hiển thị email
+            return string.Empty;
+        }
+    }
+
+    // Tìm property email / Email / adminEmail ... trong 1 object JSON
+    private static bool TryGetEmailFromElement(JsonElement element, out string email)
+    {
+        email = string.Empty;
+
+        // duyệt tất cả property, tìm những key có chứa "email"
+        foreach (var prop in element.EnumerateObject())
+        {
+            var name = prop.Name.ToLowerInvariant();
+            if (name == "email" || name == "adminemail" || name.EndsWith("email"))
+            {
+                if (prop.Value.ValueKind == JsonValueKind.String)
+                {
+                    email = prop.Value.GetString() ?? string.Empty;
+                    return !string.IsNullOrWhiteSpace(email);
+                }
+            }
+        }
+
+        return false;
+    }
+
 }
