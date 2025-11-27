@@ -141,25 +141,25 @@ services:
     networks: [appnet]
 
   # === Catalog DB (PostgreSQL) ===
-  catalog-db:
-    build:
-      context: .
-      dockerfile: db/Dockerfile.db
-    container_name: catalog-db
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-catalogdb}
-    ports:
-      - "5435:5432"
-    volumes:
-      - catalog_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-catalogdb}"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    networks: [appnet]
+  # catalog-db:
+  #   build:
+  #     context: .
+  #     dockerfile: db/Dockerfile.db
+  #   container_name: catalog-db
+  #   environment:
+  #     POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  #     POSTGRES_DB: ${POSTGRES_DB:-catalogdb}
+  #   ports:
+  #     - "5435:5432"
+  #   volumes:
+  #     - catalog_pgdata:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-catalogdb}"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 20
+  #   networks: [appnet]
 
   # === Catalog API ===
   catalog-api:
@@ -167,12 +167,12 @@ services:
       context: .
       dockerfile: services/Catalog.API/Dockerfile
     container_name: catalog-api
-    depends_on:
-      catalog-db:
-        condition: service_healthy
+    # depends_on:
+    #   catalog-db:
+    #     condition: service_healthy
     env_file: .env
     environment:
-      ConnectionStrings__catalogdb: "Host=catalog-db;Port=5432;Database=${POSTGRES_DB:-catalogdb};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};Include Error Detail=true"
+      ConnectionStrings__catalogdb: ${CATALOGDB_CONN}
     ports:
       - "7002:8080"
     networks: [appnet]
@@ -202,21 +202,21 @@ services:
     networks: [appnet]
 
   # === Ordering DB (PostgreSQL) ===
-  ordering-db:
-    image: postgres:16
-    container_name: ordering-db
-    environment:
-      POSTGRES_USER: ordering
-      POSTGRES_PASSWORD: ordering_pwd
-      POSTGRES_DB: orderingdb
-    ports:
-      - "5436:5432"   # optional: để debug từ host
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ordering -d orderingdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    networks: [appnet]
+  # ordering-db:
+  #   image: postgres:16
+  #   container_name: ordering-db
+  #   environment:
+  #     POSTGRES_USER: ordering
+  #     POSTGRES_PASSWORD: ordering_pwd
+  #     POSTGRES_DB: orderingdb
+  #   ports:
+  #     - "5436:5432"   # optional: để debug từ host
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ordering -d orderingdb"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 20
+  #   networks: [appnet]
 
   # === Ordering API ===
   ordering-api:
@@ -225,14 +225,16 @@ services:
       dockerfile: services/Ordering/Ordering.API/Dockerfile
     container_name: ordering-api
     depends_on:
-      ordering-db:
-        condition: service_healthy
+      # ordering-db:
+      #   condition: service_healthy
       rabbitmq:
         condition: service_started
+    env_file:
+      - .env
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://+:8080"
-      ConnectionStrings__OrderingDb: "Host=ordering-db;Port=5432;Database=orderingdb;Username=ordering;Password=ordering_pwd;Include Error Detail=true"
+      ConnectionStrings__OrderingDb: "${ORDERINGDB_CONN}"
       ConnectionStrings__EventBus: "amqp://guest:guest@rabbitmq:5672"
     command: ["sh", "-c", "sleep 8 && dotnet Ordering.API.dll"]
     ports:

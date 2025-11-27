@@ -5,7 +5,11 @@ import { toast } from "react-toastify";
 
 // 1. IMPORT COMPONENT BẢN ĐỒ
 import DroneDeliveryMap from "../../components/DroneDeliveryMap";
-import { fetchMyOrders, fetchOrderDetail } from "../../services/api/order";
+import {
+  fetchMyOrders,
+  fetchOrderDetail,
+  fetchOrderDelivery,
+} from "../../services/api/order";
 import {
   Container,
   OrderCard,
@@ -56,11 +60,26 @@ export function MyOrders() {
 
     try {
       setLoadingDetailId(id);
-      const detail = await fetchOrderDetail(id);
-      setDetails((prev) => ({ ...prev, [id]: detail }));
+
+      // Gọi song song cho nhanh
+      const [detail, delivery] = await Promise.all([
+        fetchOrderDetail(id),
+        fetchOrderDelivery(id),
+      ]);
+
+      // Map dữ liệu delivery sang các field DroneDeliveryMap đang dùng
+      const mergedDetail = {
+        ...detail,
+        originLat: delivery?.restaurantLat ?? delivery?.RestaurantLat,
+        originLon: delivery?.restaurantLon ?? delivery?.RestaurantLon,
+        destLat: delivery?.customerLat ?? delivery?.CustomerLat,
+        destLon: delivery?.customerLon ?? delivery?.CustomerLon,
+      };
+
+      setDetails((prev) => ({ ...prev, [id]: mergedDetail }));
     } catch (e) {
-      console.error("Fetch order detail error:", e);
-      toast.error("Lỗi khi tải chi tiết đơn hàng.");
+      console.error("Fetch order detail/delivery error:", e);
+      toast.error("Lỗi khi tải chi tiết đơn hàng / lộ trình giao.");
     } finally {
       setLoadingDetailId(null);
     }
