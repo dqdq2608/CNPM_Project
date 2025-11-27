@@ -48,6 +48,12 @@ export async function fetchOrderDetail(orderId) {
   return res.data; // chi tiết đơn (có items)
 }
 
+export async function fetchOrderDelivery(orderId) {
+  const res = await orderHttp.get(`/orders/${orderId}/delivery`);
+  return res.data;
+  // => { id, orderId, restaurantLat, restaurantLon, customerLat, customerLon, distanceKm, deliveryFee, status }
+}
+
 export async function fetchOrdersByRestaurant(restaurantId) {
   if (!restaurantId) {
     throw new Error("Missing restaurantId");
