@@ -255,32 +255,32 @@ services:
     networks: [appnet]
 
   # === Delivery DB ===
-  delivery-db:
-    image: postgres:16
-    container_name: delivery-db
-    restart: always
-    environment:
-      POSTGRES_USER: delivery
-      POSTGRES_PASSWORD: Pass@word1
-      POSTGRES_DB: deliverydb
-    ports:
-      - "5437:5432"
-    volumes:
-      - delivery-data:/var/lib/postgresql/data
-    networks: [appnet]
+  # delivery-db:
+  #   image: postgres:16
+  #   container_name: delivery-db
+  #   restart: always
+  #   environment:
+  #     POSTGRES_USER: delivery
+  #     POSTGRES_PASSWORD: Pass@word1
+  #     POSTGRES_DB: deliverydb
+  #   ports:
+  #     - "5437:5432"
+  #   volumes:
+  #     - delivery-data:/var/lib/postgresql/data
+  #   networks: [appnet]
 
   # === Delivery API ===
   delivery-api:
     image: delivery-api
     container_name: delivery-api
+    env_file:
+    - .env
     build:
       context: .
       dockerfile: services/Delivery/Delivery.API/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DeliveryDb: "Host=delivery-db;Port=5432;Database=deliverydb;Username=delivery;Password=Pass@word1"
-    depends_on:
-      - delivery-db
+      ConnectionStrings__DeliveryDb: "${DELIVERYDB_CONN}"
     ports:
       - "5010:8080"
     networks: [appnet]   
