@@ -24,18 +24,18 @@ async function fetchRestaurantsDirect() {
 
   const data = await response.json();
 
+  // Backend trả: restaurantId, name, address, lat, lng, adminEmail
   return data.map((r) => ({
-    id: r.restaurantId || r.id,
+    id: r.restaurantId,          // ✔ dùng đúng field
     name: r.name,
     address: r.address,
-    latitude: r.lat ?? r.latitude ?? 0,
-    longitude: r.lng ?? r.longitude ?? 0,
-    email: r.adminEmail || r.admin_email || r.email || "", // ⭐ thêm email
+    latitude: r.lat ?? 0,
+    longitude: r.lng ?? 0,
+    email: r.adminEmail || "",   // ✔ lấy email từ IDS do backend đã merge
     raw: r,
   }));
 }
 // ===============================================================
-
 
 const ListRestaurants = () => {
   const [restaurants, setRestaurants] = useState([]);
@@ -94,7 +94,7 @@ const ListRestaurants = () => {
           <thead>
             <tr>
               <th>Tên</th>
-              <th>Email</th>        {/* ⭐ thêm cột Email */}
+              <th>Email</th>
               <th>Địa chỉ</th>
               <th>Vĩ độ (Lat)</th>
               <th>Kinh độ (Lng)</th>
@@ -104,12 +104,19 @@ const ListRestaurants = () => {
             {restaurants.map((r) => (
               <tr key={r.id}>
                 <td>{r.name}</td>
-                <td>{r.email}</td>    {/* ⭐ hiển thị email */}
+                <td>{r.email || "Chưa có"}</td>
                 <td>{r.address}</td>
                 <td>{formatCoord(r.latitude)}</td>
                 <td>{formatCoord(r.longitude)}</td>
               </tr>
             ))}
+            {restaurants.length === 0 && (
+              <tr>
+                <td colSpan="5" style={{ textAlign: "center" }}>
+                  Chưa có nhà hàng nào
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       )}
