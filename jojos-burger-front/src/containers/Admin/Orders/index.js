@@ -10,11 +10,15 @@ import React, { useEffect, useState } from "react";
 
 import { fetchOrdersByRestaurant } from "../../../services/api/order";
 import formatDate from "../../../utils/formatDate";
+import status from "./order-status";
+import Row from "./row";
+import { Container, Menu, LinkMenu } from "./styles";
 
 function Orders({ restaurantId }) {
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
-  const [activeStatus, setActiveStatus] = useState("All");
+  const [activeStatus, setActiveStatus] = useState(0);
+  const [rows, setRows] = useState([]);
 
   useEffect(() => {
     async function loadOrders() {
@@ -64,52 +68,55 @@ function Orders({ restaurantId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders]);
 
-    if (status === "All") {
+  function handleStatus(status) {
+    if (status.id === 0) {
       setFilteredOrders(orders);
     } else {
-      setFilteredOrders(orders.filter((o) => o.status === status));
+      const newOrders = orders.filter((order) => order.status === status.value);
+      setFilteredOrders(newOrders);
     }
-  };
+    setActiveStatus(status.id);
+  }
 
   return (
-    <div style={{ padding: 20 }}>
-      <Typography variant="h5" gutterBottom>
-        Orders
-      </Typography>
-
-      <Box mb={2} display="flex" gap={1}>
-        {["All", "Pending", "Delivered", "Canceled"].map((status) => (
-          <Button
-            key={status}
-            variant={activeStatus === status ? "contained" : "outlined"}
-            onClick={() => handleFilter(status)}
-          >
-            {status}
-          </Button>
-        ))}
-      </Box>
+    <Container>
+      <Menu>
+        {status &&
+          status.map((status) => (
+            <LinkMenu
+              key={status.id}
+              onClick={() => handleStatus(status)}
+              isActiveStatus={activeStatus === status.id}
+            >
+              {status.label}
+            </LinkMenu>
+          ))}
+      </Menu>
 
       <TableContainer component={Paper}>
-        <Table>
+        <Table aria-label="collapsible table">
           <TableHead>
             <TableRow>
               <TableCell />
-              <TableCell>Name</TableCell>
               <TableCell>Order ID</TableCell>
-              <TableCell>Date</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>Client Name</TableCell>
+              <TableCell>Order Date</TableCell>
+              <TableCell>Order Status</TableCell>
             </TableRow>
           </TableHead>
-
           <TableBody>
-            {filteredOrders.map((row, index) => (
-              <Row key={index} row={row} />
+            {rows.map((row) => (
+              <Row
+                key={row.orderId}
+                row={row}
+                setOrders={setOrders}
+                orders={orders}
+              />
             ))}
           </TableBody>
         </Table>
       </TableContainer>
-    </div>
+    </Container>
   );
 }
 

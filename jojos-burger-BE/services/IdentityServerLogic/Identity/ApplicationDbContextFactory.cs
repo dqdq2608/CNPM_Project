@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace IdentityServerLogic.Identity;
 
@@ -7,10 +8,13 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
 {
     public ApplicationDbContext CreateDbContext(string[] args)
     {
-        // 🔥 Đọc lại connection string hoặc fallback mặc định
+        // Lấy connection string từ env, nếu không có thì fallback Neon cứng
+        var connectionString =
+            Environment.GetEnvironmentVariable("IDS_DB_CONN")
+            ?? "Host=ep-rough-mountain-a1gy8bdl-pooler.ap-southeast-1.aws.neon.tech;Port=5432;Database=neondb;Username=neondb_owner;Password=npg_0HugRTp1zJlZ;Ssl Mode=Require;Trust Server Certificate=true";
+
         var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-        optionsBuilder.UseSqlite("Data Source=IdentityServer.db"); 
-        // (hoặc UseSqlServer(...) nếu bạn dùng SQL Server)
+        optionsBuilder.UseNpgsql(connectionString);
 
         return new ApplicationDbContext(optionsBuilder.Options);
     }

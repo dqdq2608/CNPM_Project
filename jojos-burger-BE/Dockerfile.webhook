@@ -1,0 +1,33 @@
+# ====== RUNTIME IMAGE ======
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+WORKDIR /app
+
+# Railway tự set PORT, ta chỉ cần lắng trên 0.0.0.0
+EXPOSE 8080
+
+# ====== BUILD IMAGE ======
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# 1. Copy csproj của WebhookReceiver trước để cache restore
+COPY services/WebhookReceiver/*.csproj ./services/WebhookReceiver/
+
+# 2. Restore
+RUN dotnet restore ./services/WebhookReceiver/WebhookReceiver.csproj
+
+# 3. Copy toàn bộ source
+COPY . .
+
+# 4. Publish
+WORKDIR /src/services/WebhookReceiver
+RUN dotnet publish WebhookReceiver.csproj -c Release -o /app/publish /p:UseAppHost=false
+
+# ====== FINAL IMAGE ======
+FROM base AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+
+# Railway sẽ set biến PORT, ta dùng ASPNETCORE_URLS để bind port đó
+ENV ASPNETCORE_URLS=http://+:8080
+
+ENTRYPOINT ["dotnet", "WebhookReceiver.dll"]
