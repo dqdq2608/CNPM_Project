@@ -8,7 +8,7 @@ import TableRow from "@mui/material/TableRow";
 import PropTypes from "prop-types";
 import React, { useEffect, useState } from "react";
 
-import { fetchOrdersByRestaurant } from "../../../services/api/order";
+import { fetchRestaurantOrders } from "../../../services/api/order";
 import formatDate from "../../../utils/formatDate";
 import status from "./order-status";
 import Row from "./row";
@@ -19,31 +19,30 @@ function Orders({ restaurantId }) {
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [activeStatus, setActiveStatus] = useState(0);
   const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadOrders() {
+    const load = async () => {
       try {
-        const data = await fetchOrdersByRestaurant(restaurantId);
-
+        const data = await fetchRestaurantOrders();
         setOrders(data);
-        setFilteredOrders(data);
-      } catch (err) {
-        console.error("Failed to load restaurant orders:", err);
+      } catch (e) {
+        console.error("fetchRestaurantOrders error", e);
+      } finally {
+        setLoading(false); // giờ không còn lỗi no-undef
       }
-    }
-
-    if (restaurantId) {
-      loadOrders();
-    }
-  }, [restaurantId]);
+    };
+    load();
+  }, []);
 
   function createData(order) {
     return {
-      name: order.user.name,
-      orderId: order._id,
-      date: formatDate(order.createdAt),
+      name: order.customerName || "Khách hàng", // nếu BE chưa trả tên thì dùng tạm
+      orderId: order.orderNumber,
+      date: formatDate(order.date),
       status: order.status,
-      products: order.products,
+      total: order.total,
+      products: order.products || [], // nếu Row cần mảng sản phẩm
     };
   }
 
@@ -101,7 +100,9 @@ function Orders({ restaurantId }) {
               <TableCell>Order ID</TableCell>
               <TableCell>Client Name</TableCell>
               <TableCell>Order Date</TableCell>
+              <TableCell>Total</TableCell>
               <TableCell>Order Status</TableCell>
+              <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

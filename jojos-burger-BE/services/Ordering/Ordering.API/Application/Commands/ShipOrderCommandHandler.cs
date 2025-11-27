@@ -24,7 +24,7 @@ public class ShipOrderCommandHandler : IRequestHandler<ShipOrderCommand, bool>
             return false;
         }
 
-        orderToUpdate.SetShippedStatus();
+        orderToUpdate.SetDeliveringStatus();
         return await _orderRepository.UnitOfWork.SaveEntitiesAsync(cancellationToken);
     }
 }

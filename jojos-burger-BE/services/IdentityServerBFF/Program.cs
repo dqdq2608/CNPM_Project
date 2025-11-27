@@ -152,7 +152,7 @@ builder.Services.AddHttpClient("ordering", (sp, c) =>
     var config = sp.GetRequiredService<IConfiguration>();
     var baseUrl = config["Ordering:BaseUrl"] ?? "http://ordering-api";
     c.BaseAddress = new Uri(baseUrl);
-});
+}).AddUserAccessTokenHandler();
 
 // HttpClient để gọi Delivery
 builder.Services.AddHttpClient("delivery", (sp, c) =>
@@ -395,6 +395,38 @@ app.MapGet("/bff-api/orders", async (
 })
 .RequireAuthorization();
 
+app.MapGet("/bff-api/restaurant/orders",
+    async (ClaimsPrincipal user, IOrderBffApi api) =>
+    {
+        var json = await api.GetRestaurantOrdersAsync(user);
+        return Results.Content(json, "application/json");
+    })
+   .RequireAuthorization();
+
+app.MapPost("/bff-api/restaurant/orders/{orderId:int}/start-delivery",
+    async (int orderId, IOrderBffApi api) =>
+    {
+        await api.StartDeliveryAsync(orderId);
+        return Results.Ok(new { success = true });
+    })
+   .RequireAuthorization();
+
+app.MapPost("/bff-api/orders/{orderId:int}/delivery/tick",
+    async (ClaimsPrincipal user, int orderId, IOrderBffApi api) =>
+    {
+        var json = await api.TickDeliveryAsync(user, orderId);
+        return Results.Content(json, "application/json");
+    })
+    .RequireAuthorization();
+
+app.MapPost("/bff-api/orders/{orderId:int}/confirm-delivery",
+    async (ClaimsPrincipal user, int orderId, IOrderBffApi OrderBffApi) =>
+    {
+        await OrderBffApi.ConfirmDeliveryAsync(user, orderId);
+        return Results.Ok(new { success = true });
+    })
+    .RequireAuthorization();
+
 app.MapGet("/bff-api/orders/{orderId:int}", async (
     int orderId,
     ClaimsPrincipal user,
@@ -445,28 +477,5 @@ app.MapPost("/bff-api/delivery/quote", async (
     }
 })
 .RequireAuthorization();
-
-app.MapGet("/bff-api/restaurants/{restaurantId:guid}/orders",
-    async (Guid restaurantId,
-           ClaimsPrincipal user,
-           IOrderBffApi orderBffApi) =>
-    {
-        try
-        {
-            var json = await orderBffApi.GetOrdersForRestaurantAsync(user, restaurantId);
-            return Results.Content(json, "application/json");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Results.BadRequest(new { message = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine(ex);
-            return Results.StatusCode(500);
-        }
-    })
-.RequireAuthorization();
-
 
 app.Run();

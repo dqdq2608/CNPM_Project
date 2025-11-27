@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 
 // --- Assets (Icon) ---
 const droneIcon = new L.Icon({
-  iconUrl: "https://cdn-icons-png.flaticon.com/512/3063/3063822.png", // Icon Drone
+  iconUrl: "/drone.png", // Icon Drone
   iconSize: [40, 40],
   iconAnchor: [20, 20],
 });
@@ -36,7 +36,13 @@ FitBounds.propTypes = {
 };
 
 // --- Main Component ---
-const DroneDeliveryMap = ({ originLat, originLng, destLat, destLng }) => {
+const DroneDeliveryMap = ({
+  originLat,
+  originLng,
+  destLat,
+  destLng,
+  onFlightCompleted,
+}) => {
   const [dronePos, setDronePos] = useState([originLat, originLng]);
   const requestRef = useRef();
   const startTimeRef = useRef();
@@ -46,6 +52,9 @@ const DroneDeliveryMap = ({ originLat, originLng, destLat, destLng }) => {
   const lerp = (start, end, t) => start + (end - start) * t;
 
   useEffect(() => {
+    // reset khi đổi đơn hàng/toạ độ
+    startTimeRef.current = null;
+
     const animate = (time) => {
       if (!startTimeRef.current) startTimeRef.current = time;
       const progress = Math.min((time - startTimeRef.current) / DURATION, 1);
@@ -55,12 +64,22 @@ const DroneDeliveryMap = ({ originLat, originLng, destLat, destLng }) => {
         lerp(originLng, destLng, progress),
       ]);
 
-      if (progress < 1) requestRef.current = requestAnimationFrame(animate);
+      if (progress < 1) {
+        requestRef.current = requestAnimationFrame(animate);
+      } else {
+        // ✅ Bay xong: gọi callback nếu có
+        if (typeof onFlightCompleted === "function") {
+          onFlightCompleted();
+        }
+      }
     };
 
     requestRef.current = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(requestRef.current);
-  }, [originLat, originLng, destLat, destLng]);
+
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [originLat, originLng, destLat, destLng, onFlightCompleted]);
 
   return (
     <MapContainer
@@ -92,6 +111,7 @@ DroneDeliveryMap.propTypes = {
   originLng: PropTypes.number.isRequired,
   destLat: PropTypes.number.isRequired,
   destLng: PropTypes.number.isRequired,
+  onFlightCompleted: PropTypes.func,
 };
 
 export default DroneDeliveryMap;

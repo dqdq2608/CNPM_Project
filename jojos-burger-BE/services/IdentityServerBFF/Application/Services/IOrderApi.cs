@@ -18,16 +18,26 @@ public interface IOrderBffApi
         CancellationToken cancellationToken = default
     );
 
+    Task<string> TickDeliveryAsync(
+        ClaimsPrincipal user,
+        int orderId,
+        CancellationToken cancellationToken = default
+    );
+
+    Task ConfirmDeliveryAsync(
+        ClaimsPrincipal user,
+        int orderId,
+        CancellationToken cancellationToken = default
+    );
+
     Task<string> GetOrderDetailAsync(
         ClaimsPrincipal user,
         int orderId,
         CancellationToken cancellationToken = default
     );
-    Task<string> GetOrdersForRestaurantAsync(
-        ClaimsPrincipal user,
-        Guid restaurantId,
-        CancellationToken cancellationToken = default
-    );
+
+    Task<string> GetRestaurantOrdersAsync(ClaimsPrincipal user, CancellationToken ct = default);
+    Task StartDeliveryAsync(int orderId, CancellationToken ct = default);
 
     Task<string> GetDeliveryForOrderAsync(ClaimsPrincipal user, int orderId, CancellationToken cancellationToken = default);
 

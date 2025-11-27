@@ -356,6 +356,110 @@ public sealed class OrderBffApi : IOrderBffApi
         return body; // JSON mảng orders
     }
 
+    public async Task<string> GetRestaurantOrdersAsync(
+    ClaimsPrincipal user,
+    CancellationToken ct = default)
+    {
+        // 1. Lấy restaurant_id từ user claim (BFF chắc chắn có, bạn check /bff/public/user rồi)
+        var restaurantId = user.FindFirst("restaurant_id")?.Value;
+        if (string.IsNullOrEmpty(restaurantId))
+        {
+            // Không có restaurant_id → trả về mảng rỗng cho an toàn
+            return "[]";
+        }
+
+        var client = _httpClientFactory.CreateClient("ordering");
+
+        // 2. Gọi internal endpoint (KHÔNG cần api-version, vì internal đang neutral)
+        var res = await client.GetAsync(
+            $"/api/internal/orders/by-restaurant/{restaurantId}",
+            ct);
+
+        var body = await res.Content.ReadAsStringAsync(ct);
+        res.EnsureSuccessStatusCode();
+
+        return body; // JSON array OrderSummary
+    }
+
+
+
+    public async Task<string> TickDeliveryAsync(
+    ClaimsPrincipal user,
+    int orderId,
+    CancellationToken cancellationToken = default)
+    {
+        var client = _httpClientFactory.CreateClient("delivery");
+
+        var res = await client.PostAsync(
+            $"/api/deliveries/{orderId}/tick",
+            content: null,
+            cancellationToken);
+
+        var body = await res.Content.ReadAsStringAsync(cancellationToken);
+        res.EnsureSuccessStatusCode();
+
+        return body; // JSON DeliveryResponse
+    }
+
+    public async Task StartDeliveryAsync(int orderId, CancellationToken ct = default)
+    {
+        var orderingClient = _httpClientFactory.CreateClient("ordering");
+        var deliveryClient = _httpClientFactory.CreateClient("delivery");
+        //
+        // 1. Gọi ORDERING: chuyển trạng thái sang “Delivering” (dùng /ship)
+        //
+        var requestId = Guid.NewGuid().ToString();
+
+        using (var msg = new HttpRequestMessage(
+                   HttpMethod.Put,
+                   "/api/orders/ship?api-version=1.0"))
+        {
+            msg.Headers.Add("x-requestid", requestId);
+
+            var body = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                orderNumber = orderId
+            });
+
+            msg.Content = new StringContent(
+                body,
+                System.Text.Encoding.UTF8,
+                "application/json");
+
+            var res = await orderingClient.SendAsync(msg, ct);
+            res.EnsureSuccessStatusCode();
+        }
+
+        //
+        // 2. Gọi DELIVERY: start delivery cho order này
+        //
+        // Giả định route bên DeliveryApi map kiểu:
+        // api.MapPost("/{id:int}/start", StartDeliveryAsync);
+        // => URL: /api/deliveries/{id}/start
+        //
+        var resDelivery = await deliveryClient.PostAsync(
+            $"/api/deliveries/start/{orderId}",
+            content: null,
+            ct);
+
+        resDelivery.EnsureSuccessStatusCode();
+    }
+
+    public async Task ConfirmDeliveryAsync(
+    ClaimsPrincipal user,
+    int orderId,
+    CancellationToken cancellationToken = default)
+    {
+        var orderingClient = _httpClientFactory.CreateClient("ordering");
+
+        // public Ordering API V1: /api/orders/{id}/confirm-delivery?api-version=1.0
+        var url = $"/api/orders/{orderId}/confirm-delivery?api-version=1.0";
+
+        var res = await orderingClient.PostAsync(url, content: null, cancellationToken);
+        res.EnsureSuccessStatusCode();
+    }
+
+
     public async Task<string> GetOrderDetailAsync(
     ClaimsPrincipal user,
     int orderId,
@@ -385,35 +489,6 @@ public sealed class OrderBffApi : IOrderBffApi
         }
 
         return body; // JSON chi tiết đơn hàng (có items)
-    }
-
-    public async Task<string> GetOrdersForRestaurantAsync(
-    ClaimsPrincipal user,
-    Guid restaurantId,
-    CancellationToken cancellationToken = default)
-    {
-        if (user?.Identity?.IsAuthenticated != true)
-            throw new InvalidOperationException("User is not authenticated.");
-
-        // TODO: tuỳ bạn: kiểm tra user có quyền quản lý restaurant này hay không
-
-        var orderingClient = _httpClientFactory.CreateClient("ordering");
-
-        var url = $"/api/orders/byrestaurant/{restaurantId}?api-version=1.0";
-        var res = await orderingClient.GetAsync(url, cancellationToken);
-        var body = await res.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!res.IsSuccessStatusCode)
-        {
-            _logger.LogWarning(
-                "Get orders for restaurant {RestaurantId} failed: {StatusCode} - {Body}",
-                restaurantId, res.StatusCode, body);
-
-            throw new InvalidOperationException(
-                $"Get restaurant orders failed: {(int)res.StatusCode} - {body}");
-        }
-
-        return body;
     }
 
     public async Task<string> GetDeliveryForOrderAsync(
