@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 
 // --- Assets (Icon) ---
 const droneIcon = new L.Icon({
-  iconUrl: "/drone.png", // Icon Drone
+  iconUrl: "/drone.png",
   iconSize: [40, 40],
   iconAnchor: [20, 20],
 });
@@ -17,19 +17,18 @@ const pinIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// --- Sub-component: Tự động zoom vừa khít 2 điểm ---
+// --- Fit bounds ---
 function FitBounds({ start, end }) {
   const map = useMap();
   useEffect(() => {
     if (start && end) {
       const bounds = L.latLngBounds([start, end]);
-      map.fitBounds(bounds, { padding: [50, 50] }); // Cách lề 50px
+      map.fitBounds(bounds, { padding: [50, 50] });
     }
   }, [start, end, map]);
   return null;
 }
 
-// ✅ THÊM ĐOẠN NÀY ĐỂ SỬA LỖI ESLINT CHO FITBOUNDS
 FitBounds.propTypes = {
   start: PropTypes.array.isRequired,
   end: PropTypes.array.isRequired,
@@ -42,32 +41,42 @@ const DroneDeliveryMap = ({
   destLat,
   destLng,
   onFlightCompleted,
+  status, // 👈 nhận status Delivering / Delivered / Completed...
 }) => {
   const [dronePos, setDronePos] = useState([originLat, originLng]);
   const requestRef = useRef();
-  const startTimeRef = useRef();
-  const DURATION = 8000; // Bay trong 8 giây
+  const startTimeRef = useRef(null);
+  const DURATION = 8000; // 8 giây
 
-  // Hàm nội suy tuyến tính (Linear Interpolation)
+  // Linear interpolation
   const lerp = (start, end, t) => start + (end - start) * t;
 
+  // ⭐ Khi status = Delivered → đứng im tại điểm giao hàng
   useEffect(() => {
-    // reset khi đổi đơn hàng/toạ độ
+    if (status === "Delivered") {
+      setDronePos([destLat, destLng]);
+      return;
+    }
+
+    if (status !== "Delivering") {
+      return;
+    }
+
+    // ⭐ Reset để bắt đầu bay
     startTimeRef.current = null;
 
     const animate = (time) => {
       if (!startTimeRef.current) startTimeRef.current = time;
+
       const progress = Math.min((time - startTimeRef.current) / DURATION, 1);
 
-      setDronePos([
-        lerp(originLat, destLat, progress),
-        lerp(originLng, destLng, progress),
-      ]);
+      const newLat = lerp(originLat, destLat, progress);
+      const newLng = lerp(originLng, destLng, progress);
+      setDronePos([newLat, newLng]);
 
       if (progress < 1) {
         requestRef.current = requestAnimationFrame(animate);
       } else {
-        // ✅ Bay xong: gọi callback nếu có
         if (typeof onFlightCompleted === "function") {
           onFlightCompleted();
         }
@@ -79,7 +88,7 @@ const DroneDeliveryMap = ({
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [originLat, originLng, destLat, destLng, onFlightCompleted]);
+  }, [originLat, originLng, destLat, destLng, status, onFlightCompleted]);
 
   return (
     <MapContainer
@@ -90,17 +99,22 @@ const DroneDeliveryMap = ({
     >
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
-      {/* Gọi component phụ để zoom */}
       <FitBounds start={[originLat, originLng]} end={[destLat, destLng]} />
 
       <Marker position={[originLat, originLng]} icon={pinIcon}>
         <Popup>Nhà hàng</Popup>
       </Marker>
+
       <Marker position={[destLat, destLng]} icon={pinIcon}>
         <Popup>Khách hàng</Popup>
       </Marker>
+
       <Marker position={dronePos} icon={droneIcon} zIndexOffset={1000}>
-        <Popup>Đang giao hàng...</Popup>
+        <Popup>
+          {status === "Delivering"
+            ? "Đang giao hàng..."
+            : "Đã giao tới khách hàng"}
+        </Popup>
       </Marker>
     </MapContainer>
   );
@@ -112,6 +126,7 @@ DroneDeliveryMap.propTypes = {
   destLat: PropTypes.number.isRequired,
   destLng: PropTypes.number.isRequired,
   onFlightCompleted: PropTypes.func,
+  status: PropTypes.string.isRequired,
 };
 
 export default DroneDeliveryMap;
