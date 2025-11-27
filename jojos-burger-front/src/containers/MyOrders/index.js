@@ -234,41 +234,41 @@ export function MyOrders() {
                 )}
 
                 {/* --- HIỂN THỊ MAP --- */}
-                {detail && (
-                  <div style={{ marginBottom: 16, marginTop: 8 }}>
-                    {hasCoords ? (
-                      <div
-                        style={{
-                          border: "1px solid #ddd",
-                          borderRadius: 8,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <DroneDeliveryMap
-                          originLat={detail.originLat ?? detail.OriginLat}
-                          originLng={detail.originLon ?? detail.OriginLon}
-                          destLat={detail.destLat ?? detail.DestLat}
-                          destLng={detail.destLon ?? detail.DestLon}
-                          onFlightCompleted={
-                            status === "Delivering"
-                              ? () => handleDroneFlightCompleted(id)
-                              : undefined
-                          }
-                        />
-                      </div>
-                    ) : (
-                      <p
-                        style={{
-                          fontSize: 13,
-                          fontStyle: "italic",
-                          color: "#666",
-                        }}
-                      >
-                        Chưa có thông tin lộ trình bay (Thiếu tọa độ).
-                      </p>
-                    )}
-                  </div>
-                )}
+                {detail &&
+                  (status === "Delivering" || status === "Delivered") && (
+                    <div style={{ marginBottom: 16, marginTop: 8 }}>
+                      {hasCoords ? (
+                        <div
+                          style={{
+                            border: "1px solid #ddd",
+                            borderRadius: 8,
+                            overflow: "hidden",
+                          }}
+                        >
+                          <DroneDeliveryMap
+                            originLat={detail.originLat ?? detail.OriginLat}
+                            originLng={detail.originLon ?? detail.OriginLon}
+                            destLat={detail.destLat ?? detail.DestLat}
+                            destLng={detail.destLon ?? detail.DestLon}
+                            status={status}
+                            onFlightCompleted={() =>
+                              handleDroneFlightCompleted(id)
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <p
+                          style={{
+                            fontSize: 13,
+                            fontStyle: "italic",
+                            color: "#666",
+                          }}
+                        >
+                          Chưa có thông tin lộ trình bay (Thiếu tọa độ).
+                        </p>
+                      )}
+                    </div>
+                  )}
                 {/* ------------------------------------------------ */}
 
                 {detail && (
@@ -286,20 +286,20 @@ export function MyOrders() {
                 )}
                 {/* ------------------------------------------------ */}
 
-                {detail && detail.status === "Delivered" && (
+                {detail && status === "Delivered" && (
                   <div className="mt-3 flex gap-2">
                     <button
                       className="btn btn-primary"
                       onClick={() => handleConfirmDelivery(id)}
                     >
-                      Tôi đã nhận được hàng
+                      Received
                     </button>
 
                     <button
                       className="btn btn-outline"
                       onClick={() => handleReportNotReceived(id)}
                     >
-                      Tôi chưa nhận được hàng
+                      Not Received
                     </button>
                   </div>
                 )}
