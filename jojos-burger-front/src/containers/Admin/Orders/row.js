@@ -11,30 +11,58 @@ import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import PropTypes from "prop-types";
 import React from "react";
+import { toast } from "react-toastify";
 
-import api from "../../../services/api";
+import { fetchOrderDetail, startDelivery } from "../../../services/api/order";
 import formatCurrency from "../../../utils/formatCurrency";
-import status from "./order-status";
-import { ProductImg, ReactSelectStyle } from "./styles";
-
-function Row({ row, orders, setOrders }) {
+import { ProductImg } from "./styles";
+function Row({ row }) {
   const [open, setOpen] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [items, setItems] = React.useState([]);
+  const [itemsLoading, setItemsLoading] = React.useState(false);
+  const [starting, setStarting] = React.useState(false); // 👈 trạng thái đang gọi API
 
-  async function setNewStatus(id, status) {
-    setIsLoading(true);
+  const handleStartDelivery = async () => {
     try {
-      await api.put(`orders/${id}`, { status });
+      setStarting(true);
+      await startDelivery(row.orderId);
+      toast.success("Đã bắt đầu giao hàng bằng drone");
 
-      const newOrders = orders.map((order) => {
-        return order._id === id ? { ...order, status } : order;
-      });
-      setOrders(newOrders);
-    } catch (err) {
+      // cập nhật status local cho đẹp UI (optional)
+      row.status = "Delivering";
+    } catch (e) {
+      console.error("startDelivery error", e);
+      toast.error("Không thể bắt đầu giao bằng drone, vui lòng thử lại.");
     } finally {
-      setIsLoading(false);
+      setStarting(false);
     }
-  }
+  };
+
+  const handleToggleOpen = async () => {
+    const nextOpen = !open;
+    setOpen(nextOpen);
+
+    // Lần đầu mở thì mới fetch chi tiết
+    if (nextOpen && items.length === 0) {
+      setItemsLoading(true);
+      try {
+        const detail = await fetchOrderDetail(row.orderId);
+        const mappedItems =
+          detail.orderItems?.map((oi) => ({
+            quantity: oi.units,
+            name: oi.productName,
+            price: oi.unitPrice,
+            url: oi.pictureUrl,
+          })) ?? [];
+
+        setItems(mappedItems);
+      } catch (e) {
+        console.error("fetchOrderDetail error", e);
+      } finally {
+        setItemsLoading(false);
+      }
+    }
+  };
   return (
     <React.Fragment>
       <TableRow sx={{ "& > *": { borderBottom: "unset" } }}>
@@ -42,7 +70,7 @@ function Row({ row, orders, setOrders }) {
           <IconButton
             aria-label="expand row"
             size="small"
-            onClick={() => setOpen(!open)}
+            onClick={handleToggleOpen}
           >
             {open ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
           </IconButton>
@@ -53,21 +81,20 @@ function Row({ row, orders, setOrders }) {
         <TableCell>{row.name}</TableCell>
         <TableCell>{row.date}</TableCell>
         <TableCell>
-          <ReactSelectStyle
-            options={status.filter((status) => status.value !== "All")}
-            menuPortalTarget={document.body}
-            style={{ fontFamily: "Arial" }}
-            placeholder="Status"
-            defaultValue={
-              status.find((option) => option.value === row.status) || null
-            }
-            onChange={(status) => {
-              setNewStatus(row.orderId, status.value);
-            }}
-            isLoading={isLoading}
-          />
+          {formatCurrency(row.total)} {/* 👈 HIỂN THỊ TỔNG TIỀN */}
         </TableCell>
-        <TableCell></TableCell>
+        <TableCell>{row.status}</TableCell> {/* 👈 STATUS TEXT */}
+        <TableCell>
+          {row.status === "Paid" && ( // hoặc "StockConfirmed" tuỳ flow của bạn
+            <button
+              className="btn btn-primary"
+              onClick={handleStartDelivery}
+              disabled={starting}
+            >
+              {starting ? "Đang bắt đầu..." : "Bắt đầu giao bằng drone"}
+            </button>
+          )}
+        </TableCell>
       </TableRow>
       <TableRow>
         <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={6}>
@@ -82,26 +109,40 @@ function Row({ row, orders, setOrders }) {
                     <TableCell></TableCell>
                     <TableCell>Amount</TableCell>
                     <TableCell>Product</TableCell>
-                    <TableCell>Category</TableCell>
                     <TableCell>Total price (€)</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {row.products.map((productRow) => (
-                    <TableRow key={productRow.id}>
-                      <TableCell>
-                        <ProductImg src={productRow.url} alt="product-image" />
-                      </TableCell>
-                      <TableCell component="th" scope="row">
-                        {productRow.quantity}
-                      </TableCell>
-                      <TableCell>{productRow.name}</TableCell>
-                      <TableCell>{productRow.category}</TableCell>
-                      <TableCell>
-                        {formatCurrency(productRow.quantity * productRow.price)}
+                  {itemsLoading && (
+                    <TableRow>
+                      <TableCell colSpan={5}>
+                        <Typography variant="body2">
+                          Đang tải chi tiết đơn hàng...
+                        </Typography>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
+
+                  {!itemsLoading &&
+                    items.map((productRow, index) => (
+                      <TableRow key={index}>
+                        <TableCell>
+                          <ProductImg
+                            src={productRow.url}
+                            alt="product-image"
+                          />
+                        </TableCell>
+                        <TableCell component="th" scope="row">
+                          {productRow.quantity}
+                        </TableCell>
+                        <TableCell>{productRow.name}</TableCell>
+                        <TableCell>
+                          {formatCurrency(
+                            productRow.quantity * productRow.price
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
                 </TableBody>
               </Table>
             </Box>
@@ -113,21 +154,13 @@ function Row({ row, orders, setOrders }) {
 }
 
 Row.propTypes = {
-  orders: PropTypes.array,
-  setOrders: PropTypes.func,
   row: PropTypes.shape({
     name: PropTypes.string.isRequired,
-    orderId: PropTypes.string.isRequired,
+    orderId: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+      .isRequired,
     date: PropTypes.string.isRequired,
     status: PropTypes.string.isRequired,
-    products: PropTypes.arrayOf(
-      PropTypes.shape({
-        quantity: PropTypes.number.isRequired,
-        name: PropTypes.string.isRequired,
-        category: PropTypes.string.isRequired,
-        url: PropTypes.string.isRequired,
-      }),
-    ).isRequired,
+    total: PropTypes.number.isRequired,
   }).isRequired,
 };
 

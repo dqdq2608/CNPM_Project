@@ -51,6 +51,20 @@ public class OrderQueries(OrderingContext context)
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<OrderSummary>> GetOrdersFromRestaurantAsync(Guid restaurantId)
+    {
+        return await context.Orders
+            .Where(o => o.RestaurantId == restaurantId)
+            .Select(o => new OrderSummary
+            {
+                OrderNumber = o.Id,
+                Date = o.OrderDate,
+                Status = o.OrderStatus.ToString(),
+                DeliveryFee = o.DeliveryFee,
+                Total = (double)(o.OrderItems.Sum(oi => oi.UnitPrice * oi.Units) + o.DeliveryFee)
+            })
+            .ToListAsync();
+    }
     public async Task<IEnumerable<CardType>> GetCardTypesAsync() =>
         await context.CardTypes.Select(c => new CardType { Id = c.Id, Name = c.Name }).ToListAsync();
 }

@@ -1,6 +1,7 @@
 using Delivery.API.Apis;
 using Delivery.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Delivery.API.Clients;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +16,16 @@ builder.Services.AddDbContext<DeliveryDbContext>(options =>
             npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "delivery");
         });
 });
+
+builder.Services.AddHttpClient<IOrderingClient, OrderingClient>((sp, client) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+
+    var baseUrl = config["Ordering:BaseUrl"] ?? "http://ordering-api";
+
+    client.BaseAddress = new Uri(baseUrl);
+});
+
 
 var app = builder.Build();
 

@@ -9,6 +9,8 @@ import {
   fetchMyOrders,
   fetchOrderDetail,
   fetchOrderDelivery,
+  confirmOrderDelivery,
+  tickDelivery,
 } from "../../services/api/order";
 import {
   Container,
@@ -93,6 +95,67 @@ export function MyOrders() {
     return <p style={{ padding: 16 }}>Bạn chưa có đơn hàng nào.</p>;
   }
 
+  const handleConfirmDelivery = async (orderId) => {
+    try {
+      await confirmOrderDelivery(orderId);
+      toast.success("Thank you for confirming delivery!");
+
+      // Cập nhật list orders (nếu bạn có state orders)
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: "Completed" } : o))
+      );
+
+      // Cập nhật detail
+      setDetails((prev) => ({
+        ...prev,
+        [orderId]: {
+          ...prev[orderId],
+          status: "Completed",
+        },
+      }));
+    } catch (e) {
+      console.error("Confirm delivery error:", e);
+      toast.error(
+        e?.response?.data?.message || "Cannot confirm delivery at this time."
+      );
+    }
+  };
+
+  const handleReportNotReceived = (orderId) => {
+    toast.info(
+      "If you have not received your order, please contact our support at"
+    );
+  };
+
+  const handleDroneFlightCompleted = async (orderId) => {
+    try {
+      // Gọi BFF -> Delivery tick (Delivery + Ordering sẽ set Delivered)
+      const delivery = await tickDelivery(orderId);
+
+      // Cập nhật list orders: set status = Delivered
+      setOrders((prev) =>
+        prev.map((o) =>
+          (o.orderNumber ?? o.id) === orderId
+            ? { ...o, status: "Delivered", orderStatus: "Delivered" }
+            : o
+        )
+      );
+
+      // Cập nhật detail của đơn đó
+      setDetails((prev) => ({
+        ...prev,
+        [orderId]: {
+          ...prev[orderId],
+          status: "Delivered",
+          deliveryStatus: delivery?.status ?? delivery?.Status ?? "Delivered",
+        },
+      }));
+    } catch (e) {
+      console.error("tickDelivery error:", e);
+      toast.error("Không cập nhật được trạng thái giao hàng từ drone.");
+    }
+  };
+
   return (
     <Container>
       {orders.map((order) => {
@@ -170,7 +233,7 @@ export function MyOrders() {
                   </p>
                 )}
 
-                {/* --- HIỂN THỊ MAP (ĐÃ BỎ ĐIỀU KIỆN isShipped) --- */}
+                {/* --- HIỂN THỊ MAP --- */}
                 {detail && (
                   <div style={{ marginBottom: 16, marginTop: 8 }}>
                     {hasCoords ? (
@@ -186,6 +249,11 @@ export function MyOrders() {
                           originLng={detail.originLon ?? detail.OriginLon}
                           destLat={detail.destLat ?? detail.DestLat}
                           destLng={detail.destLon ?? detail.DestLon}
+                          onFlightCompleted={
+                            status === "Delivering"
+                              ? () => handleDroneFlightCompleted(id)
+                              : undefined
+                          }
                         />
                       </div>
                     ) : (
@@ -216,9 +284,27 @@ export function MyOrders() {
                     ))}
                   </OrderItems>
                 )}
+                {/* ------------------------------------------------ */}
+
+                {detail && detail.status === "Delivered" && (
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleConfirmDelivery(id)}
+                    >
+                      Tôi đã nhận được hàng
+                    </button>
+
+                    <button
+                      className="btn btn-outline"
+                      onClick={() => handleReportNotReceived(id)}
+                    >
+                      Tôi chưa nhận được hàng
+                    </button>
+                  </div>
+                )}
               </>
             )}
-
             <OrderFooter>
               {isOpen ? (
                 <div

@@ -3,7 +3,7 @@
 public interface IIdentityService
 {
     string GetUserIdentity();
-
+    string GetRestaurantId();
     string GetUserName();
 }
 

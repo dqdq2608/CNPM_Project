@@ -133,17 +133,43 @@ public class Order
         }
     }
 
-    public void SetShippedStatus()
+    public void SetDeliveredStatus()
     {
-        if (OrderStatus != OrderStatus.Paid)
+        if (OrderStatus != OrderStatus.Delivering)
+        {
+            StatusChangeException(OrderStatus.Delivered);
+        }
+
+        OrderStatus = OrderStatus.Delivered;
+        Description = "The order was shipped.";
+        AddDomainEvent(new OrderShippedDomainEvent(this));
+    }
+
+    public void SetCompletedStatus()
+    {
+        if (OrderStatus != OrderStatus.Delivered)
         {
             StatusChangeException(OrderStatus.Completed);
         }
 
         OrderStatus = OrderStatus.Completed;
-        Description = "The order was shipped.";
-        AddDomainEvent(new OrderShippedDomainEvent(this));
+        Description = "The order was completed.";
+        AddDomainEvent(new OrderCompletedDomainEvent(this));
     }
+
+    public void SetDeliveringStatus()
+    {
+        if (OrderStatus != OrderStatus.Paid)
+        {
+            StatusChangeException(OrderStatus.Delivering);
+        }
+
+        OrderStatus = OrderStatus.Delivering;
+        Description = "The order is delivering to customer.";
+        // nếu bạn muốn bắn event (tương tự OrderShippedDomainEvent) thì add ở đây:
+        // AddDomainEvent(new OrderDeliveringDomainEvent(this));
+    }
+
 
     public void SetCancelledStatus()
     {

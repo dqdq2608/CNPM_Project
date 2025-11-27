@@ -112,12 +112,14 @@ app.MapDefaultEndpoints();
 var orders = app.NewVersionedApi("Orders");
 if (app.Environment.IsDevelopment())
 {
-    orders.MapOrdersApiV1();              // dev: không require token
+    orders.MapOrdersApiV1();
+    orders.MapOrdersInternalApi();              // dev: không require token
 }
 else
 {
     orders.MapOrdersApiV1()
           .RequireAuthorization("orders-scope");
+    orders.MapOrdersInternalApi();
 }
 
 app.UseDefaultOpenApi();

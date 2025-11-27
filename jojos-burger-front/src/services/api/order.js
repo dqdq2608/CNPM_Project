@@ -43,9 +43,19 @@ export async function fetchMyOrders() {
   return res.data; // mảng OrderSummary từ Ordering.API
 }
 
+export async function fetchRestaurantOrders() {
+  const res = await orderHttp.get("/restaurant/orders");
+  return res.data; // mảng OrderSummary
+}
+
 export async function fetchOrderDetail(orderId) {
   const res = await orderHttp.get(`/orders/${orderId}`);
   return res.data; // chi tiết đơn (có items)
+}
+
+export async function confirmOrderDelivery(orderId) {
+  const res = await orderHttp.post(`/orders/${orderId}/confirm-delivery`);
+  return res.data; // { success: true }
 }
 
 export async function fetchOrderDelivery(orderId) {
@@ -54,13 +64,17 @@ export async function fetchOrderDelivery(orderId) {
   // => { id, orderId, restaurantLat, restaurantLon, customerLat, customerLon, distanceKm, deliveryFee, status }
 }
 
-export async function fetchOrdersByRestaurant(restaurantId) {
-  if (!restaurantId) {
-    throw new Error("Missing restaurantId");
-  }
+export async function tickDelivery(orderId) {
+  const res = await orderHttp.post(`/orders/${orderId}/delivery/tick`);
+  return res.data; // DeliveryResponse từ BFF
+}
 
-  const res = await orderHttp.get(`/restaurants/${restaurantId}/orders`);
-  return res.data; // mảng orders của nhà hàng
+// Gọi BFF để restaurant bắt đầu giao bằng drone
+export async function startDelivery(orderId) {
+  const res = await orderHttp.post(
+    `/restaurant/orders/${orderId}/start-delivery`
+  );
+  return res.data; // { success: true }
 }
 
 export async function fetchDeliveryQuote(selectedRestaurant, deliveryAddress) {

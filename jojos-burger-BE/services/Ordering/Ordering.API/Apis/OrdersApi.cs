@@ -18,10 +18,11 @@ public static class OrdersApi
         api.MapGet("{orderId:int}", GetOrderAsync);
         api.MapGet("/", GetOrdersByUserAsync);
         api.MapGet("/byuser/{userId}", GetOrdersByUserIdAsync);
+        api.MapGet("/by-restaurant", GetOrdersByRestaurantAsync);
         api.MapGet("/cardtypes", GetCardTypesAsync);
         api.MapPost("/draft", CreateOrderDraftAsync);
         api.MapPost("/", CreateOrderAsync);
-
+        api.MapPost("/{orderId:int}/confirm-delivery", ConfirmDeliveryAsync);
         api.MapPost("/test-stock-confirmed", PublishTestStockConfirmedEventAsync);
 
         return api;
@@ -111,6 +112,21 @@ public static class OrdersApi
     {
         // Không dùng IdentityService nữa, dùng trực tiếp userId từ route
         var orders = await services.Queries.GetOrdersFromUserAsync(userId);
+        return TypedResults.Ok(orders);
+    }
+
+    public static async Task<Ok<IEnumerable<OrderSummary>>> GetOrdersByRestaurantAsync(
+    [AsParameters] OrderServices services)
+    {
+        var restaurantIdStr = services.IdentityService.GetRestaurantId();
+
+        if (string.IsNullOrEmpty(restaurantIdStr) ||
+            !Guid.TryParse(restaurantIdStr, out var restaurantId))
+        {
+            return TypedResults.Ok(Enumerable.Empty<OrderSummary>());
+        }
+
+        var orders = await services.Queries.GetOrdersFromRestaurantAsync(restaurantId);
         return TypedResults.Ok(orders);
     }
 
@@ -310,7 +326,78 @@ public static class OrdersApi
         return TypedResults.Ok();
     }
 
+    public static async Task<IResult> ConfirmDeliveryAsync(
+    int orderId,
+    [AsParameters] OrderServices services,
+    IOrderRepository orderRepository,
+    OrderingContext orderingContext)
+    {
+        // 1. Lấy user hiện tại (customer đang login)
+        var userId = services.IdentityService.GetUserIdentity();
 
+        // 2. Lấy order từ domain
+        var order = await orderRepository.GetAsync(orderId);
+        if (order is null)
+        {
+            return Results.NotFound();
+        }
+
+        // 4. Chỉ cho confirm khi order đã được drone giao xong
+        if (order.OrderStatus != OrderStatus.Delivered)
+        {
+            return Results.BadRequest(new { message = "Đơn hàng chưa được drone giao xong." });
+        }
+
+        // 5. Đổi trạng thái sang Completed
+        order.SetCompletedStatus();
+
+        // 6. Lưu thay đổi (KHÔNG cần integration event, nên dùng SaveChangesAsync)
+        await orderingContext.SaveChangesAsync();
+
+        return Results.Ok(new { success = true });
+    }
+
+}
+
+public static class OrdersInternalApi
+{
+    public static IEndpointRouteBuilder MapOrdersInternalApi(this IEndpointRouteBuilder app)
+    {
+        var api = app.MapGroup("/api/internal/orders");
+
+        api.IsApiVersionNeutral();
+
+        // Delivery service sẽ gọi vào đây:
+        api.MapPost("/{orderId:int}/mark-delivered", MarkDeliveredAsync);
+        api.MapGet("/by-restaurant/{restaurantId:guid}", GetOrdersByRestaurantInternalAsync);
+        return app;
+    }
+
+    // Handler chính
+    static async Task<IResult> MarkDeliveredAsync(
+    int orderId,
+    IOrderRepository orderRepository,
+    OrderingContext orderingContext)   // 👈 THÊM PARAM NÀY
+    {
+        var order = await orderRepository.GetAsync(orderId);
+        if (order is null) return Results.NotFound();
+
+        // Đổi trạng thái sang Delivered (drone báo đã giao xong)
+        order.SetDeliveredStatus();
+
+        // ✅ Chỉ lưu thay đổi đơn giản, KHÔNG dispatch domain event / integration event
+        await orderingContext.SaveChangesAsync();
+
+        return Results.Ok(new { success = true });
+    }
+
+    static async Task<IResult> GetOrdersByRestaurantInternalAsync(
+        Guid restaurantId,
+        IOrderQueries orderQueries)
+    {
+        var orders = await orderQueries.GetOrdersFromRestaurantAsync(restaurantId);
+        return Results.Ok(orders);
+    }
 }
 
 public record CreateOrderRequest(
