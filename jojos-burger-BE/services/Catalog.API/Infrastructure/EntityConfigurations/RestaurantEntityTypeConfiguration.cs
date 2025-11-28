@@ -32,6 +32,10 @@ public class RestaurantEntityTypeConfiguration : IEntityTypeConfiguration<Restau
                .HasForeignKey(i => i.RestaurantId)
                .OnDelete(DeleteBehavior.Restrict);
 
+        builder.Property(r => r.Status)
+          .HasConversion<int>()         // lưu enum dưới dạng int
+          .HasDefaultValue(RestaurantStatus.Active);
+
         // Index phục vụ tìm kiếm
         builder.HasIndex(r => r.Name);
 

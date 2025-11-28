@@ -35,6 +35,13 @@ builder.Services.AddHttpClient("ids-admin-api", client =>
         HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
 
+builder.Services.AddHttpClient("ordering-api", c =>
+{
+    c.BaseAddress = new Uri("http://ordering-api:8080"); 
+    // tuỳ docker-compose, có thể là "http://ordering-api:80"
+});
+
+
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
