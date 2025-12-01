@@ -762,15 +762,54 @@ public static class CatalogApi
         if (restaurant is null)
             return TypedResults.NotFound();
 
-        // -----------------------------
+        // ----------------------------------------------------
+        // 0) GỌI ORDERING INTERNAL API ĐỂ KIỂM TRA ĐƠN HÀNG
+        //    TẬN DỤNG GetOrdersFromRestaurantAsync
+        //    => /api/internal/orders/by-restaurant/{restaurantId}
+        // ----------------------------------------------------
+        var orderingClient = httpClientFactory.CreateClient("ordering-api");
+
+        try
+        {
+            var orderResp = await orderingClient.GetAsync($"/api/orders/by-restaurant/{id}");
+
+            if (orderResp.IsSuccessStatusCode)
+            {
+                // Định nghĩa DTO local chỉ cần 1 field cho dễ (JSON có thêm field cũng không sao)
+                var orders = await orderResp.Content.ReadFromJsonAsync<List<OrderSummaryLite>>() 
+                            ?? new List<OrderSummaryLite>();
+
+                if (orders.Count > 0)
+                {
+                    // CÒN ĐƠN → KHÔNG CHO XOÁ
+                    return TypedResults.BadRequest(
+                        "Không thể xoá nhà hàng vì vẫn còn đơn hàng liên quan tới nhà hàng này."
+                    );
+                }
+            }
+            else if (orderResp.StatusCode != HttpStatusCode.NotFound)
+            {
+                // Nếu Ordering trả lỗi khác 404 thì coi như lỗi hệ thống, không dám xoá
+                var msg = await orderResp.Content.ReadAsStringAsync();
+                return TypedResults.BadRequest($"Không kiểm tra được đơn hàng ở Ordering: {msg}");
+            }
+            // Nếu 404 => coi như không có đơn → cho phép xoá tiếp
+        }
+        catch (Exception ex)
+        {
+            // Tuỳ bạn: chặn xoá hay bỏ qua. Ở đây mình CHẶN xoá cho an toàn.
+            return TypedResults.BadRequest($"Lỗi khi gọi Ordering API: {ex.Message}");
+        }
+
+        // ----------------------------------------------------
         // 1) Xoá tài khoản admin bên IDS THEO RestaurantId
-        // -----------------------------
-        var client = httpClientFactory.CreateClient("ids-admin-api");
+        // ----------------------------------------------------
+        var idsClient = httpClientFactory.CreateClient("ids-admin-api");
 
         HttpResponseMessage resp;
         try
         {
-            resp = await client.DeleteAsync($"/api/restaurant-admins/by-restaurant/{id}");
+            resp = await idsClient.DeleteAsync($"/api/restaurant-admins/by-restaurant/{id}");
         }
         catch (Exception ex)
         {
@@ -784,9 +823,9 @@ public static class CatalogApi
             return TypedResults.BadRequest($"Không xoá được tài khoản admin bên IDS: {msg}");
         }
 
-        // -----------------------------
+        // ----------------------------------------------------
         // 2) Xoá toàn bộ món thuộc nhà hàng
-        // -----------------------------
+        // ----------------------------------------------------
         var items = await context.CatalogItems
             .Where(ci => ci.RestaurantId == id)
             .ToListAsync();
@@ -794,14 +833,21 @@ public static class CatalogApi
         if (items.Count > 0)
             context.CatalogItems.RemoveRange(items);
 
-        // -----------------------------
+        // ----------------------------------------------------
         // 3) Xoá nhà hàng trong Catalog
-        // -----------------------------
+        // ----------------------------------------------------
         context.Restaurants.Remove(restaurant);
         await context.SaveChangesAsync();
 
         return TypedResults.NoContent();
     }
+
+// DTO nhẹ để deserialize list order từ Ordering
+private sealed class OrderSummaryLite
+{
+    public int OrderNumber { get; set; }
+}
+
 
 
     // ---------- Helpers ----------

@@ -130,7 +130,6 @@ public static class OrdersApi
         return TypedResults.Ok(orders);
     }
 
-
     public static async Task<Ok<IEnumerable<CardType>>> GetCardTypesAsync(IOrderQueries orderQueries)
     {
         var cardTypes = await orderQueries.GetCardTypesAsync();
