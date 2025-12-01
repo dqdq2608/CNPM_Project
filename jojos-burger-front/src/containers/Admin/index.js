@@ -4,6 +4,7 @@ import { useHistory, useLocation } from "react-router-dom";
 
 import { SideMenuAdmin } from "../../components";
 import paths from "../../constants/paths";
+import DronePage from "./Drones";
 import EditCategory from "./EditCategory";
 import EditProduct from "./EditProduct";
 import ListCategories from "./ListCategories";
@@ -31,6 +32,7 @@ export function Admin() {
       <SideMenuAdmin path={pathname} />
       <ContainerItems>
         {pathname === paths.Order && <Orders />}
+        {pathname === paths.Drones && <DronePage />}
         {pathname === paths.Products && <ListProducts />}
         {pathname === paths.NewProduct && <NewProduct />}
         {pathname === paths.EditProduct && <EditProduct />}
