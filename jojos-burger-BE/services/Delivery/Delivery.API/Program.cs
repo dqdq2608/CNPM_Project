@@ -4,6 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Delivery.API.Clients;
 
 var builder = WebApplication.CreateBuilder(args);
+// DEBUG: log the actual connection string EF will use
+var cs = builder.Configuration.GetConnectionString("DeliveryDb");
+Console.WriteLine(">>> DeliveryDb connection string: " + cs);
 
 // 1. Đăng ký DbContext sử dụng PostgreSQL
 builder.Services.AddDbContext<DeliveryDbContext>(options =>
