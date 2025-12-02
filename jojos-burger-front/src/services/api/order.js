@@ -95,3 +95,24 @@ export async function fetchDeliveryQuote(selectedRestaurant, deliveryAddress) {
   // BE trả về { distanceKm, deliveryFee }
   return res.data;
 }
+
+// ===== DRONE APIS (thêm phía dưới file order.js) =====
+
+// Lấy danh sách drone cho trang Drone Management
+export async function fetchDrones() {
+  const { data } = await orderHttp.get("/drones"); // BFF route: GET /drones
+  return data;
+}
+
+// Cập nhật trạng thái Drone (Idle / Delivering / Maintenance / Offline)
+export async function updateDroneStatus(id, status) {
+  const { data } = await orderHttp.put(`/drones/${id}/status`, { status });
+  return data;
+}
+
+// (Optional) tạo Drone mới từ UI Admin
+export async function createDrone(payload) {
+  // payload: { code, initialLatitude, initialLongitude }
+  const { data } = await orderHttp.post("/drones", payload);
+  return data;
+}

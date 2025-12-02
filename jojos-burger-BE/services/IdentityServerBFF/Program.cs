@@ -122,7 +122,6 @@ builder.Services.AddHttpClient<ICatalogBffApi, CatalogBffApi>(c =>
     ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
 
-
 // PROD: Gọi Payment service thật qua Kong
 builder.Services.AddHttpClient<IPaymentApi, CheckoutOnlineBffApi>(c =>
 {
@@ -135,8 +134,6 @@ builder.Services.AddHttpClient<IPaymentApi, CheckoutOnlineBffApi>(c =>
     ServerCertificateCustomValidationCallback =
         HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
-
-
 
 // HttpClient để gọi Basket
 builder.Services.AddHttpClient("basket", (sp, c) =>
@@ -477,5 +474,88 @@ app.MapPost("/bff-api/delivery/quote", async (
     }
 })
 .RequireAuthorization();
+
+// ====== BFF API cho Drone Management ======
+
+// ====== BFF API cho Drone Management ======
+
+// GET /bff-api/drones
+app.MapGet("/bff-api/drones", async (HttpContext ctx, IHttpClientFactory f) =>
+{
+    var user = ctx.User;
+    if (user?.Identity?.IsAuthenticated != true)
+    {
+        return Results.Unauthorized();
+    }
+
+    var http = f.CreateClient("delivery");
+
+    var res = await http.GetAsync("/api/drones");
+    var body = await res.Content.ReadAsStringAsync();
+
+    if (res.IsSuccessStatusCode)
+    {
+        return Results.Text(body, "application/json", Encoding.UTF8);
+    }
+
+    return Results.StatusCode((int)res.StatusCode);
+})
+.RequireAuthorization();
+
+// POST /bff-api/drones  (tạo drone mới)
+app.MapPost("/bff-api/drones", async (HttpContext ctx, IHttpClientFactory f) =>
+{
+    var user = ctx.User;
+    if (user?.Identity?.IsAuthenticated != true)
+    {
+        return Results.Unauthorized();
+    }
+
+    // Đọc raw body từ FE và forward nguyên xi sang Delivery
+    using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8);
+    var json = await reader.ReadToEndAsync();
+
+    var http = f.CreateClient("delivery");
+
+    using var content = new StringContent(json, Encoding.UTF8, "application/json");
+    var res = await http.PostAsync("/api/drones", content);
+    var body = await res.Content.ReadAsStringAsync();
+
+    if (res.IsSuccessStatusCode)
+    {
+        return Results.Text(body, "application/json", Encoding.UTF8);
+    }
+
+    return Results.StatusCode((int)res.StatusCode);
+})
+.RequireAuthorization();
+
+// PUT /bff-api/drones/{id}/status
+app.MapPut("/bff-api/drones/{id:int}/status", async (HttpContext ctx, int id, IHttpClientFactory f) =>
+{
+    var user = ctx.User;
+    if (user?.Identity?.IsAuthenticated != true)
+    {
+        return Results.Unauthorized();
+    }
+
+    using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8);
+    var json = await reader.ReadToEndAsync();
+
+    var http = f.CreateClient("delivery");
+
+    using var content = new StringContent(json, Encoding.UTF8, "application/json");
+    var res = await http.PutAsync($"/api/drones/{id}/status", content);
+    var body = await res.Content.ReadAsStringAsync();
+
+    if (res.IsSuccessStatusCode)
+    {
+        return Results.Text(body, "application/json", Encoding.UTF8);
+    }
+
+    return Results.StatusCode((int)res.StatusCode);
+})
+.RequireAuthorization();
+
 
 app.Run();

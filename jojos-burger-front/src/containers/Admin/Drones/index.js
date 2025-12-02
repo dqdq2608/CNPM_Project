@@ -17,11 +17,9 @@ import {
 } from "../../../services/api/drone";
 import { Container, Menu, LinkMenu } from "../Orders/styles";
 import droneStatusTabs from "./drone-status";
-// Toạ độ giả cho nhà hàng (HCM). Sau này nếu bạn có toạ độ thật thì thay vào đây.
 const RESTAURANT_LAT = 10.8231;
 const RESTAURANT_LNG = 106.6297;
 
-// Giúp map từ numeric status (trong DB) sang text
 const DRONE_STATUS_LABEL = {
   [DroneStatus.Idle]: "Idle",
   [DroneStatus.Delivering]: "Delivering",
