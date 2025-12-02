@@ -10,6 +10,19 @@ const KONG_CATALOG_BASE =
   process.env.REACT_APP_KONG_CATALOG_BASE ||
   "https://localhost:8443/api/catalog";
 
+// Map enum status ↔ text
+const RESTAURANT_STATUS_LABEL = {
+  0: "Đang hoạt động", // Active
+  1: "Tạm ngưng", // Inactive
+  2: "Đã đóng cửa", // Closed
+};
+
+const RESTAURANT_STATUS_OPTIONS = [
+  { value: 0, label: "Đang hoạt động" },
+  { value: 1, label: "Tạm ngưng" },
+  { value: 2, label: "Đã đóng cửa" },
+];
+
 // ======================= Fetch danh sách =======================
 async function fetchRestaurantsForAdmin() {
   const url = `${KONG_CATALOG_BASE}/admin/restaurants`;
@@ -33,6 +46,7 @@ async function fetchRestaurantsForAdmin() {
     latitude: r.lat ?? r.latitude ?? 0,
     longitude: r.lng ?? r.longitude ?? 0,
     adminEmail: r.adminEmail || r.email || "",
+    status: r.status ?? 0, // enum từ backend
   }));
 }
 
@@ -85,7 +99,8 @@ const EditRestaurant = () => {
 
   const [selected, setSelected] = useState(null);
   const [geocodeLoading, setGeocodeLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const [savingStatusId, setSavingStatusId] = useState(null); // id nhà hàng đang đổi status
 
   const [form, setForm] = useState({
     address: "",
@@ -99,6 +114,7 @@ const EditRestaurant = () => {
     async function load() {
       try {
         setListLoading(true);
+        setError("");
         const data = await fetchRestaurantsForAdmin();
         setRestaurants(data);
       } catch (err) {
@@ -131,14 +147,12 @@ const EditRestaurant = () => {
     const latStr = lat.toFixed(6);
     const lngStr = lng.toFixed(6);
 
-    // Cập nhật tọa độ ngay
     setForm((prev) => ({
       ...prev,
       lat: latStr,
       lng: lngStr,
     }));
 
-    // Reverse geocode để tự cập nhật địa chỉ
     reverseGeocode(latStr, lngStr)
       .then((addr) => {
         if (!addr) return;
@@ -156,7 +170,6 @@ const EditRestaurant = () => {
 
     try {
       setGeocodeLoading(true);
-
       const result = await geocodeAddress(form.address);
       if (!result) {
         setError("Không tìm được vị trí từ địa chỉ này");
@@ -186,11 +199,11 @@ const EditRestaurant = () => {
     };
 
     try {
-      setSaving(true);
+      setSavingLocation(true);
+      setError("");
 
       await axios.put(`${KONG_CATALOG_BASE}/restaurants/${selected.id}`, payload);
 
-      // Update UI
       const updatedList = restaurants.map((r) =>
         r.id === selected.id
           ? {
@@ -203,7 +216,6 @@ const EditRestaurant = () => {
       );
       setRestaurants(updatedList);
 
-      // update selected
       setSelected((prev) =>
         prev
           ? {
@@ -218,26 +230,60 @@ const EditRestaurant = () => {
       console.error(err);
       setError("Lỗi khi cập nhật vị trí nhà hàng");
     } finally {
-      setSaving(false);
+      setSavingLocation(false);
     }
   };
 
-  // ================== Xoá nhà hàng ==================
-  const handleDelete = async (r) => {
-    const ok = window.confirm(
-      "Bạn có chắc muốn xoá nhà hàng này?\nToàn bộ món + admin account sẽ bị xoá!"
-    );
-    if (!ok) return;
+  // ================== Đổi trạng thái nhà hàng ==================
+  const handleChangeStatus = async (r, newStatus) => {
+    const newStatusNum = Number(newStatus);
+
+    // Nếu đóng cửa thì confirm cho chắc
+    if (newStatusNum === 2) {
+      const ok = window.confirm(
+        "Bạn chắc chắn muốn chuyển nhà hàng này sang trạng thái 'Đã đóng cửa'?\n" +
+          "Nhà hàng sẽ không nhận đơn mới nữa."
+      );
+      if (!ok) return;
+    }
 
     try {
-      await axios.delete(`${KONG_CATALOG_BASE}/restaurants/${r.id}`);
+      setSavingStatusId(r.id);
+      setError("");
 
-      setRestaurants((prev) => prev.filter((x) => x.id !== r.id));
+      await axios.put(
+        `${KONG_CATALOG_BASE}/restaurants/${r.id}/status`,
+        { status: newStatusNum },
+        { headers: { "Content-Type": "application/json" } }
+      );
 
-      if (selected?.id === r.id) setSelected(null);
+      // Cập nhật UI
+      setRestaurants((prev) =>
+        prev.map((x) =>
+          x.id === r.id
+            ? {
+                ...x,
+                status: newStatusNum,
+              }
+            : x
+        )
+      );
+
+      // Nếu đang chọn nhà hàng này ở form, cập nhật selected luôn
+      setSelected((prev) =>
+        prev && prev.id === r.id
+          ? {
+              ...prev,
+              status: newStatusNum,
+            }
+          : prev
+      );
     } catch (err) {
-      console.error(err);
-      setError("Lỗi khi xoá nhà hàng");
+      console.error("Update status error", err);
+      console.error("Response:", err.response?.status, err.response?.data);
+      setError("Lỗi khi cập nhật trạng thái nhà hàng");
+    } finally {
+      setSavingStatusId(null);
     }
   };
 
@@ -251,7 +297,7 @@ const EditRestaurant = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <h1>Quản lý Nhà hàng (chuyển chi nhánh / xoá)</h1>
+      <h1>Quản lý Nhà hàng (chuyển chi nhánh / trạng thái)</h1>
 
       {error && (
         <div
@@ -291,6 +337,7 @@ const EditRestaurant = () => {
               <th>Lat</th>
               <th>Lng</th>
               <th>Email admin</th>
+              <th>Trạng thái</th>
               <th>Hành động</th>
             </tr>
           </thead>
@@ -303,16 +350,30 @@ const EditRestaurant = () => {
                 <td>{formatCoord(r.longitude)}</td>
                 <td>{r.adminEmail || "Chưa có"}</td>
                 <td>
+                  <span style={{ marginRight: 8 }}>
+                    {RESTAURANT_STATUS_LABEL[r.status] || "Không rõ"}
+                  </span>
+                  <br />
+                  <select
+                    value={r.status}
+                    onChange={(e) => handleChangeStatus(r, e.target.value)}
+                    disabled={savingStatusId === r.id}
+                  >
+                    {RESTAURANT_STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
                   <button onClick={() => handleSelect(r)}>Chuyển chi nhánh</button>
-                  <button onClick={() => handleDelete(r)} style={{ color: "red" }}>
-                    Xoá
-                  </button>
                 </td>
               </tr>
             ))}
             {restaurants.length === 0 && (
               <tr>
-                <td colSpan="6" style={{ textAlign: "center" }}>
+                <td colSpan="7" style={{ textAlign: "center" }}>
                   Chưa có nhà hàng nào
                 </td>
               </tr>
@@ -336,6 +397,11 @@ const EditRestaurant = () => {
         >
           <div>
             <h3>Chuyển chi nhánh cho: {selected.name}</h3>
+
+            <p>
+              <b>Trạng thái hiện tại:</b>{" "}
+              {RESTAURANT_STATUS_LABEL[selected.status] || "Không rõ"}
+            </p>
 
             <p>
               <b>Vị trí hiện tại:</b>
@@ -390,8 +456,8 @@ const EditRestaurant = () => {
             />
 
             <div style={{ marginTop: 16 }}>
-              <button onClick={handleSaveLocation} disabled={saving}>
-                {saving ? "Đang lưu..." : "Lưu vị trí mới"}
+              <button onClick={handleSaveLocation} disabled={savingLocation}>
+                {savingLocation ? "Đang lưu..." : "Lưu vị trí mới"}
               </button>
               <button
                 type="button"

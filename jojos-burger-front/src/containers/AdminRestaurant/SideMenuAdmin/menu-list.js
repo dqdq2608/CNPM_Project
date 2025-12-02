@@ -24,6 +24,12 @@ const listLinks = [
     link: paths.EditRestaurant, // /admin-restaurant/edit
     icon: EditIcon,
   },
+    {
+    id: 4,
+    label: "Delete Restaurant",
+    link: paths.DeleteRestaurant, // /admin-restaurant/delete
+    icon: EditIcon,
+  },
 ];
 
 export default listLinks;
