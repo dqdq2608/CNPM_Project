@@ -1,3 +1,4 @@
+
 const paths = {
   Order: "/orders",
   Products: "/list-products",
@@ -10,6 +11,7 @@ const paths = {
   Restaurants: "/admin-restaurant",
   NewRestaurant: "/admin-restaurant/new",
   EditRestaurant: "/admin-restaurant/edit",
+  DeleteRestaurant: "/admin-restaurant/delete",
 };
 
 export default paths;

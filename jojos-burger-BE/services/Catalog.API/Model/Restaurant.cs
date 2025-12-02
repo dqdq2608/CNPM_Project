@@ -15,4 +15,6 @@ public class Restaurant
     public RestaurantStatus Status { get; set; } = RestaurantStatus.Active;
     // Navigation
     public ICollection<CatalogItem> Items { get; set; } = new List<CatalogItem>();
+    public bool IsDeleted { get; set; } = false;    // true = đã "xoá mềm"/ẩn
+    public DateTime? DeletedAt { get; set; }        // thời điểm xoá mềm (UTC)
 }

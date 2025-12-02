@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from "react";
 
-// ======================= FETCH QUA KONG =======================
-
-// ⭐ Gọi trực tiếp Kong Gateway (bỏ BFF)
 const KONG_CATALOG_BASE =
   process.env.REACT_APP_KONG_CATALOG_BASE ||
   "https://localhost:8443/api/catalog"; // sửa nếu Kong chạy port khác
+
+// Map enum số sang text dễ đọc
+const RESTAURANT_STATUS_LABEL = {
+  0: "Đang hoạt động", // Active
+  1: "Tạm ngưng",      // Inactive
+  2: "Đã đóng cửa",    // Closed
+};
 
 async function fetchRestaurantsDirect() {
   const url = `${KONG_CATALOG_BASE}/admin/restaurants`;
@@ -24,18 +28,56 @@ async function fetchRestaurantsDirect() {
 
   const data = await response.json();
 
-  // Backend trả: restaurantId, name, address, lat, lng, adminEmail
-  return data.map((r) => ({
-    id: r.restaurantId,          // ✔ dùng đúng field
-    name: r.name,
-    address: r.address,
-    latitude: r.lat ?? 0,
-    longitude: r.lng ?? 0,
-    email: r.adminEmail || "",   // ✔ lấy email từ IDS do backend đã merge
-    raw: r,
-  }));
+  // Backend trả: restaurantId, name, address, lat, lng, adminEmail, status
+  return data.map((r) => {
+    const status = r.status; // enum dạng số 0/1/2
+    return {
+      id: r.restaurantId,
+      name: r.name,
+      address: r.address,
+      latitude: r.lat ?? 0,
+      longitude: r.lng ?? 0,
+      email: r.adminEmail || "",
+      status, // giữ raw value
+      statusText: RESTAURANT_STATUS_LABEL[status] || "Không rõ",
+      raw: r,
+    };
+  });
 }
-// ===============================================================
+
+// Style màu cho từng trạng thái
+const getStatusStyle = (status) => {
+  switch (status) {
+    case 0: // Active
+      return {
+        backgroundColor: "#e6ffed",
+        color: "#0f8a2b",
+        padding: "2px 8px",
+        borderRadius: 12,
+        fontSize: 12,
+        fontWeight: 600,
+      };
+    case 1: // Inactive
+      return {
+        backgroundColor: "#fff4e5",
+        color: "#b45d00",
+        padding: "2px 8px",
+        borderRadius: 12,
+        fontSize: 12,
+        fontWeight: 600,
+      };
+    case 2: // Closed
+    default:
+      return {
+        backgroundColor: "#f5f5f5",
+        color: "#666",
+        padding: "2px 8px",
+        borderRadius: 12,
+        fontSize: 12,
+        fontWeight: 600,
+      };
+  }
+};
 
 const ListRestaurants = () => {
   const [restaurants, setRestaurants] = useState([]);
@@ -46,7 +88,7 @@ const ListRestaurants = () => {
     async function load() {
       try {
         setLoading(true);
-        setError(""); // ⭐ clear lỗi trước mỗi lần fetch
+        setError("");
 
         const data = await fetchRestaurantsDirect();
         setRestaurants(data);
@@ -98,6 +140,7 @@ const ListRestaurants = () => {
               <th>Địa chỉ</th>
               <th>Vĩ độ (Lat)</th>
               <th>Kinh độ (Lng)</th>
+              <th>Trạng thái</th>
             </tr>
           </thead>
           <tbody>
@@ -108,11 +151,14 @@ const ListRestaurants = () => {
                 <td>{r.address}</td>
                 <td>{formatCoord(r.latitude)}</td>
                 <td>{formatCoord(r.longitude)}</td>
+                <td>
+                  <span style={getStatusStyle(r.status)}>{r.statusText}</span>
+                </td>
               </tr>
             ))}
             {restaurants.length === 0 && (
               <tr>
-                <td colSpan="5" style={{ textAlign: "center" }}>
+                <td colSpan="6" style={{ textAlign: "center" }}>
                   Chưa có nhà hàng nào
                 </td>
               </tr>

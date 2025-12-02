@@ -10,6 +10,7 @@ import { SideMenuAdmin } from "./SideMenuAdmin"; // <- named
 import ListRestaurants from "./ListRestaurants";   // <- default
 import NewRestaurant from "./NewRestaurant";       // <- default
 import EditRestaurant from "./EditRestaurant";     // <- default
+import DeleteRestaurant from "./DeleteRestaurant";
 
 export function AdminRestaurant() {
   const { pathname } = useLocation();
@@ -22,6 +23,7 @@ export function AdminRestaurant() {
         {pathname === paths.Restaurants && <ListRestaurants />}
         {pathname === paths.NewRestaurant && <NewRestaurant />}
         {pathname === paths.EditRestaurant && <EditRestaurant />}
+        {pathname === paths.DeleteRestaurant && <DeleteRestaurant />}
       </ContainerItems>
     </Container>
   );
