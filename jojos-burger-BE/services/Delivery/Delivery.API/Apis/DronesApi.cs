@@ -44,12 +44,20 @@ public static class DronesApi
         });
 
         // PUT /api/drones/{id}/status
-        group.MapPut("/{id:int}/status", async (int id, UpdateDroneStatusRequest request, DeliveryDbContext db) =>
+        group.MapPut("/{id:int}/status", async (
+            int id,
+            UpdateDroneStatusRequest request,
+            DeliveryDbContext db
+        ) =>
         {
             var drone = await db.Drones.FindAsync(id);
-            if (drone is null) return Results.NotFound();
+            if (drone is null)
+            {
+                return Results.NotFound(new { message = "Drone not found" });
+            }
 
-            drone.Status = request.Status;
+            // Ép từ int sang enum
+            drone.Status = (DroneStatus)request.Status;
             drone.LastHeartbeatAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync();

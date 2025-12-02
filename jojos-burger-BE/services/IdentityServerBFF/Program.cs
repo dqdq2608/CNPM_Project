@@ -585,31 +585,31 @@ app.MapPost("/bff-api/drones", async (HttpContext ctx, IHttpClientFactory f) =>
 .RequireAuthorization();
 
 // PUT /bff-api/drones/{id}/status
-app.MapPut("/bff-api/drones/{id:int}/status", async (HttpContext ctx, int id, IHttpClientFactory f) =>
-{
-    var user = ctx.User;
-    if (user?.Identity?.IsAuthenticated != true)
+app.MapPut("/bff-api/drones/{id:int}/status",
+    async (int id, HttpContext ctx, IHttpClientFactory f) =>
     {
-        return Results.Unauthorized();
-    }
+        var user = ctx.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            return Results.Unauthorized();
+        }
 
-    using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8);
-    var json = await reader.ReadToEndAsync();
+        // Đọc raw body từ FE (JSON: { "status": 1 })
+        using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8);
+        var json = await reader.ReadToEndAsync();
 
-    var http = f.CreateClient("delivery");
+        var http = f.CreateClient("delivery");
 
-    using var content = new StringContent(json, Encoding.UTF8, "application/json");
-    var res = await http.PutAsync($"/api/drones/{id}/status", content);
-    var body = await res.Content.ReadAsStringAsync();
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var res = await http.PutAsync($"/api/drones/{id}/status", content);
 
-    if (res.IsSuccessStatusCode)
-    {
-        return Results.Text(body, "application/json", Encoding.UTF8);
-    }
+        var body = await res.Content.ReadAsStringAsync();
 
-    return Results.StatusCode((int)res.StatusCode);
-})
-.RequireAuthorization();
+        // Forward status code + body về FE
+        return Results.Text(body, "application/json", Encoding.UTF8, (int)res.StatusCode);
+    })
+   .RequireAuthorization();
+
 
 
 

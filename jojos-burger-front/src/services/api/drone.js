@@ -30,10 +30,10 @@ export async function fetchDrones() {
 
 // Cập nhật trạng thái Drone (Idle / Delivering / Maintenance / Offline)
 export async function updateDroneStatus(id, status) {
-  const { data } = await droneHttp.put(`/drones/${id}/status`, { status });
-  return data;
+  // status là số: DroneStatus.Idle, DroneStatus.Maintenance,...
+  const res = await droneHttp.put(`/drones/${id}/status`, { status });
+  return res.data;
 }
-
 // (Optional) tạo Drone mới từ UI Admin
 export async function createDrone(code) {
   // payload: { code, initialLatitude, initialLongitude }
