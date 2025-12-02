@@ -376,7 +376,7 @@ public static class OrdersInternalApi
     static async Task<IResult> MarkDeliveredAsync(
     int orderId,
     IOrderRepository orderRepository,
-    OrderingContext orderingContext)   // 👈 THÊM PARAM NÀY
+    OrderingContext orderingContext)
     {
         var order = await orderRepository.GetAsync(orderId);
         if (order is null) return Results.NotFound();
@@ -384,7 +384,6 @@ public static class OrdersInternalApi
         // Đổi trạng thái sang Delivered (drone báo đã giao xong)
         order.SetDeliveredStatus();
 
-        // ✅ Chỉ lưu thay đổi đơn giản, KHÔNG dispatch domain event / integration event
         await orderingContext.SaveChangesAsync();
 
         return Results.Ok(new { success = true });

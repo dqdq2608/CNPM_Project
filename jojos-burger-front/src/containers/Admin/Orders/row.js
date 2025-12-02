@@ -13,6 +13,7 @@ import PropTypes from "prop-types";
 import React from "react";
 import { toast } from "react-toastify";
 
+import { fetchDrones } from "../../../services/api/drone";
 import { fetchOrderDetail, startDelivery } from "../../../services/api/order";
 import formatCurrency from "../../../utils/formatCurrency";
 import { ProductImg } from "./styles";
@@ -22,14 +23,43 @@ function Row({ row }) {
   const [itemsLoading, setItemsLoading] = React.useState(false);
   const [starting, setStarting] = React.useState(false); // 👈 trạng thái đang gọi API
 
+  const [idleDrones, setIdleDrones] = React.useState([]);
+  const [selectedDroneId, setSelectedDroneId] = React.useState("");
+  const [loadingDrones, setLoadingDrones] = React.useState(false);
+
+  React.useEffect(() => {
+    if (row.status !== "Paid") return;
+
+    const loadIdleDrones = async () => {
+      setLoadingDrones(true);
+      try {
+        const all = await fetchDrones(); // BFF sẽ trả về drone của restaurant hiện tại
+        // Idle = 0 (theo DroneStatus enum)
+        const idle = (all || []).filter((d) => d.status === 0);
+        setIdleDrones(idle);
+      } catch (e) {
+        console.error("fetchDrones error", e);
+      } finally {
+        setLoadingDrones(false);
+      }
+    };
+
+    loadIdleDrones();
+  }, [row.status]);
+
   const handleStartDelivery = async () => {
+    if (!selectedDroneId) {
+      toast.error("Vui lòng chọn drone trước khi bắt đầu giao.");
+      return;
+    }
+
     try {
       setStarting(true);
-      await startDelivery(row.orderId);
+      await startDelivery(row.orderId, Number(selectedDroneId));
       toast.success("Đã bắt đầu giao hàng bằng drone");
 
       // cập nhật status local cho đẹp UI (optional)
-      row.status = "Delivering";
+      row.status = "Delivery Complete"; // hoặc "Delivering" tuỳ flow của bạn
     } catch (e) {
       console.error("startDelivery error", e);
       toast.error("Không thể bắt đầu giao bằng drone, vui lòng thử lại.");
@@ -85,14 +115,41 @@ function Row({ row }) {
         </TableCell>
         <TableCell>{row.status}</TableCell> {/* 👈 STATUS TEXT */}
         <TableCell>
-          {row.status === "Paid" && ( // hoặc "StockConfirmed" tuỳ flow của bạn
-            <button
-              className="btn btn-primary"
-              onClick={handleStartDelivery}
-              disabled={starting}
-            >
-              {starting ? "Đang bắt đầu..." : "Bắt đầu giao bằng drone"}
-            </button>
+          {row.status === "Paid" && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <select
+                value={selectedDroneId}
+                onChange={(e) => setSelectedDroneId(e.target.value)}
+                disabled={loadingDrones || starting || idleDrones.length === 0}
+                style={{ padding: "4px 8px" }}
+              >
+                <option value="">
+                  {loadingDrones
+                    ? "Đang tải drones..."
+                    : idleDrones.length === 0
+                      ? "Không có drone Idle"
+                      : "Chọn drone..."}
+                </option>
+                {idleDrones.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.code} (#{d.id})
+                  </option>
+                ))}
+              </select>
+
+              <button
+                className="btn btn-primary"
+                onClick={handleStartDelivery}
+                disabled={
+                  starting ||
+                  !selectedDroneId ||
+                  idleDrones.length === 0 ||
+                  loadingDrones
+                }
+              >
+                {starting ? "Đang bắt đầu..." : "Bắt đầu giao bằng drone"}
+              </button>
+            </div>
           )}
         </TableCell>
       </TableRow>

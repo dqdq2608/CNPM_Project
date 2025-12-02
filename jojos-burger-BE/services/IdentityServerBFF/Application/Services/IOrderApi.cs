@@ -37,7 +37,7 @@ public interface IOrderBffApi
     );
 
     Task<string> GetRestaurantOrdersAsync(ClaimsPrincipal user, CancellationToken ct = default);
-    Task StartDeliveryAsync(int orderId, CancellationToken ct = default);
+    Task StartDeliveryAsync(int orderId, int droneId, CancellationToken ct = default);
 
     Task<string> GetDeliveryForOrderAsync(ClaimsPrincipal user, int orderId, CancellationToken cancellationToken = default);
 

@@ -400,13 +400,15 @@ app.MapGet("/bff-api/restaurant/orders",
     })
    .RequireAuthorization();
 
+
 app.MapPost("/bff-api/restaurant/orders/{orderId:int}/start-delivery",
-    async (int orderId, IOrderBffApi api) =>
+    async (int orderId, StartDeliveryRequest request, IOrderBffApi api) =>
     {
-        await api.StartDeliveryAsync(orderId);
+        await api.StartDeliveryAsync(orderId, request.DroneId);
         return Results.Ok(new { success = true });
     })
    .RequireAuthorization();
+
 
 app.MapPost("/bff-api/orders/{orderId:int}/delivery/tick",
     async (ClaimsPrincipal user, int orderId, IOrderBffApi api) =>

@@ -16,6 +16,12 @@ const listLinks = [
     icon: ShoppingBagIcon,
   },
   {
+    id: 8,
+    label: "Drones",
+    link: paths.Drones,
+    icon: MopedIcon,
+  },
+  {
     id: 2,
     label: "List Products",
     link: paths.Products,
@@ -51,12 +57,6 @@ const listLinks = [
     label: "Edit Category",
     link: paths.EditCategory,
     icon: EditIcon,
-  },
-  {
-    id: 8,
-    label: "Drones",
-    link: paths.Drones,
-    icon: MopedIcon,
   },
 ];
 
