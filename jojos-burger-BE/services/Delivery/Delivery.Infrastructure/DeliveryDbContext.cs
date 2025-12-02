@@ -33,18 +33,24 @@ public class DeliveryDbContext : DbContext
 
             builder.HasKey(d => d.Id);
 
+            builder.Property(d => d.RestaurantId)
+                .IsRequired();
+
             builder.Property(d => d.Code)
                 .IsRequired()
                 .HasMaxLength(50);
 
             builder.Property(d => d.Status)
-                .HasConversion<int>(); // lưu enum thành int
+                .HasConversion<int>();
 
             builder.Property(d => d.CurrentLatitude);
             builder.Property(d => d.CurrentLongitude);
 
             builder.Property(d => d.LastHeartbeatAt)
                 .IsRequired();
+
+            builder.HasIndex(d => new { d.RestaurantId, d.Code })
+                .IsUnique();
         });
 
         modelBuilder.Entity<DroneAssignment>(builder =>

@@ -10,18 +10,18 @@ public static class DronesApi
     {
         var group = app.MapGroup("/api/drones");
 
-        // GET /api/drones
-        group.MapGet("/", async (DeliveryDbContext db) =>
+        // GET /api/drones?restaurantId={restaurantId}
+        group.MapGet("/", async (Guid? restaurantId, DeliveryDbContext db) =>
         {
-            var drones = await db.Drones.ToListAsync();
-            return Results.Ok(drones);
-        });
+            IQueryable<Drone> query = db.Drones;
 
-        // GET /api/drones/{id}
-        group.MapGet("/{id:int}", async (int id, DeliveryDbContext db) =>
-        {
-            var drone = await db.Drones.FindAsync(id);
-            return drone is null ? Results.NotFound() : Results.Ok(drone);
+            if (restaurantId.HasValue)
+            {
+                query = query.Where(d => d.RestaurantId == restaurantId.Value);
+            }
+
+            var drones = await query.ToListAsync();
+            return Results.Ok(drones);
         });
 
         // POST /api/drones
@@ -30,6 +30,7 @@ public static class DronesApi
             var drone = new Drone
             {
                 Code = request.Code,
+                RestaurantId = request.RestaurantId,
                 Status = DroneStatus.Idle,
                 CurrentLatitude = request.InitialLatitude,
                 CurrentLongitude = request.InitialLongitude,
@@ -75,6 +76,7 @@ public static class DronesApi
 
 public record CreateDroneRequest(
     string Code,
+    Guid RestaurantId,
     double InitialLatitude,
     double InitialLongitude
 );

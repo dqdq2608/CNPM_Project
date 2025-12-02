@@ -1,4 +1,7 @@
 // src/pages/restaurant/drones/index.js
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Modal from "@mui/material/Modal";
 import Paper from "@mui/material/Paper";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -11,6 +14,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 
 import {
+  createDrone,
   DroneStatus,
   fetchDrones,
   updateDroneStatus,
@@ -52,6 +56,9 @@ function createRandomTarget() {
 }
 
 function DronePage({ restaurantId }) {
+  const [openCreate, setOpenCreate] = useState(false);
+  const [newCode, setNewCode] = useState("");
+
   const [drones, setDrones] = useState([]);
   const [activeStatus, setActiveStatus] = useState("All");
   const [loading, setLoading] = useState(false);
@@ -75,7 +82,7 @@ function DronePage({ restaurantId }) {
   useEffect(() => {
     loadDrones();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurantId]);
+  }, []);
 
   // Filter cho table + map
   const filteredDrones = useMemo(() => {
@@ -229,6 +236,71 @@ function DronePage({ restaurantId }) {
       </div>
 
       {/* Bảng danh sách drone giống Orders table */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          padding: "0 20px 20px",
+        }}
+      >
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => setOpenCreate(true)}
+        >
+          Add New Drone
+        </Button>
+      </div>
+      <Modal open={openCreate} onClose={() => setOpenCreate(false)}>
+        <Box
+          sx={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            bgcolor: "white",
+            p: 4,
+            width: 400,
+            borderRadius: 2,
+            boxShadow: 24,
+          }}
+        >
+          <h2>Create New Drone</h2>
+
+          <div style={{ marginBottom: "16px" }}>
+            <label>Code:</label>
+            <input
+              style={{ width: "100%", padding: 8 }}
+              value={newCode}
+              onChange={(e) => setNewCode(e.target.value)}
+              placeholder="DR-001"
+            />
+          </div>
+          <Button
+            variant="contained"
+            fullWidth
+            onClick={async () => {
+              if (!newCode.trim()) {
+                alert("Please enter drone code");
+                return;
+              }
+
+              try {
+                await createDrone(newCode.trim());
+                setOpenCreate(false);
+                setNewCode("");
+                await loadDrones();
+              } catch (err) {
+                console.error(err);
+                alert("Failed to create drone");
+              }
+            }}
+          >
+            Create
+          </Button>
+        </Box>
+      </Modal>
+
       <TableContainer
         component={Paper}
         sx={{ maxWidth: "90%", margin: "0 auto 40px" }}

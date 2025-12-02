@@ -35,8 +35,8 @@ export async function updateDroneStatus(id, status) {
 }
 
 // (Optional) tạo Drone mới từ UI Admin
-export async function createDrone(payload) {
+export async function createDrone(code) {
   // payload: { code, initialLatitude, initialLongitude }
-  const { data } = await droneHttp.post("/drones", payload);
+  const { data } = await droneHttp.post("/drones", { code });
   return data;
 }
