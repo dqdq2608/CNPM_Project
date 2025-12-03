@@ -29,15 +29,9 @@ builder.Services.AddHttpClient<IOrderingClient, OrderingClient>((sp, client) =>
 
 var app = builder.Build();
 
-// 🔹 1. AUTO MIGRATE DB KHI SERVICE START
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<DeliveryDbContext>();
-    db.Database.Migrate(); // <- dòng quan trọng
-}
-
 // 🔹 2. MAP ENDPOINT
 app.MapDeliveryApi();
-
+app.MapDronesApi();
+app.MapDroneAssignmentsApi();
 // 🔹 3. RUN APP
 app.Run();

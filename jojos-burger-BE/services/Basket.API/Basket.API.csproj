@@ -9,6 +9,7 @@
     <PackageReference Include="Aspire.StackExchange.Redis" />
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.56.0" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>

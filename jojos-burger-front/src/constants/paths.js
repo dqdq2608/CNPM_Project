@@ -7,6 +7,7 @@ const paths = {
   Categories: "/list-categories",
   NewCategory: "/new-category",
   EditCategory: "/edit-category",
+  Drones: "/drones",
 
   Restaurants: "/admin-restaurant",
   NewRestaurant: "/admin-restaurant/new",

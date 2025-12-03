@@ -70,9 +70,10 @@ export async function tickDelivery(orderId) {
 }
 
 // Gọi BFF để restaurant bắt đầu giao bằng drone
-export async function startDelivery(orderId) {
+export async function startDelivery(orderId, droneId) {
   const res = await orderHttp.post(
-    `/restaurant/orders/${orderId}/start-delivery`
+    `/restaurant/orders/${orderId}/start-delivery`,
+    { droneId }
   );
   return res.data; // { success: true }
 }

@@ -122,7 +122,6 @@ builder.Services.AddHttpClient<ICatalogBffApi, CatalogBffApi>(c =>
     ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
 
-
 // PROD: Gọi Payment service thật qua Kong
 builder.Services.AddHttpClient<IPaymentApi, CheckoutOnlineBffApi>(c =>
 {
@@ -135,8 +134,6 @@ builder.Services.AddHttpClient<IPaymentApi, CheckoutOnlineBffApi>(c =>
     ServerCertificateCustomValidationCallback =
         HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
-
-
 
 // HttpClient để gọi Basket
 builder.Services.AddHttpClient("basket", (sp, c) =>
@@ -403,13 +400,15 @@ app.MapGet("/bff-api/restaurant/orders",
     })
    .RequireAuthorization();
 
+
 app.MapPost("/bff-api/restaurant/orders/{orderId:int}/start-delivery",
-    async (int orderId, IOrderBffApi api) =>
+    async (int orderId, StartDeliveryRequest request, IOrderBffApi api) =>
     {
-        await api.StartDeliveryAsync(orderId);
+        await api.StartDeliveryAsync(orderId, request.DroneId);
         return Results.Ok(new { success = true });
     })
    .RequireAuthorization();
+
 
 app.MapPost("/bff-api/orders/{orderId:int}/delivery/tick",
     async (ClaimsPrincipal user, int orderId, IOrderBffApi api) =>
@@ -477,5 +476,143 @@ app.MapPost("/bff-api/delivery/quote", async (
     }
 })
 .RequireAuthorization();
+
+// ====== BFF API cho Drone Management ======
+
+// ====== BFF API cho Drone Management ======
+
+// GET /bff-api/drones
+app.MapGet("/bff-api/drones", async (HttpContext ctx, IHttpClientFactory f) =>
+{
+    var user = ctx.User;
+    if (user?.Identity?.IsAuthenticated != true)
+    {
+        return Results.Unauthorized();
+    }
+
+    // Lấy restaurantId từ claim (Guid)
+    var restaurantIdStr = user.FindFirst("restaurant_id")?.Value;
+    if (string.IsNullOrWhiteSpace(restaurantIdStr) || !Guid.TryParse(restaurantIdStr, out var restaurantId))
+    {
+        return Results.BadRequest(new { message = "Missing or invalid restaurant_id claim" });
+    }
+
+    var http = f.CreateClient("delivery");
+
+    // Gọi Delivery.API: GET /api/drones?restaurantId=<guid>
+    var res = await http.GetAsync($"/api/drones?restaurantId={restaurantId}");
+    var body = await res.Content.ReadAsStringAsync();
+
+    if (res.IsSuccessStatusCode)
+    {
+        return Results.Text(body, "application/json", Encoding.UTF8);
+    }
+
+    return Results.StatusCode((int)res.StatusCode);
+})
+.RequireAuthorization();
+
+// POST /bff-api/drones  (tạo drone mới cho restaurant hiện tại)
+app.MapPost("/bff-api/drones", async (HttpContext ctx, IHttpClientFactory f) =>
+{
+    var user = ctx.User;
+    if (user?.Identity?.IsAuthenticated != true)
+    {
+        return Results.Unauthorized();
+    }
+
+    // 1. Lấy restaurantId (Guid) từ claim
+    var restaurantIdStr = user.FindFirst("restaurant_id")?.Value;
+    if (string.IsNullOrWhiteSpace(restaurantIdStr) || !Guid.TryParse(restaurantIdStr, out var restaurantId))
+    {
+        return Results.BadRequest(new { message = "Missing or invalid restaurant_id claim" });
+    }
+
+    // 2. Lấy location của restaurant từ claim (nếu có), nếu không fallback default (vd HCM)
+    var restaurantLatStr = user.FindFirst("restaurant_lat")?.Value;
+    var restaurantLngStr = user.FindFirst("restaurant_lng")?.Value;
+
+    double restaurantLat = 10.8231;   // default HCM
+    double restaurantLng = 106.6297;  // default HCM
+
+    if (double.TryParse(restaurantLatStr, out var lat))
+        restaurantLat = lat;
+
+    if (double.TryParse(restaurantLngStr, out var lng))
+        restaurantLng = lng;
+
+    // 3. Đọc body FE gửi (chỉ cần { code })
+    using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8);
+    var json = await reader.ReadToEndAsync();
+
+    using var doc = JsonDocument.Parse(json);
+    var root = doc.RootElement;
+
+    if (!root.TryGetProperty("code", out var codeProp))
+    {
+        return Results.BadRequest(new { message = "code is required" });
+    }
+
+    var code = codeProp.GetString();
+    if (string.IsNullOrWhiteSpace(code))
+    {
+        return Results.BadRequest(new { message = "code is required" });
+    }
+
+    // 4. Build payload gửi sang Delivery.API (CreateDroneRequest mới)
+    var payload = new
+    {
+        Code = code,
+        RestaurantId = restaurantId,
+        InitialLatitude = restaurantLat,
+        InitialLongitude = restaurantLng
+    };
+
+    var http = f.CreateClient("delivery");
+
+    var res = await http.PostAsync(
+        "/api/drones",
+        new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+    );
+
+    var resBody = await res.Content.ReadAsStringAsync();
+
+    if (res.IsSuccessStatusCode)
+    {
+        return Results.Text(resBody, "application/json", Encoding.UTF8);
+    }
+
+    return Results.StatusCode((int)res.StatusCode);
+})
+.RequireAuthorization();
+
+// PUT /bff-api/drones/{id}/status
+app.MapPut("/bff-api/drones/{id:int}/status",
+    async (int id, HttpContext ctx, IHttpClientFactory f) =>
+    {
+        var user = ctx.User;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            return Results.Unauthorized();
+        }
+
+        // Đọc raw body từ FE (JSON: { "status": 1 })
+        using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8);
+        var json = await reader.ReadToEndAsync();
+
+        var http = f.CreateClient("delivery");
+
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var res = await http.PutAsync($"/api/drones/{id}/status", content);
+
+        var body = await res.Content.ReadAsStringAsync();
+
+        // Forward status code + body về FE
+        return Results.Text(body, "application/json", Encoding.UTF8, (int)res.StatusCode);
+    })
+   .RequireAuthorization();
+
+
+
 
 app.Run();

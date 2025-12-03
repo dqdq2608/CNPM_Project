@@ -381,8 +381,6 @@ public sealed class OrderBffApi : IOrderBffApi
         return body; // JSON array OrderSummary
     }
 
-
-
     public async Task<string> TickDeliveryAsync(
     ClaimsPrincipal user,
     int orderId,
@@ -401,13 +399,12 @@ public sealed class OrderBffApi : IOrderBffApi
         return body; // JSON DeliveryResponse
     }
 
-    public async Task StartDeliveryAsync(int orderId, CancellationToken ct = default)
+    public async Task StartDeliveryAsync(int orderId, int droneId, CancellationToken ct = default)
     {
         var orderingClient = _httpClientFactory.CreateClient("ordering");
         var deliveryClient = _httpClientFactory.CreateClient("delivery");
-        //
-        // 1. Gọi ORDERING: chuyển trạng thái sang “Delivering” (dùng /ship)
-        //
+
+        // 1. Gọi ORDERING: chuyển trạng thái order sang "Delivering" (ship)
         var requestId = Guid.NewGuid().ToString();
 
         using (var msg = new HttpRequestMessage(
@@ -430,20 +427,22 @@ public sealed class OrderBffApi : IOrderBffApi
             res.EnsureSuccessStatusCode();
         }
 
-        //
-        // 2. Gọi DELIVERY: start delivery cho order này
-        //
-        // Giả định route bên DeliveryApi map kiểu:
-        // api.MapPost("/{id:int}/start", StartDeliveryAsync);
-        // => URL: /api/deliveries/{id}/start
-        //
+        // 2. Gọi DELIVERY: start delivery cho order này với droneId do FE chọn
+        var payload = new { droneId };
+
+        var content = new StringContent(
+            System.Text.Json.JsonSerializer.Serialize(payload),
+            System.Text.Encoding.UTF8,
+            "application/json");
+
         var resDelivery = await deliveryClient.PostAsync(
             $"/api/deliveries/start/{orderId}",
-            content: null,
+            content,
             ct);
 
         resDelivery.EnsureSuccessStatusCode();
     }
+
 
     public async Task ConfirmDeliveryAsync(
     ClaimsPrincipal user,

@@ -4,6 +4,7 @@ using Delivery.Domain;
 using Delivery.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Delivery.API.Clients;
+using Delivery.Domain.Drone;
 
 namespace Delivery.API.Apis;
 
@@ -83,26 +84,67 @@ public static class DeliveryApi
                 delivery.Status.ToString()));
     }
 
-    static async Task<IResult> StartDeliveryAsync(int orderId, DeliveryDbContext db)
+    static async Task<IResult> StartDeliveryAsync(
+    int orderId,
+    StartDeliveryRequest request,
+    DeliveryDbContext db)
     {
-        var delivery = await db.DeliveryOrders.FirstOrDefaultAsync(d => d.OrderId == orderId);
-        if (delivery is null) return Results.NotFound();
+        // 1. Lấy DeliveryOrder theo OrderId
+        var delivery = await db.DeliveryOrders
+            .FirstOrDefaultAsync(d => d.OrderId == orderId);
+
+        if (delivery is null)
+        {
+            return Results.NotFound(new { message = "Delivery order not found" });
+        }
+
+        // 2. Lấy Drone theo DroneId từ request
+        var drone = await db.Drones
+            .FirstOrDefaultAsync(d => d.Id == request.DroneId);
+
+        if (drone is null)
+        {
+            return Results.BadRequest(new { message = "Drone not found" });
+        }
+
+        if (drone.Status != DroneStatus.Idle)
+        {
+            return Results.BadRequest(new { message = "Drone is not idle" });
+        }
+
+        // 3. Tạo DroneAssignment mới
+        var assignment = new DroneAssignment
+        {
+            DroneId = drone.Id,
+            DeliveryOrderId = delivery.Id,
+            Status = DroneAssignmentStatus.Assigned,
+            AssignedAt = DateTime.UtcNow
+        };
+
+        db.DroneAssignments.Add(assignment);
+
+        // 4. Cập nhật trạng thái Drone + DeliveryOrder
+        drone.Status = DroneStatus.Delivering;
+        drone.LastHeartbeatAt = DateTime.UtcNow;
 
         delivery.Status = DeliveryStatus.InTransit;
         delivery.UpdatedAt = DateTime.UtcNow;
+
         await db.SaveChangesAsync();
 
+        // 5. Trả về DeliveryResponse như cũ
         return Results.Ok(
             new DeliveryResponse(
-            delivery.Id,
-            delivery.OrderId,
-            delivery.RestaurantLat,
-            delivery.RestaurantLon,
-            delivery.CustomerLat,
-            delivery.CustomerLon,
-            delivery.DistanceKm,
-            delivery.DeliveryFee,
-            delivery.Status.ToString()));
+                delivery.Id,
+                delivery.OrderId,
+                delivery.RestaurantLat,
+                delivery.RestaurantLon,
+                delivery.CustomerLat,
+                delivery.CustomerLon,
+                delivery.DistanceKm,
+                delivery.DeliveryFee,
+                delivery.Status.ToString()
+            ));
     }
 
 
