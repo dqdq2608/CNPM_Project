@@ -18,6 +18,7 @@ import {
   DroneStatus,
   fetchDrones,
   updateDroneStatus,
+  tickDrone,
 } from "../../../services/api/drone";
 import { Container, Menu, LinkMenu } from "../Orders/styles";
 import droneStatusTabs from "./drone-status";
@@ -46,15 +47,6 @@ function getStatusTextFromNumeric(statusNumber) {
 }
 
 // Tạo điểm random quanh nhà hàng, để drone Delivering bay tới đó (giả)
-function createRandomTarget() {
-  const deltaLat = (Math.random() - 0.5) * 0.02; // ~2km
-  const deltaLng = (Math.random() - 0.5) * 0.02;
-  return {
-    lat: RESTAURANT_LAT + deltaLat,
-    lng: RESTAURANT_LNG + deltaLng,
-  };
-}
-
 function DronePage({ restaurantId }) {
   const [openCreate, setOpenCreate] = useState(false);
   const [newCode, setNewCode] = useState("");
@@ -62,9 +54,6 @@ function DronePage({ restaurantId }) {
   const [drones, setDrones] = useState([]);
   const [activeStatus, setActiveStatus] = useState("All");
   const [loading, setLoading] = useState(false);
-
-  // state mô phỏng vị trí drone: { [droneId]: { lat, lng, startTime, durationMs, origin, target, progress } }
-  const [simPositions, setSimPositions] = useState({});
 
   async function loadDrones() {
     setLoading(true);
@@ -94,66 +83,31 @@ function DronePage({ restaurantId }) {
     });
   }, [activeStatus, drones]);
 
-  // Simulate vị trí drone Delivering: mỗi 1s update
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      const now = Date.now();
+    let cancelled = false;
 
-      setSimPositions((prev) => {
-        const next = { ...prev };
+    async function pollAndTick() {
+      const drones = await fetchDrones();
+      if (cancelled) return;
 
-        drones.forEach((d) => {
-          const statusText = getStatusTextFromNumeric(d.status);
+      setDrones(drones);
 
-          // chỉ simulate với drone Delivering
-          if (statusText !== "Delivering") {
-            return;
-          }
+      // Tick ALL drones every 2 seconds
+      await Promise.all(drones.map((d) => tickDrone(d.id)));
+    }
 
-          const existing = prev[d.id] || {
-            startTime: now,
-            durationMs: 60 * 1000, // 60s "bay"
-            origin: { lat: RESTAURANT_LAT, lng: RESTAURANT_LNG },
-            target: createRandomTarget(),
-          };
+    pollAndTick();
 
-          const elapsed = now - existing.startTime;
-          const t = Math.max(0, Math.min(1, elapsed / existing.durationMs));
+    const id = setInterval(pollAndTick, 2000);
 
-          const lat =
-            existing.origin.lat +
-            (existing.target.lat - existing.origin.lat) * t;
-          const lng =
-            existing.origin.lng +
-            (existing.target.lng - existing.origin.lng) * t;
-
-          next[d.id] = {
-            ...existing,
-            lat,
-            lng,
-            progress: t,
-          };
-
-          // Khi bay xong (t >= 1) bạn có thể:
-          // - Gọi API updateDroneStatus(d.id, DroneStatus.Idle)
-          // - Gọi API complete assignment
-          // Để đơn giản, demo chỉ dừng lại ở việc giữ vị trí ở target.
-        });
-
-        return next;
-      });
-    }, 1000);
-
-    return () => clearInterval(intervalId);
-  }, [drones]);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   // Lấy vị trí hiển thị trên map: ưu tiên simPositions, fallback sang currentLatitude/currentLongitude, cuối cùng là nhà hàng
   function getDronePosition(d) {
-    const sim = simPositions[d.id];
-    if (sim && typeof sim.lat === "number" && typeof sim.lng === "number") {
-      return [sim.lat, sim.lng];
-    }
-
     if (
       typeof d.currentLatitude === "number" &&
       typeof d.currentLongitude === "number"
@@ -161,6 +115,7 @@ function DronePage({ restaurantId }) {
       return [d.currentLatitude, d.currentLongitude];
     }
 
+    // fallback: nếu BE chưa có tọa độ thì đặt ở nhà hàng
     return [RESTAURANT_LAT, RESTAURANT_LNG];
   }
 
@@ -202,10 +157,6 @@ function DronePage({ restaurantId }) {
           {filteredDrones.map((d) => {
             const [lat, lng] = getDronePosition(d);
             const statusText = getStatusTextFromNumeric(d.status);
-            const sim = simPositions[d.id];
-            const progressPercent = sim
-              ? Math.round((sim.progress || 0) * 100)
-              : null;
 
             return (
               <Marker key={d.id} position={[lat, lng]}>
@@ -221,12 +172,6 @@ function DronePage({ restaurantId }) {
                       <strong>Lat / Lng:</strong> {lat.toFixed(5)},{" "}
                       {lng.toFixed(5)}
                     </div>
-                    {statusText === "Delivering" &&
-                      progressPercent !== null && (
-                        <div>
-                          <strong>Progress:</strong> {progressPercent}%
-                        </div>
-                      )}
                   </div>
                 </Popup>
               </Marker>

@@ -481,6 +481,16 @@ app.MapPost("/bff-api/delivery/quote", async (
 
 // ====== BFF API cho Drone Management ======
 
+// POST /bff-api/drones/{id}/tick
+app.MapPost("/bff-api/drones/{id:int}/tick",
+    async (int id, IHttpClientFactory f) =>
+    {
+        var http = f.CreateClient("delivery");
+        var res = await http.PostAsync($"/api/drones/{id}/tick", null);
+        return Results.StatusCode((int)res.StatusCode);
+    })
+    .RequireAuthorization();
+
 // GET /bff-api/drones
 app.MapGet("/bff-api/drones", async (HttpContext ctx, IHttpClientFactory f) =>
 {

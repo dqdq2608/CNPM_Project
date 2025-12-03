@@ -10,7 +10,6 @@ import {
   fetchOrderDetail,
   fetchOrderDelivery,
   confirmOrderDelivery,
-  tickDelivery,
 } from "../../services/api/order";
 import {
   Container,
@@ -50,50 +49,63 @@ export function MyOrders() {
     load();
   }, [push]);
 
-  // Auto tick drone location mỗi 2 giây
+  // 🔁 AUTO-REFRESH LIST ORDERS MỖI 5 GIÂY
   useEffect(() => {
-    if (!expandedId) return;
-    const detail = details[expandedId];
-    if (!detail) return;
-
-    const deliveryStatus = detail.deliveryStatus ?? detail.status;
-
-    if (deliveryStatus !== "InTransit") {
-      return; // không tick nếu chưa giao hoặc đã giao xong
-    }
-
-    const timer = setInterval(async () => {
+    const intervalId = setInterval(async () => {
       try {
-        const delivery = await tickDelivery(expandedId);
-
-        // cập nhật droneLat/droneLon trong detail
-        setDetails((prev) => ({
-          ...prev,
-          [expandedId]: {
-            ...prev[expandedId],
-            droneLat: delivery?.droneLat ?? delivery?.DroneLat,
-            droneLon: delivery?.droneLon ?? delivery?.DroneLon,
-            deliveryStatus: delivery?.status ?? delivery?.Status,
-          },
-        }));
-
-        // nếu giao xong => update status trong orders
-        if ((delivery?.status ?? delivery?.Status) === "Delivered") {
-          setOrders((prev) =>
-            prev.map((o) =>
-              (o.orderNumber ?? o.id) === expandedId
-                ? { ...o, status: "Delivered", orderStatus: "Delivered" }
-                : o
-            )
-          );
-        }
-      } catch (err) {
-        console.error("tickDelivery error:", err);
+        const data = await fetchMyOrders();
+        setOrders(data || []);
+      } catch (e) {
+        console.error("Auto refresh orders failed:", e);
       }
-    }, 2000);
+    }, 5000);
 
-    return () => clearInterval(timer);
-  }, [expandedId, details]);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    if (!expandedId) return; // không có đơn nào đang mở
+
+    const intervalId = setInterval(async () => {
+      try {
+        const delivery = await fetchOrderDelivery(expandedId);
+
+        setDetails((prev) => {
+          const old = prev[expandedId];
+          if (!old) return prev; // chưa có detail thì thôi
+
+          return {
+            ...prev,
+            [expandedId]: {
+              ...old,
+              deliveryStatus:
+                delivery?.status ?? delivery?.Status ?? old.deliveryStatus,
+              originLat:
+                delivery?.restaurantLat ??
+                delivery?.RestaurantLat ??
+                old.originLat,
+              originLon:
+                delivery?.restaurantLon ??
+                delivery?.RestaurantLon ??
+                old.originLon,
+              destLat:
+                delivery?.customerLat ?? delivery?.CustomerLat ?? old.destLat,
+              destLon:
+                delivery?.customerLon ?? delivery?.CustomerLon ?? old.destLon,
+              droneLat:
+                delivery?.droneLat ?? delivery?.DroneLat ?? old.droneLat,
+              droneLon:
+                delivery?.droneLon ?? delivery?.DroneLon ?? old.droneLon,
+            },
+          };
+        });
+      } catch (e) {
+        console.error("Auto refresh delivery failed:", e);
+      }
+    }, 5000); // 5s 1 lần là đủ
+
+    return () => clearInterval(intervalId);
+  }, [expandedId]);
 
   const toggleOrder = async (id) => {
     if (expandedId === id) {
@@ -228,8 +240,8 @@ export function MyOrders() {
         // Sử dụng toán tử ?? để bắt cả trường hợp viết hoa/thường
         const hasCoords =
           detail &&
-          (detail.originLat ?? detail.OriginLat) &&
-          (detail.destLat ?? detail.DestLat);
+          typeof (detail.originLat ?? detail.OriginLat) === "number" &&
+          typeof (detail.destLat ?? detail.DestLat) === "number";
 
         return (
           <OrderCard key={id}>
@@ -264,40 +276,39 @@ export function MyOrders() {
                 )}
 
                 {/* --- HIỂN THỊ MAP --- */}
-                {detail &&
-                  (status === "Delivering" || status === "Delivered") && (
-                    <div style={{ marginBottom: 16, marginTop: 8 }}>
-                      {hasCoords ? (
-                        <div
-                          style={{
-                            border: "1px solid #ddd",
-                            borderRadius: 8,
-                            overflow: "hidden",
-                          }}
-                        >
-                          <DroneDeliveryMap
-                            originLat={detail.originLat ?? detail.OriginLat}
-                            originLng={detail.originLon ?? detail.OriginLon}
-                            destLat={detail.destLat ?? detail.DestLat}
-                            destLng={detail.destLon ?? detail.DestLon}
-                            droneLat={detail.droneLat}
-                            droneLng={detail.droneLon}
-                            status={detail.deliveryStatus ?? status}
-                          />
-                        </div>
-                      ) : (
-                        <p
-                          style={{
-                            fontSize: 13,
-                            fontStyle: "italic",
-                            color: "#666",
-                          }}
-                        >
-                          Chưa có thông tin lộ trình bay (Thiếu tọa độ).
-                        </p>
-                      )}
-                    </div>
-                  )}
+                {detail?.deliveryStatus === "InTransit" && (
+                  <div style={{ marginBottom: 16, marginTop: 8 }}>
+                    {hasCoords ? (
+                      <div
+                        style={{
+                          border: "1px solid #ddd",
+                          borderRadius: 8,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <DroneDeliveryMap
+                          originLat={detail.originLat ?? detail.OriginLat}
+                          originLng={detail.originLon ?? detail.OriginLon}
+                          destLat={detail.destLat ?? detail.DestLat}
+                          destLng={detail.destLon ?? detail.DestLon}
+                          droneLat={detail.droneLat}
+                          droneLng={detail.droneLon}
+                          status={detail.deliveryStatus ?? status}
+                        />
+                      </div>
+                    ) : (
+                      <p
+                        style={{
+                          fontSize: 13,
+                          fontStyle: "italic",
+                          color: "#666",
+                        }}
+                      >
+                        Chưa có thông tin lộ trình bay (Thiếu tọa độ).
+                      </p>
+                    )}
+                  </div>
+                )}
                 {/* ------------------------------------------------ */}
 
                 {detail && (
