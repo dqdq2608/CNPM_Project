@@ -50,6 +50,51 @@ export function MyOrders() {
     load();
   }, [push]);
 
+  // Auto tick drone location mỗi 2 giây
+  useEffect(() => {
+    if (!expandedId) return;
+    const detail = details[expandedId];
+    if (!detail) return;
+
+    const deliveryStatus = detail.deliveryStatus ?? detail.status;
+
+    if (deliveryStatus !== "InTransit") {
+      return; // không tick nếu chưa giao hoặc đã giao xong
+    }
+
+    const timer = setInterval(async () => {
+      try {
+        const delivery = await tickDelivery(expandedId);
+
+        // cập nhật droneLat/droneLon trong detail
+        setDetails((prev) => ({
+          ...prev,
+          [expandedId]: {
+            ...prev[expandedId],
+            droneLat: delivery?.droneLat ?? delivery?.DroneLat,
+            droneLon: delivery?.droneLon ?? delivery?.DroneLon,
+            deliveryStatus: delivery?.status ?? delivery?.Status,
+          },
+        }));
+
+        // nếu giao xong => update status trong orders
+        if ((delivery?.status ?? delivery?.Status) === "Delivered") {
+          setOrders((prev) =>
+            prev.map((o) =>
+              (o.orderNumber ?? o.id) === expandedId
+                ? { ...o, status: "Delivered", orderStatus: "Delivered" }
+                : o
+            )
+          );
+        }
+      } catch (err) {
+        console.error("tickDelivery error:", err);
+      }
+    }, 2000);
+
+    return () => clearInterval(timer);
+  }, [expandedId, details]);
+
   const toggleOrder = async (id) => {
     if (expandedId === id) {
       setExpandedId(null);
@@ -63,7 +108,6 @@ export function MyOrders() {
     try {
       setLoadingDetailId(id);
 
-      // Gọi song song cho nhanh
       const [detail, delivery] = await Promise.all([
         fetchOrderDetail(id),
         fetchOrderDelivery(id),
@@ -76,6 +120,9 @@ export function MyOrders() {
         originLon: delivery?.restaurantLon ?? delivery?.RestaurantLon,
         destLat: delivery?.customerLat ?? delivery?.CustomerLat,
         destLon: delivery?.customerLon ?? delivery?.CustomerLon,
+        droneLat: delivery?.droneLat ?? delivery?.DroneLat ?? null,
+        droneLon: delivery?.droneLon ?? delivery?.DroneLon ?? null,
+        deliveryStatus: delivery?.status ?? delivery?.Status,
       };
 
       setDetails((prev) => ({ ...prev, [id]: mergedDetail }));
@@ -98,21 +145,33 @@ export function MyOrders() {
   const handleConfirmDelivery = async (orderId) => {
     try {
       await confirmOrderDelivery(orderId);
-      toast.success("Thank you for confirming delivery!");
-
-      // Cập nhật list orders (nếu bạn có state orders)
+      // cập nhật list orders
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: "Completed" } : o))
+        prev.map((o) =>
+          (o.orderNumber ?? o.id) === orderId
+            ? {
+                ...o,
+                status: "Delivery Complete",
+                orderStatus: "Delivery Complete",
+              }
+            : o
+        )
       );
 
-      // Cập nhật detail
-      setDetails((prev) => ({
-        ...prev,
-        [orderId]: {
-          ...prev[orderId],
-          status: "Completed",
-        },
-      }));
+      // nếu đang mở detail, update luôn
+      setDetails((prev) =>
+        prev[orderId]
+          ? {
+              ...prev,
+              [orderId]: {
+                ...prev[orderId],
+                deliveryStatus: "Delivered",
+                status: "Delivery Complete",
+              },
+            }
+          : prev
+      );
+      toast.success("Thank you for confirming delivery!");
     } catch (e) {
       console.error("Confirm delivery error:", e);
       toast.error(
@@ -125,35 +184,6 @@ export function MyOrders() {
     toast.info(
       "If you have not received your order, please contact our support at"
     );
-  };
-
-  const handleDroneFlightCompleted = async (orderId) => {
-    try {
-      // Gọi BFF -> Delivery tick (Delivery + Ordering sẽ set Delivered)
-      const delivery = await tickDelivery(orderId);
-
-      // Cập nhật list orders: set status = Delivered
-      setOrders((prev) =>
-        prev.map((o) =>
-          (o.orderNumber ?? o.id) === orderId
-            ? { ...o, status: "Delivered", orderStatus: "Delivered" }
-            : o
-        )
-      );
-
-      // Cập nhật detail của đơn đó
-      setDetails((prev) => ({
-        ...prev,
-        [orderId]: {
-          ...prev[orderId],
-          status: "Delivered",
-          deliveryStatus: delivery?.status ?? delivery?.Status ?? "Delivered",
-        },
-      }));
-    } catch (e) {
-      console.error("tickDelivery error:", e);
-      toast.error("Không cập nhật được trạng thái giao hàng từ drone.");
-    }
   };
 
   return (
@@ -250,10 +280,9 @@ export function MyOrders() {
                             originLng={detail.originLon ?? detail.OriginLon}
                             destLat={detail.destLat ?? detail.DestLat}
                             destLng={detail.destLon ?? detail.DestLon}
-                            status={status}
-                            onFlightCompleted={() =>
-                              handleDroneFlightCompleted(id)
-                            }
+                            droneLat={detail.droneLat}
+                            droneLng={detail.droneLon}
+                            status={detail.deliveryStatus ?? status}
                           />
                         </div>
                       ) : (

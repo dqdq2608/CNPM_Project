@@ -21,4 +21,6 @@ public class DeliveryOrder
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+    public double? DroneLat { get; set; }
+    public double? DroneLon { get; set; }
 }

@@ -9,4 +9,7 @@ public record DeliveryResponse(
     double CustomerLon,
     double DistanceKm,
     decimal DeliveryFee,
-    string Status);
+    string Status,
+    double? DroneLat,
+    double? DroneLon
+);

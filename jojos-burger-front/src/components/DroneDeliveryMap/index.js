@@ -1,6 +1,6 @@
 import L from "leaflet";
 import PropTypes from "prop-types";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -40,55 +40,15 @@ const DroneDeliveryMap = ({
   originLng,
   destLat,
   destLng,
-  onFlightCompleted,
-  status, // 👈 nhận status Delivering / Delivered / Completed...
+  droneLat,
+  droneLng,
+  status,
 }) => {
-  const [dronePos, setDronePos] = useState([originLat, originLng]);
-  const requestRef = useRef();
-  const startTimeRef = useRef(null);
-  const DURATION = 8000; // 8 giây
-
-  // Linear interpolation
-  const lerp = (start, end, t) => start + (end - start) * t;
-
-  // ⭐ Khi status = Delivered → đứng im tại điểm giao hàng
-  useEffect(() => {
-    if (status === "Delivered") {
-      setDronePos([destLat, destLng]);
-      return;
-    }
-
-    if (status !== "Delivering") {
-      return;
-    }
-
-    // ⭐ Reset để bắt đầu bay
-    startTimeRef.current = null;
-
-    const animate = (time) => {
-      if (!startTimeRef.current) startTimeRef.current = time;
-
-      const progress = Math.min((time - startTimeRef.current) / DURATION, 1);
-
-      const newLat = lerp(originLat, destLat, progress);
-      const newLng = lerp(originLng, destLng, progress);
-      setDronePos([newLat, newLng]);
-
-      if (progress < 1) {
-        requestRef.current = requestAnimationFrame(animate);
-      } else {
-        if (typeof onFlightCompleted === "function") {
-          onFlightCompleted();
-        }
-      }
-    };
-
-    requestRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    };
-  }, [originLat, originLng, destLat, destLng, status, onFlightCompleted]);
+  // Nếu chưa có toạ độ drone từ BE, cho nó đứng tại nhà hàng
+  const dronePos =
+    typeof droneLat === "number" && typeof droneLng === "number"
+      ? [droneLat, droneLng]
+      : [originLat, originLng];
 
   return (
     <MapContainer
@@ -111,9 +71,9 @@ const DroneDeliveryMap = ({
 
       <Marker position={dronePos} icon={droneIcon} zIndexOffset={1000}>
         <Popup>
-          {status === "Delivering"
-            ? "Đang giao hàng..."
-            : "Đã giao tới khách hàng"}
+          {status === "Delivered"
+            ? "Đã giao tới khách hàng"
+            : "Đang giao hàng..."}
         </Popup>
       </Marker>
     </MapContainer>
@@ -125,7 +85,8 @@ DroneDeliveryMap.propTypes = {
   originLng: PropTypes.number.isRequired,
   destLat: PropTypes.number.isRequired,
   destLng: PropTypes.number.isRequired,
-  onFlightCompleted: PropTypes.func,
+  droneLat: PropTypes.number, // 👈 mới
+  droneLng: PropTypes.number, // 👈 mới
   status: PropTypes.string.isRequired,
 };
 
