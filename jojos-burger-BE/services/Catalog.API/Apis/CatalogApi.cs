@@ -10,6 +10,7 @@ using eShop.Catalog.API.Services;
 using eShop.Catalog.API.Model;
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace eShop.Catalog.API;
 
@@ -774,8 +775,8 @@ public static class CatalogApi
 
                 // đếm đơn còn đang xử lý
                 int processing = orders.Count(o =>
-                    !string.Equals(o.OrderStatus, "Completed", StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(o.OrderStatus, "Cancelled", StringComparison.OrdinalIgnoreCase)
+                    !string.Equals(o.Status, "Completed", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(o.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)
                 );
 
                 if (processing > 0)
@@ -1164,10 +1165,20 @@ public static class CatalogApi
     // DTO nhẹ để deserialize list order từ Ordering
     public sealed class OrderSummaryLite
     {
+        [JsonPropertyName("orderNumber")]
         public int OrderNumber { get; set; }
-        public string OrderStatus { get; set; } = string.Empty;
+
+        [JsonPropertyName("status")]   // 👈 ĐÚNG THEO JSON
+        public string Status { get; set; } = string.Empty;
+
+        [JsonPropertyName("date")]
         public DateTime Date { get; set; }
+
+        [JsonPropertyName("total")]
         public decimal Total { get; set; }
+
+        [JsonPropertyName("deliveryFee")]
+        public decimal DeliveryFee { get; set; }
     }
     // DTO nhẹ để đọc Drone từ Delivery API
     private sealed class DroneLite

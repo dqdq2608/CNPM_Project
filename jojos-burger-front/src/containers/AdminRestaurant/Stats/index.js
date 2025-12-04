@@ -222,7 +222,7 @@ const AdminRestaurantOrders = () => {
                     ? new Date(o.date).toLocaleString()
                     : "Không rõ"}
                 </td>
-                <td>{o.orderStatus}</td>
+                <td>{o.status}</td>
                 <td>
                   {typeof o.total === "number"
                     ? o.total.toLocaleString("vi-VN", {
