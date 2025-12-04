@@ -23,7 +23,25 @@ public static class DronesApi
             }
 
             var drones = await query.ToListAsync();
-            return Results.Ok(drones);
+
+            var result = new List<DroneDto>(drones.Count);
+
+            foreach (var d in drones)
+            {
+                var needsTick = await ComputeNeedsTickAsync(d, db);
+
+                result.Add(new DroneDto(
+                    d.Id,
+                    d.Code,
+                    (int)d.Status,
+                    d.CurrentLatitude,
+                    d.CurrentLongitude,
+                    d.RestaurantId,
+                    needsTick
+                ));
+            }
+
+            return Results.Ok(result);
         });
 
         // POST /api/drones
@@ -95,6 +113,13 @@ public static class DronesApi
         var drone = await db.Drones.FindAsync(droneId);
         if (drone is null)
             return Results.NotFound();
+
+        // 🚫 Nếu drone đang Offline hoặc Maintenance => KHÔNG tick, không override gì
+        if (drone.Status == DroneStatus.Offline ||
+            drone.Status == DroneStatus.Maintenance)
+        {
+            return Results.NoContent();
+        }
 
         // 2. Tìm assignment mới nhất của drone
         var assignment = await db.DroneAssignments
@@ -215,6 +240,59 @@ public static class DronesApi
 
         return Results.NoContent();
     }
+
+    private static async Task<bool> ComputeNeedsTickAsync(Drone drone, DeliveryDbContext db)
+    {
+        // 1. Nếu drone đang Offline / Maintenance => KHÔNG tick
+        if (drone.Status == DroneStatus.Offline ||
+            drone.Status == DroneStatus.Maintenance)
+        {
+            return false;
+        }
+
+        // 2. Tìm assignment mới nhất
+        var assignment = await db.DroneAssignments
+            .Where(a => a.DroneId == drone.Id)
+            .OrderByDescending(a => a.AssignedAt)
+            .FirstOrDefaultAsync();
+
+        if (assignment is null)
+        {
+            // chưa từng / không còn nhiệm vụ
+            return false;
+        }
+
+        // 3. Tìm delivery tương ứng
+        var delivery = await db.DeliveryOrders.FindAsync(assignment.DeliveryOrderId);
+        if (delivery is null)
+        {
+            return false;
+        }
+
+        // 4. Nếu delivery đang InTransit => chắc chắn cần tick (bay tới khách)
+        if (delivery.Status == DeliveryStatus.InTransit)
+        {
+            return true;
+        }
+
+        // 5. Nếu delivery đã Delivered => chỉ tick nếu drone CHƯA về đến nhà hàng
+        if (delivery.Status == DeliveryStatus.Delivered)
+        {
+            var remainingKm = DistanceInKm(
+                drone.CurrentLatitude,
+                drone.CurrentLongitude,
+                delivery.RestaurantLat,
+                delivery.RestaurantLon);
+
+            const double backThresholdKm = 0.05; // ~50m
+
+            return remainingKm > backThresholdKm;
+        }
+
+        // Các trạng thái khác (Created, Canceled, v.v.) => không cần tick
+        return false;
+    }
+
     // Helper Haversine
     private static double DistanceInKm(double lat1, double lon1, double lat2, double lon2)
     {
@@ -231,6 +309,16 @@ public static class DronesApi
 
     private static double ToRadians(double deg) => deg * (Math.PI / 180.0);
 }
+
+public record DroneDto(
+    int Id,
+    string Code,
+    int Status,
+    double? CurrentLatitude,
+    double? CurrentLongitude,
+    Guid RestaurantId,
+    bool NeedsTick
+);
 
 public record CreateDroneRequest(
     string Code,
