@@ -40,3 +40,9 @@ export async function createDrone(code) {
   const { data } = await droneHttp.post("/drones", { code });
   return data;
 }
+
+// Gọi API để tiến hành "tick" cho Drone (di chuyển, cập nhật trạng thái,...)
+export async function tickDrone(droneId) {
+  const res = await droneHttp.post(`/drones/${droneId}/tick`);
+  return res.data;
+}

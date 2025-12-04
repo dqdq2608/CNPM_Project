@@ -65,7 +65,9 @@ public static class DeliveryApi
             CustomerLon = req.CustomerLon,
             DistanceKm = distance,
             DeliveryFee = fee,
-            Status = DeliveryStatus.Pending
+            Status = DeliveryStatus.Pending,
+            DroneLat = null,
+            DroneLon = null
         };
 
         db.DeliveryOrders.Add(delivery);
@@ -81,7 +83,10 @@ public static class DeliveryApi
                 delivery.CustomerLon,
                 delivery.DistanceKm,
                 delivery.DeliveryFee,
-                delivery.Status.ToString()));
+                delivery.Status.ToString(),
+                delivery.DroneLat,
+                delivery.DroneLon
+            ));
     }
 
     static async Task<IResult> StartDeliveryAsync(
@@ -118,7 +123,8 @@ public static class DeliveryApi
             DroneId = drone.Id,
             DeliveryOrderId = delivery.Id,
             Status = DroneAssignmentStatus.Assigned,
-            AssignedAt = DateTime.UtcNow
+            AssignedAt = DateTime.UtcNow,
+            StartedAt = DateTime.UtcNow,
         };
 
         db.DroneAssignments.Add(assignment);
@@ -127,12 +133,15 @@ public static class DeliveryApi
         drone.Status = DroneStatus.Delivering;
         drone.LastHeartbeatAt = DateTime.UtcNow;
 
+        // Lưu vị trí drone vào DeliveryOrder
         delivery.Status = DeliveryStatus.InTransit;
         delivery.UpdatedAt = DateTime.UtcNow;
+        delivery.DroneLat = drone.CurrentLatitude;
+        delivery.DroneLon = drone.CurrentLongitude;
 
         await db.SaveChangesAsync();
 
-        // 5. Trả về DeliveryResponse như cũ
+        // 5. Trả về DeliveryResponse 
         return Results.Ok(
             new DeliveryResponse(
                 delivery.Id,
@@ -143,7 +152,9 @@ public static class DeliveryApi
                 delivery.CustomerLon,
                 delivery.DistanceKm,
                 delivery.DeliveryFee,
-                delivery.Status.ToString()
+                delivery.Status.ToString(),
+                delivery.DroneLat,
+                delivery.DroneLon
             ));
     }
 
@@ -166,7 +177,10 @@ public static class DeliveryApi
             delivery.CustomerLon,
             delivery.DistanceKm,
             delivery.DeliveryFee,
-            delivery.Status.ToString()));
+            delivery.Status.ToString(),
+            delivery.DroneLat,
+            delivery.DroneLon
+        ));
     }
 
     static async Task<IResult> GetByOrderAsync(int orderId, DeliveryDbContext db)
@@ -185,45 +199,25 @@ public static class DeliveryApi
             delivery.CustomerLon,
             delivery.DistanceKm,
             delivery.DeliveryFee,
-            delivery.Status.ToString())
+            delivery.Status.ToString(),
+            delivery.DroneLat,
+            delivery.DroneLon)
         );
     }
 
-    // 👇 THÊM MỚI HÀM NÀY TRONG CLASS DeliveryApi
     static async Task<IResult> TickDeliveryAsync(
-        int orderId,
-        DeliveryDbContext db,
-        IOrderingClient orderingClient)
+    int orderId,
+    DeliveryDbContext db,
+    IOrderingClient orderingClient) // có thể bỏ param này nếu không dùng nữa
     {
-        // Lấy delivery theo OrderId (vì FE làm việc với order)
+        // 1. Lấy delivery theo OrderId
         var delivery = await db.DeliveryOrders
             .FirstOrDefaultAsync(d => d.OrderId == orderId);
 
-        if (delivery is null) return Results.NotFound();
+        if (delivery is null)
+            return Results.NotFound(new { message = "Delivery order not found" });
 
-        // Nếu đã Delivered rồi thì không cần xử lý gì thêm, trả hiện trạng
-        if (delivery.Status == DeliveryStatus.Delivered)
-        {
-            return Results.Ok(new DeliveryResponse(
-                delivery.Id,
-                delivery.OrderId,
-                delivery.RestaurantLat,
-                delivery.RestaurantLon,
-                delivery.CustomerLat,
-                delivery.CustomerLon,
-                delivery.DistanceKm,
-                delivery.DeliveryFee,
-                delivery.Status.ToString()));
-        }
-
-        // Hiện tại: 1 tick = coi như drone đã giao xong
-        delivery.Status = DeliveryStatus.Delivered;
-        delivery.UpdatedAt = DateTime.UtcNow;
-
-        await db.SaveChangesAsync();
-        // Sau khi drone Delivered, báo cho Ordering biết để set OrderStatus = Delivered
-        await orderingClient.MarkOrderDeliveredAsync(orderId);
-
+        // 2. Trả về trạng thái hiện tại (không di chuyển, không tính toán gì thêm)
         return Results.Ok(new DeliveryResponse(
             delivery.Id,
             delivery.OrderId,
@@ -233,6 +227,9 @@ public static class DeliveryApi
             delivery.CustomerLon,
             delivery.DistanceKm,
             delivery.DeliveryFee,
-            delivery.Status.ToString()));
+            delivery.Status.ToString(),
+            delivery.DroneLat,
+            delivery.DroneLon
+        ));
     }
 }
