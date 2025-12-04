@@ -9,6 +9,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import L from "leaflet";
 import PropTypes from "prop-types";
 import React, { useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
@@ -32,6 +33,12 @@ const DRONE_STATUS_LABEL = {
   [DroneStatus.Maintenance]: "Maintenance",
   [DroneStatus.Offline]: "Offline",
 };
+
+const droneIcon = new L.Icon({
+  iconUrl: "/drone.png",
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+});
 
 // Màu text đơn giản theo trạng thái
 const DRONE_STATUS_COLOR = {
@@ -87,17 +94,27 @@ function DronePage({ restaurantId }) {
     let cancelled = false;
 
     async function pollAndTick() {
-      const drones = await fetchDrones();
-      if (cancelled) return;
+      try {
+        const data = await fetchDrones();
+        if (cancelled) return;
 
-      setDrones(drones);
+        setDrones(data || []);
 
-      // Tick ALL drones every 2 seconds
-      await Promise.all(drones.map((d) => tickDrone(d.id)));
+        // 🔥 Chỉ tick những drone thật sự cần bay
+        const active = (data || []).filter((d) => d.needsTick);
+
+        if (active.length === 0) {
+          // không còn con nào cần tick => khỏi gọi tickDrone
+          return;
+        }
+
+        await Promise.all(active.map((d) => tickDrone(d.id)));
+      } catch (err) {
+        console.error("Drone tick/poll error", err);
+      }
     }
 
     pollAndTick();
-
     const id = setInterval(pollAndTick, 2000);
 
     return () => {
@@ -159,7 +176,7 @@ function DronePage({ restaurantId }) {
             const statusText = getStatusTextFromNumeric(d.status);
 
             return (
-              <Marker key={d.id} position={[lat, lng]}>
+              <Marker key={d.id} position={[lat, lng]} icon={droneIcon}>
                 <Popup>
                   <div>
                     <div>
