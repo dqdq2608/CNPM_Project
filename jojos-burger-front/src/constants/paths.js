@@ -13,6 +13,7 @@ const paths = {
   NewRestaurant: "/admin-restaurant/new",
   EditRestaurant: "/admin-restaurant/edit",
   DeleteRestaurant: "/admin-restaurant/delete",
+  Stats: "/admin-restaurant/stats"
 };
 
 export default paths;

@@ -51,14 +51,20 @@ public partial class CatalogContextSeed(
                     RestaurantId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
                     Name = "Jojo Burger - Q1",
                     Address = "123 Lê Lợi, Q1, TP.HCM",
-                    Location = new Point(106.7000, 10.7730) { SRID = 4326 }
+                    Location = new Point(106.7000, 10.7730) { SRID = 4326 },
+                    Status = RestaurantStatus.Active,
+                    IsDeleted = false,
+                    DeletedAt = null
                 },
                 new()
                 {
                     RestaurantId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
                     Name = "Jojo Burger - Q3",
                     Address = "45 Võ Văn Tần, Q3, TP.HCM",
-                    Location = new Point(106.6870, 10.7790) { SRID = 4326 }
+                    Location = new Point(106.6870, 10.7790) { SRID = 4326 },
+                    Status = RestaurantStatus.Active,
+                    IsDeleted = false,
+                    DeletedAt = null
                 }
             };
 

@@ -24,10 +24,16 @@ const listLinks = [
     link: paths.EditRestaurant, // /admin-restaurant/edit
     icon: EditIcon,
   },
-    {
+  {
     id: 4,
     label: "Delete Restaurant",
     link: paths.DeleteRestaurant, // /admin-restaurant/delete
+    icon: EditIcon,
+  },
+  {
+    id: 5,
+    label: "Stats",
+    link: paths.Stats, // /admin-restaurant/delete
     icon: EditIcon,
   },
 ];

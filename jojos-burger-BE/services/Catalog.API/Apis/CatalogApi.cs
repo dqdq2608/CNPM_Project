@@ -140,6 +140,9 @@ public static class CatalogApi
         api.MapDelete("/restaurants/{id:guid}", DeleteRestaurantWithAdmin);
         api.MapGet("/restaurants/{id:guid}/order-count", GetOrderCount);
 
+        // Statistics
+        api.MapGet("/admin/restaurant-orders/{restaurantId:guid}", GetRestaurantOrdersForAdmin);
+
         // -------- Items (mutations) --------
         api.MapPut("/items", UpdateItem);
         api.MapPost("/items", CreateItem);
@@ -742,7 +745,19 @@ public static class CatalogApi
             return TypedResults.BadRequest("Invalid restaurant status.");
 
         // ================================
-        // 1) GỌI ORDERING CHECK ĐƠN
+        // 0) Lấy restaurant hiện tại
+        // ================================
+        var restaurant = await context.Restaurants
+            .FirstOrDefaultAsync(r => r.RestaurantId == id);
+
+        if (restaurant is null)
+            return TypedResults.NotFound();
+
+        var oldStatus = restaurant.Status;
+        var newStatus = request.Status;
+
+        // ================================
+        // 1) LUÔN CHECK ORDERING TRƯỚC
         // ================================
         var orderingClient = httpClientFactory.CreateClient("ordering-api");
 
@@ -757,7 +772,7 @@ public static class CatalogApi
                     .ReadFromJsonAsync<List<OrderSummaryLite>>()
                     ?? new List<OrderSummaryLite>();
 
-                // Đơn nào KHÔNG Completed hoặc Cancelled → đang xử lý
+                // đếm đơn còn đang xử lý
                 int processing = orders.Count(o =>
                     !string.Equals(o.OrderStatus, "Completed", StringComparison.OrdinalIgnoreCase) &&
                     !string.Equals(o.OrderStatus, "Cancelled", StringComparison.OrdinalIgnoreCase)
@@ -777,8 +792,7 @@ public static class CatalogApi
                     $"Không kiểm tra được đơn hàng ở Ordering: {msg}"
                 );
             }
-
-            // 404 = không có đơn → cho phép đổi trạng thái
+            // 404 = không có đơn → OK
         }
         catch (Exception ex)
         {
@@ -788,16 +802,109 @@ public static class CatalogApi
         }
 
         // ================================
-        // 2) CHO PHÉP ĐỔI TRẠNG THÁI
+        // 2) NẾU ĐỔI SANG CLOSED → CHECK DRONE
         // ================================
-        var restaurant = await context.Restaurants
-            .FirstOrDefaultAsync(r => r.RestaurantId == id);
+        if (newStatus == RestaurantStatus.Closed)
+        {
+            var deliveryClient = httpClientFactory.CreateClient("delivery-api");
 
-        if (restaurant is null)
-            return TypedResults.NotFound();
+            try
+            {
+                var droneResp = await deliveryClient.GetAsync(
+                    $"/api/drones?restaurantId={id}");
 
-        restaurant.Status = request.Status;
+                if (droneResp.IsSuccessStatusCode)
+                {
+                    var drones = await droneResp.Content
+                        .ReadFromJsonAsync<List<DroneLite>>()
+                        ?? new List<DroneLite>();
 
+                    const int OFFLINE = 4; // DroneStatus.Offline
+
+                    int notOffline = drones.Count(d => d.Status != OFFLINE);
+
+                    if (notOffline > 0)
+                    {
+                        return TypedResults.BadRequest(
+                            $"Không thể đóng cửa nhà hàng vì còn {notOffline} drone chưa ở trạng thái Offline."
+                        );
+                    }
+                }
+                else if (droneResp.StatusCode != HttpStatusCode.NotFound)
+                {
+                    var msg = await droneResp.Content.ReadAsStringAsync();
+                    return TypedResults.BadRequest(
+                        $"Không kiểm tra được drone ở Delivery: {msg}"
+                    );
+                }
+                // 404 = không có drone → OK
+            }
+            catch (Exception ex)
+            {
+                return TypedResults.BadRequest(
+                    $"Lỗi khi gọi Delivery API: {ex.Message}"
+                );
+            }
+        }
+
+        // ================================
+        // 3) GỌI IDS: activate/deactivate admin
+        // ================================
+        var idsClient = httpClientFactory.CreateClient("ids-admin-api");
+
+        // Đóng cửa => deactivate
+        if (newStatus == RestaurantStatus.Closed)
+        {
+            try
+            {
+                var resp = await idsClient.PostAsJsonAsync(
+                    $"/api/restaurant-admins/by-restaurant/{id}/deactivate",
+                    new { reason = "restaurant_closed" });
+
+                if (!resp.IsSuccessStatusCode && resp.StatusCode != HttpStatusCode.NotFound)
+                {
+                    var msg = await resp.Content.ReadAsStringAsync();
+                    return TypedResults.BadRequest(
+                        $"Không deactivate được tài khoản admin bên IDS: {msg}"
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                return TypedResults.BadRequest(
+                    $"Lỗi khi gọi IDS (deactivate): {ex.Message}"
+                );
+            }
+        }
+        // Từ Closed → sang trạng thái khác (Active / Tạm ngưng) => activate lại
+        else if (oldStatus == RestaurantStatus.Closed && newStatus != RestaurantStatus.Closed)
+        {
+            try
+            {
+                var resp = await idsClient.PostAsJsonAsync(
+                    $"/api/restaurant-admins/by-restaurant/{id}/activate",
+                    new { reason = "restaurant_reopened" });
+
+                if (!resp.IsSuccessStatusCode && resp.StatusCode != HttpStatusCode.NotFound)
+                {
+                    var msg = await resp.Content.ReadAsStringAsync();
+                    return TypedResults.BadRequest(
+                        $"Không activate được tài khoản admin bên IDS: {msg}"
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                return TypedResults.BadRequest(
+                    $"Lỗi khi gọi IDS (activate): {ex.Message}"
+                );
+            }
+        }
+
+        // ================================
+        // 4) CẬP NHẬT TRẠNG THÁI TRONG CATALOG
+        // ================================
+        restaurant.Status = newStatus;
         await context.SaveChangesAsync();
 
         return TypedResults.NoContent();
@@ -810,7 +917,7 @@ public static class CatalogApi
         // Chỉ lấy nhà hàng chưa bị xoá mềm
         var restaurants = await context.Restaurants
             .AsNoTracking()
-            .Where(r => !r.IsDeleted)          // ⭐ thêm dòng này
+            .Where(r => !r.IsDeleted)
             .OrderBy(x => x.Name)
             .ToListAsync();
 
@@ -854,69 +961,94 @@ public static class CatalogApi
         if (restaurant is null)
             return TypedResults.NotFound();
 
-        var orderingClient = httpClientFactory.CreateClient("ordering-api");
-
-        int orderCount = 0;
-        string orderingDebug = string.Empty;
-
-        // ----------------------------------------------------
-        // 0) GỌI ORDERING ĐỂ LẤY LIST ĐƠN (DÙNG INTERNAL API)
-        // ----------------------------------------------------
-        try
+        // 0) Chỉ cho xoá khi đã Closed
+        if (restaurant.Status != RestaurantStatus.Closed)
         {
-            // ⭐ DÙNG ĐÚNG ROUTE NỘI BỘ: /api/internal/orders/by-restaurant/{restaurantId}
-            var orderResp = await orderingClient.GetAsync($"/api/internal/orders/by-restaurant/{id}");
-
-            orderingDebug = $"StatusCode={orderResp.StatusCode}";
-
-            if (orderResp.IsSuccessStatusCode)
-            {
-                var orders = await orderResp.Content.ReadFromJsonAsync<List<OrderSummaryLite>>()
-                            ?? new List<OrderSummaryLite>();
-
-                orderCount = orders.Count;
-            }
-            else if (orderResp.StatusCode != HttpStatusCode.NotFound)
-            {
-                var msg = await orderResp.Content.ReadAsStringAsync();
-
-                // In log cho dễ debug
-                Console.WriteLine(
-                    $"[DeleteRestaurantWithAdmin] Ordering API error for Restaurant={id}. Status={orderResp.StatusCode}, Body={msg}"
-                );
-
-                return TypedResults.BadRequest((object)new
-                {
-                    message = $"Không kiểm tra được đơn hàng ở Ordering: {msg}"
-                });
-            }
-            // Nếu 404 => coi như không có đơn
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine(
-                $"[DeleteRestaurantWithAdmin] Exception when calling Ordering. Restaurant={id}, Error={ex}"
-            );
-
             return TypedResults.BadRequest((object)new
             {
-                message = $"Lỗi khi gọi Ordering API: {ex.Message}"
+                softDeleted = false,
+                message = "Chỉ được xoá nhà hàng khi trạng thái là 'Đã đóng cửa'. Hãy đổi trạng thái sang Closed trước."
             });
         }
 
-        // In ra log số đơn để check trong log container
-        Console.WriteLine(
-            $"[DeleteRestaurantWithAdmin] Restaurant={id}, OrderCount={orderCount}, Debug={orderingDebug}"
-        );
+        // 1) Check ORDERING
+        int orderCount = 0;
+        var orderingClient = httpClientFactory.CreateClient("ordering-api");
 
-        // ====================================================
-        // CASE 1 — CÓ ĐƠN: SOFT DELETE
-        // ====================================================
-        if (orderCount > 0)
+        try
         {
-            restaurant.Status = RestaurantStatus.Closed;
+            var orderResp = await orderingClient.GetAsync($"/api/internal/orders/by-restaurant/{id}");
+
+            if (orderResp.IsSuccessStatusCode)
+            {
+                var orders = await orderResp.Content
+                    .ReadFromJsonAsync<List<OrderSummaryLite>>()
+                    ?? new List<OrderSummaryLite>();
+
+                orderCount = orders.Count;
+            }
+        }
+        catch (Exception ex)
+        {
+            return TypedResults.BadRequest((object)new
+            {
+                softDeleted = false,
+                message = $"Không kiểm tra được đơn hàng từ Ordering: {ex.Message}"
+            });
+        }
+
+        // 2) Check DELIVERY – số drone
+        int droneCount = 0;
+        var deliveryClient = httpClientFactory.CreateClient("delivery-api");
+
+        try
+        {
+            var droneResp = await deliveryClient.GetAsync($"/api/drones?restaurantId={id}");
+
+            if (droneResp.IsSuccessStatusCode)
+            {
+                var drones = await droneResp.Content
+                    .ReadFromJsonAsync<List<DroneLite>>()
+                    ?? new List<DroneLite>();
+
+                droneCount = drones.Count;
+            }
+        }
+        catch (Exception ex)
+        {
+            return TypedResults.BadRequest((object)new
+            {
+                softDeleted = false,
+                message = $"Không kiểm tra được drone từ Delivery: {ex.Message}"
+            });
+        }
+
+        // 3) Check CATALOG – số món ăn
+        int itemCount = await context.CatalogItems
+            .CountAsync(i => i.RestaurantId == id);
+
+        bool hasRelations = orderCount > 0 || droneCount > 0 || itemCount > 0;
+
+        // =====================================================
+        // 4) CÓ RELATION → SOFT DELETE
+        // =====================================================
+        if (hasRelations)
+        {
+            // Gọi IDS deactivate cho chắc (nếu chưa deactivate lúc đổi trạng thái)
+            var idsClientSoft = httpClientFactory.CreateClient("ids-admin-api");
+            try
+            {
+                await idsClientSoft.PostAsJsonAsync(
+                    $"/api/restaurant-admins/by-restaurant/{id}/deactivate",
+                    new { reason = "soft_delete" });
+            }
+            catch
+            {
+                // best-effort, không chặn soft delete
+            }
+
             restaurant.IsDeleted = true;
-            restaurant.DeletedAt = DateTime.UtcNow;
+            restaurant.DeletedAt = restaurant.DeletedAt ?? DateTime.UtcNow;
 
             await context.SaveChangesAsync();
 
@@ -924,40 +1056,28 @@ public static class CatalogApi
             {
                 softDeleted = true,
                 orderCount,
-                message = $"Nhà hàng có {orderCount} đơn → đã chuyển sang trạng thái 'Đã đóng cửa' (soft delete)."
+                droneCount,
+                itemCount,
+                message = "Nhà hàng đã được đánh dấu 'Đã đóng cửa' (soft delete) do vẫn còn dữ liệu liên quan (đơn hàng / drone / món)."
             });
         }
 
-        // ====================================================
-        // CASE 2 — KHÔNG CÓ ĐƠN: HARD DELETE
-        // ====================================================
+        // =====================================================
+        // 5) KHÔNG CÒN ORDER / DRONE / ITEM → HARD DELETE
+        // =====================================================
 
-        // 1) Xoá tài khoản admin bên IDS
+        // Xoá admin bên IDS
         var idsClient = httpClientFactory.CreateClient("ids-admin-api");
-
-        HttpResponseMessage resp;
         try
         {
-            resp = await idsClient.DeleteAsync($"/api/restaurant-admins/by-restaurant/{id}");
+            await idsClient.DeleteAsync($"/api/restaurant-admins/by-restaurant/{id}");
         }
-        catch (Exception ex)
+        catch
         {
-            return TypedResults.BadRequest((object)new
-            {
-                message = $"Lỗi khi gọi IDS: {ex.Message}"
-            });
+            // có thể log, nhưng không fail xoá catalog
         }
 
-        if (!resp.IsSuccessStatusCode && resp.StatusCode != HttpStatusCode.NotFound)
-        {
-            var msg = await resp.Content.ReadAsStringAsync();
-            return TypedResults.BadRequest((object)new
-            {
-                message = $"Không xoá được tài khoản admin bên IDS: {msg}"
-            });
-        }
-
-        // 2) Xoá toàn bộ món thuộc nhà hàng
+        // Xoá luôn items (thực tế itemCount == 0 rồi, nhưng cho chắc)
         var items = await context.CatalogItems
             .Where(ci => ci.RestaurantId == id)
             .ToListAsync();
@@ -965,7 +1085,6 @@ public static class CatalogApi
         if (items.Count > 0)
             context.CatalogItems.RemoveRange(items);
 
-        // 3) Xoá nhà hàng trong Catalog
         context.Restaurants.Remove(restaurant);
         await context.SaveChangesAsync();
 
@@ -1007,14 +1126,57 @@ public static class CatalogApi
         }
     }
 
+    public static async Task<Results<Ok<List<OrderSummaryLite>>, BadRequest<string>>>
+        GetRestaurantOrdersForAdmin(
+            Guid restaurantId,
+            IHttpClientFactory httpClientFactory)
+    {
+        var orderingClient = httpClientFactory.CreateClient("ordering-api");
+
+        try
+        {
+            // Dùng internal API đã có sẵn trong Ordering
+            var resp = await orderingClient.GetAsync(
+                $"/api/internal/orders/by-restaurant/{restaurantId}");
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                var msg = await resp.Content.ReadAsStringAsync();
+                return TypedResults.BadRequest(
+                    $"Không lấy được đơn hàng từ Ordering: {msg}"
+                );
+            }
+
+            var orders = await resp.Content
+                .ReadFromJsonAsync<List<OrderSummaryLite>>()
+                ?? new List<OrderSummaryLite>();
+
+            return TypedResults.Ok(orders);
+        }
+        catch (Exception ex)
+        {
+            return TypedResults.BadRequest(
+                $"Lỗi khi gọi Ordering API: {ex.Message}"
+            );
+        }
+    }
+
     // DTO nhẹ để deserialize list order từ Ordering
-    private sealed class OrderSummaryLite
+    public sealed class OrderSummaryLite
     {
         public int OrderNumber { get; set; }
         public string OrderStatus { get; set; } = string.Empty;
+        public DateTime Date { get; set; }
+        public decimal Total { get; set; }
     }
+    // DTO nhẹ để đọc Drone từ Delivery API
+    private sealed class DroneLite
+    {
+        public int Id { get; set; }
 
-
+        // Delivery trả DroneStatus là enum int (0..4)
+        public int Status { get; set; }
+    }
 
     // ---------- Helpers ----------
 

@@ -11,6 +11,7 @@ import ListRestaurants from "./ListRestaurants";   // <- default
 import NewRestaurant from "./NewRestaurant";       // <- default
 import EditRestaurant from "./EditRestaurant";     // <- default
 import DeleteRestaurant from "./DeleteRestaurant";
+import AdminRestaurantOrders from "./Stats";
 
 export function AdminRestaurant() {
   const { pathname } = useLocation();
@@ -24,6 +25,7 @@ export function AdminRestaurant() {
         {pathname === paths.NewRestaurant && <NewRestaurant />}
         {pathname === paths.EditRestaurant && <EditRestaurant />}
         {pathname === paths.DeleteRestaurant && <DeleteRestaurant />}
+        {pathname === paths.Stats && <AdminRestaurantOrders />}
       </ContainerItems>
     </Container>
   );

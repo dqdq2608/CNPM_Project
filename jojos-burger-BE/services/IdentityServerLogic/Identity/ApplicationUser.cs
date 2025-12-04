@@ -11,4 +11,7 @@ public class ApplicationUser : IdentityUser
     public string? UserType { get; set; } // Customer / RestaurantAdmin
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public bool IsRestaurantActive { get; set; } = true; // cho phép login hay không
+    public string RestaurantStatus { get; set; } = "Active"; // "Active" | "Inactive" | "Closed"
 }
