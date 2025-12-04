@@ -344,6 +344,9 @@ function DronePage({ restaurantId }) {
                 const statusColor = DRONE_STATUS_COLOR[statusText] || "#000000";
                 const [lat, lng] = getDronePosition(d);
 
+                const isBusy =
+                  d.needsTick || d.status === DroneStatus.Delivering;
+
                 return (
                   <TableRow key={d.id}>
                     <TableCell>{d.id}</TableCell>
@@ -362,12 +365,14 @@ function DronePage({ restaurantId }) {
                     <TableCell align="right">
                       <button
                         style={{ marginRight: 8 }}
+                        disabled={isBusy}
                         onClick={() => handleSetStatus(d.id, DroneStatus.Idle)}
                       >
                         Set Idle
                       </button>
                       <button
                         style={{ marginRight: 8 }}
+                        disabled={isBusy}
                         onClick={() =>
                           handleSetStatus(d.id, DroneStatus.Maintenance)
                         }
@@ -375,6 +380,7 @@ function DronePage({ restaurantId }) {
                         Maintenance
                       </button>
                       <button
+                        disabled={isBusy}
                         onClick={() =>
                           handleSetStatus(d.id, DroneStatus.Offline)
                         }
