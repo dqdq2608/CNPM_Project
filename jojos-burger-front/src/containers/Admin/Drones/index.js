@@ -12,7 +12,13 @@ import TableRow from "@mui/material/TableRow";
 import L from "leaflet";
 import PropTypes from "prop-types";
 import React, { useEffect, useMemo, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Polyline,
+} from "react-leaflet";
 
 import {
   createDrone,
@@ -23,8 +29,8 @@ import {
 } from "../../../services/api/drone";
 import { Container, Menu, LinkMenu } from "../Orders/styles";
 import droneStatusTabs from "./drone-status";
-const RESTAURANT_LAT = 10.8231;
-const RESTAURANT_LNG = 106.6297;
+const RESTAURANT_LAT = 10.779;
+const RESTAURANT_LNG = 106.687;
 
 const DRONE_STATUS_LABEL = {
   [DroneStatus.Idle]: "Idle",
@@ -38,6 +44,12 @@ const droneIcon = new L.Icon({
   iconUrl: "/drone.png",
   iconSize: [40, 40],
   iconAnchor: [20, 20],
+});
+
+const customerIcon = new L.Icon({
+  iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
 });
 
 // Màu text đơn giản theo trạng thái
@@ -99,7 +111,6 @@ function DronePage({ restaurantId }) {
         if (cancelled) return;
 
         setDrones(data || []);
-
         // 🔥 Chỉ tick những drone thật sự cần bay
         const active = (data || []).filter((d) => d.needsTick);
 
@@ -175,23 +186,61 @@ function DronePage({ restaurantId }) {
             const [lat, lng] = getDronePosition(d);
             const statusText = getStatusTextFromNumeric(d.status);
 
+            const origin = [RESTAURANT_LAT, RESTAURANT_LNG];
+
+            const hasCustomer =
+              typeof d.customerLat === "number" &&
+              typeof d.customerLon === "number";
+
+            const dest = hasCustomer ? [d.customerLat, d.customerLon] : null;
+
+            const isDelivering = d.deliveryStatus === "InTransit";
+
             return (
-              <Marker key={d.id} position={[lat, lng]} icon={droneIcon}>
-                <Popup>
-                  <div>
+              <React.Fragment key={d.id}>
+                {/* 🔹 Chỉ vẽ line khi delivery đang InTransit */}
+                {hasCustomer && isDelivering && (
+                  <Polyline positions={[origin, dest]} />
+                )}
+
+                {/* 🔹 Marker drone (luôn vẽ, vì mình vẫn muốn thấy drone kể cả khi Idle/Returning) */}
+                <Marker position={[lat, lng]} icon={droneIcon}>
+                  <Popup>
                     <div>
-                      <strong>Drone:</strong> {d.code}
+                      <div>
+                        <strong>Drone:</strong> {d.code}
+                      </div>
+                      <div>
+                        <strong>Status:</strong> {statusText}
+                      </div>
+                      <div>
+                        <strong>Lat / Lng:</strong> {lat.toFixed(5)},{" "}
+                        {lng.toFixed(5)}
+                      </div>
+                      {d.deliveryStatus && (
+                        <div>
+                          <strong>Delivery status:</strong> {d.deliveryStatus}
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <strong>Status:</strong> {statusText}
-                    </div>
-                    <div>
-                      <strong>Lat / Lng:</strong> {lat.toFixed(5)},{" "}
-                      {lng.toFixed(5)}
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
+                  </Popup>
+                </Marker>
+
+                {/* 🔹 Marker khách cũng chỉ hiện khi đang Delivering */}
+                {hasCustomer && isDelivering && (
+                  <Marker position={dest} icon={customerIcon}>
+                    <Popup>
+                      <div>
+                        <strong>Customer</strong>
+                        <div>
+                          Lat / Lng: {d.customerLat.toFixed(5)},{" "}
+                          {d.customerLon.toFixed(5)}
+                        </div>
+                      </div>
+                    </Popup>
+                  </Marker>
+                )}
+              </React.Fragment>
             );
           })}
         </MapContainer>
