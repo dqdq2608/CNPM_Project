@@ -28,7 +28,25 @@ public static class DronesApi
 
             foreach (var d in drones)
             {
+                // Tìm assignment + delivery nếu có
+                var assignment = await db.DroneAssignments
+                    .Where(a => a.DroneId == d.Id)
+                    .OrderByDescending(a => a.AssignedAt)
+                    .FirstOrDefaultAsync();
+
+                DeliveryOrder? delivery = null;
+                if (assignment is not null)
+                {
+                    delivery = await db.DeliveryOrders.FindAsync(assignment.DeliveryOrderId);
+                }
+
                 var needsTick = await ComputeNeedsTickAsync(d, db);
+
+                // Nếu có delivery active, lấy CustomerLat/Lon, ngược lại để null
+                double? customerLat = delivery?.CustomerLat;
+                double? customerLon = delivery?.CustomerLon;
+
+                string? deliveryStatus = delivery?.Status.ToString();
 
                 result.Add(new DroneDto(
                     d.Id,
@@ -37,10 +55,12 @@ public static class DronesApi
                     d.CurrentLatitude,
                     d.CurrentLongitude,
                     d.RestaurantId,
-                    needsTick
+                    needsTick,
+                    customerLat,
+                    customerLon,
+                    deliveryStatus
                 ));
             }
-
             return Results.Ok(result);
         });
 
@@ -204,7 +224,7 @@ public static class DronesApi
                 delivery.RestaurantLat,
                 delivery.RestaurantLon);
 
-            const double backThresholdKm = 0.05;
+            const double backThresholdKm = 0.005;
 
             if (remainingKm <= backThresholdKm)
             {
@@ -243,14 +263,14 @@ public static class DronesApi
 
     private static async Task<bool> ComputeNeedsTickAsync(Drone drone, DeliveryDbContext db)
     {
-        // 1. Nếu drone đang Offline / Maintenance => KHÔNG tick
+        // 0. Nếu drone đang Offline / Maintenance => không tick
         if (drone.Status == DroneStatus.Offline ||
             drone.Status == DroneStatus.Maintenance)
         {
             return false;
         }
 
-        // 2. Tìm assignment mới nhất
+        // 1. Lấy assignment mới nhất
         var assignment = await db.DroneAssignments
             .Where(a => a.DroneId == drone.Id)
             .OrderByDescending(a => a.AssignedAt)
@@ -258,38 +278,39 @@ public static class DronesApi
 
         if (assignment is null)
         {
-            // chưa từng / không còn nhiệm vụ
+            // Không có nhiệm vụ => không tick
             return false;
         }
 
-        // 3. Tìm delivery tương ứng
+        // 2. Lấy delivery tương ứng
         var delivery = await db.DeliveryOrders.FindAsync(assignment.DeliveryOrderId);
         if (delivery is null)
         {
             return false;
         }
 
-        // 4. Nếu delivery đang InTransit => chắc chắn cần tick (bay tới khách)
+        // 3. Nếu đang bay tới khách (InTransit) -> luôn cần tick
         if (delivery.Status == DeliveryStatus.InTransit)
         {
             return true;
         }
 
-        // 5. Nếu delivery đã Delivered => chỉ tick nếu drone CHƯA về đến nhà hàng
+        // 4. Nếu đã Delivered -> chỉ tick nếu drone CHƯA về tới nhà hàng
         if (delivery.Status == DeliveryStatus.Delivered)
         {
-            var remainingKm = DistanceInKm(
+            var remainingKmToBase = DistanceInKm(
                 drone.CurrentLatitude,
                 drone.CurrentLongitude,
                 delivery.RestaurantLat,
                 delivery.RestaurantLon);
 
-            const double backThresholdKm = 0.05; // ~50m
+            const double backThresholdKm = 0.005; // ~50m
 
-            return remainingKm > backThresholdKm;
+            // Còn xa base hơn 50m => tiếp tục tick để bay về
+            return remainingKmToBase > backThresholdKm;
         }
 
-        // Các trạng thái khác (Created, Canceled, v.v.) => không cần tick
+        // 5. Các trạng thái khác => không cần tick
         return false;
     }
 
@@ -317,7 +338,10 @@ public record DroneDto(
     double? CurrentLatitude,
     double? CurrentLongitude,
     Guid RestaurantId,
-    bool NeedsTick
+    bool NeedsTick,
+    double? CustomerLat,
+    double? CustomerLon,
+    string? DeliveryStatus
 );
 
 public record CreateDroneRequest(

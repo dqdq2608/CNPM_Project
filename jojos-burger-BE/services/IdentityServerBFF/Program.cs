@@ -523,7 +523,10 @@ app.MapGet("/bff-api/drones", async (HttpContext ctx, IHttpClientFactory f) =>
 .RequireAuthorization();
 
 // POST /bff-api/drones  (tạo drone mới cho restaurant hiện tại)
-app.MapPost("/bff-api/drones", async (HttpContext ctx, IHttpClientFactory f) =>
+app.MapPost("/bff-api/drones", async (
+    HttpContext ctx,
+    IHttpClientFactory f
+) =>
 {
     var user = ctx.User;
     if (user?.Identity?.IsAuthenticated != true)
@@ -538,18 +541,36 @@ app.MapPost("/bff-api/drones", async (HttpContext ctx, IHttpClientFactory f) =>
         return Results.BadRequest(new { message = "Missing or invalid restaurant_id claim" });
     }
 
-    // 2. Lấy location của restaurant từ claim (nếu có), nếu không fallback default (vd HCM)
-    var restaurantLatStr = user.FindFirst("restaurant_lat")?.Value;
-    var restaurantLngStr = user.FindFirst("restaurant_lng")?.Value;
+    // 2. Lấy toạ độ nhà hàng từ Catalog qua Kong (giống CreateOrderFromBasketAsync)
+    double restaurantLat = 10.8231;   // fallback default HCM
+    double restaurantLng = 106.6297;  // fallback default HCM
 
-    double restaurantLat = 10.8231;   // default HCM
-    double restaurantLng = 106.6297;  // default HCM
+    try
+    {
+        var kongClient = f.CreateClient("kong");
 
-    if (double.TryParse(restaurantLatStr, out var lat))
-        restaurantLat = lat;
+        // giống OrderBffApi: /api/catalog/restaurants
+        var rRes = await kongClient.GetAsync("/api/catalog/restaurants");
+        rRes.EnsureSuccessStatusCode();
 
-    if (double.TryParse(restaurantLngStr, out var lng))
-        restaurantLng = lng;
+        var rJson = await rRes.Content.ReadAsStringAsync();
+        var restaurants = JsonSerializer.Deserialize<List<OrderBffApi.RestaurantLocationDto>>(
+            rJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        ) ?? new List<OrderBffApi.RestaurantLocationDto>();
+
+        var restaurant = restaurants.FirstOrDefault(r => r.RestaurantId == restaurantId);
+        if (restaurant is not null)
+        {
+            restaurantLat = restaurant.Latitude;
+            restaurantLng = restaurant.Longitude;
+        }
+    }
+    catch (Exception ex)
+    {
+        // Có lỗi thì log + dùng default, tránh làm vỡ flow tạo drone
+        Console.WriteLine($"[BFF] Cannot load restaurant location, fallback default: {ex}");
+    }
 
     // 3. Đọc body FE gửi (chỉ cần { code })
     using var reader = new StreamReader(ctx.Request.Body, Encoding.UTF8);
@@ -569,7 +590,7 @@ app.MapPost("/bff-api/drones", async (HttpContext ctx, IHttpClientFactory f) =>
         return Results.BadRequest(new { message = "code is required" });
     }
 
-    // 4. Build payload gửi sang Delivery.API (CreateDroneRequest mới)
+    // 4. Build payload gửi sang Delivery.API (CreateDroneRequest)
     var payload = new
     {
         Code = code,
