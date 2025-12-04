@@ -41,6 +41,14 @@ builder.Services.AddHttpClient("ordering-api", c =>
     // tuỳ docker-compose, có thể là "http://ordering-api:80"
 });
 
+builder.Services.AddHttpClient("delivery-api", c =>
+{
+    c.BaseAddress = new Uri("http://delivery-api:8080"); 
+    // hoặc "http://delivery-api" / "http://delivery-api:80"
+    // tuỳ theo docker-compose của bạn expose port nào
+});
+
+
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
