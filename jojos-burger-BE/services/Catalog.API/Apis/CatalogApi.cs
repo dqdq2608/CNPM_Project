@@ -115,7 +115,8 @@ public static class CatalogApi
         api.MapGet("/restaurants", async (CatalogContext context) =>
             await context.Restaurants
                 .AsNoTracking()
-                .Where(r => !r.IsDeleted) // ⭐ Không trả về nhà hàng đã soft delete
+                .Where(r => !r.IsDeleted
+                            && r.Status == RestaurantStatus.Active) // ⭐ Không trả về nhà hàng đã soft delete
                 .OrderBy(x => x.Name)
                 .Select(r => new RestaurantDto
                 {
@@ -164,7 +165,15 @@ public static class CatalogApi
         var pageSize = paginationRequest.PageSize;
         var pageIndex = paginationRequest.PageIndex;
 
-        IQueryable<CatalogItem> query = services.Context.CatalogItems.AsQueryable();
+        // IQueryable<CatalogItem> query = services.Context.CatalogItems.AsQueryable();
+
+        var query =
+            from c in services.Context.CatalogItems
+            join r in services.Context.Restaurants
+                on c.RestaurantId equals r.RestaurantId
+            where !r.IsDeleted
+                && r.Status == RestaurantStatus.Active   // ⭐ chỉ nhà hàng đang hoạt động
+            select c;
 
         if (typeId is not null)
             query = query.Where(c => c.CatalogTypeId == typeId);
@@ -252,8 +261,17 @@ public static class CatalogApi
         var pageSize = paginationRequest.PageSize;
         var pageIndex = paginationRequest.PageIndex;
 
-        IQueryable<CatalogItem> query = services.Context.CatalogItems
-            .Where(c => c.Name.StartsWith(name));
+        // IQueryable<CatalogItem> query = services.Context.CatalogItems
+        //     .Where(c => c.Name.StartsWith(name));
+
+        var query =
+            from c in services.Context.CatalogItems
+            join r in services.Context.Restaurants
+                on c.RestaurantId equals r.RestaurantId
+            where !r.IsDeleted
+                && r.Status == RestaurantStatus.Active
+                && c.Name.StartsWith(name)
+            select c;
 
         if (typeId is not null)
             query = query.Where(c => c.CatalogTypeId == typeId);
