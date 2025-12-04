@@ -913,12 +913,20 @@ public static class CatalogApi
 
     public static async Task<Ok<List<RestaurantDto>>> GetRestaurantsForAdmin(
         CatalogContext context,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        bool? includeDeleted)
     {
-        // Chỉ lấy nhà hàng chưa bị xoá mềm
-        var restaurants = await context.Restaurants
-            .AsNoTracking()
-            .Where(r => !r.IsDeleted)
+        // Chuẩn bị query
+        IQueryable<Restaurant> query = context.Restaurants.AsNoTracking();
+
+        // Mặc định: chỉ lấy nhà hàng chưa bị xoá mềm
+        // Chỉ khi includeDeleted == true mới lấy tất cả
+        if (includeDeleted != true)
+        {
+            query = query.Where(r => !r.IsDeleted);
+        }
+
+        var restaurants = await query
             .OrderBy(x => x.Name)
             .ToListAsync();
 
@@ -929,14 +937,14 @@ public static class CatalogApi
             var dto = new RestaurantDto
             {
                 RestaurantId = r.RestaurantId,
-                Name = r.Name,
-                Address = r.Address,
-                Lat = r.Location != null ? r.Location.Y : 0,
-                Lng = r.Location != null ? r.Location.X : 0,
-                AdminEmail = string.Empty,
-                Status = r.Status,
-                IsDeleted = r.IsDeleted,
-                DeletedAt = r.DeletedAt
+                Name         = r.Name,
+                Address      = r.Address,
+                Lat          = r.Location != null ? r.Location.Y : 0,
+                Lng          = r.Location != null ? r.Location.X : 0,
+                AdminEmail   = string.Empty,
+                Status       = r.Status,
+                IsDeleted    = r.IsDeleted,
+                DeletedAt    = r.DeletedAt
             };
 
             var email = await FetchAdminEmailFromIdsAsync(r.RestaurantId, httpClientFactory);
