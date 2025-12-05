@@ -25,7 +25,7 @@ function distanceKm(lat1, lon1, lat2, lon2) {
     return (deg * Math.PI) / 180;
   }
 
-  const R = 6371; 
+  const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
@@ -96,6 +96,7 @@ export function MyOrders() {
     return () => clearInterval(intervalId);
   }, []);
 
+  // 🔁 AUTO-REFRESH DELIVERY CHO ĐƠN ĐANG MỞ MỖI 5 GIÂY
   useEffect(() => {
     if (!expandedId) return; // không có đơn nào đang mở
 
@@ -179,14 +180,6 @@ export function MyOrders() {
     }
   };
 
-  if (loading) {
-    return <p style={{ padding: 16 }}>Đang tải danh sách đơn hàng...</p>;
-  }
-
-  if (!orders.length) {
-    return <p style={{ padding: 16 }}>Bạn chưa có đơn hàng nào.</p>;
-  }
-
   const handleConfirmDelivery = async (orderId) => {
     try {
       await confirmOrderDelivery(orderId);
@@ -231,6 +224,14 @@ export function MyOrders() {
     );
   };
 
+  if (loading) {
+    return <p style={{ padding: 16 }}>Đang tải danh sách đơn hàng...</p>;
+  }
+
+  if (!orders.length) {
+    return <p style={{ padding: 16 }}>Bạn chưa có đơn hàng nào.</p>;
+  }
+
   return (
     <Container>
       {orders.map((order) => {
@@ -246,7 +247,7 @@ export function MyOrders() {
           detail?.orderitemsDto ||
           [];
 
-        // --- PHẦN TÍNH TOÁN ---
+        // --- PHẦN TÍNH TOÁN TIỀN ---
         const deliveryFee =
           detail?.deliveryFee ??
           detail?.DeliveryFee ??
@@ -266,16 +267,30 @@ export function MyOrders() {
         } else {
           subTotal = finalTotal - deliveryFee;
         }
-        // ---------------------
+        // -----------------------------
 
-        // LOGIC CHECK TỌA ĐỘ
-        // Kiểm tra xem đã có dữ liệu tọa độ chưa
-        // Sử dụng toán tử ?? để bắt cả trường hợp viết hoa/thường
-        // LOGIC CHECK TỌA ĐỘ
-        const hasCoords =
-        detail &&
-        typeof (detail.originLat ?? detail.originLon ?? detail.destLat ?? detail.destLon) ===
-          "number";
+        // ====== LOGIC TỌA ĐỘ VÀ KHOẢNG CÁCH ======
+        // Chuẩn hóa origin/dest từ detail
+        const originLat = detail?.originLat ?? detail?.OriginLat ?? null;
+        const originLon = detail?.originLon ?? detail?.OriginLon ?? null;
+        const destLat = detail?.destLat ?? detail?.DestLat ?? null;
+        const destLon = detail?.destLon ?? detail?.DestLon ?? null;
+
+
+        let hasCoords = false;
+        let totalDistance = null;
+        let halfDistance = null;
+
+        if (
+          typeof originLat === "number" &&
+          typeof originLon === "number" &&
+          typeof destLat === "number" &&
+          typeof destLon === "number"
+        ) {
+          hasCoords = true;
+          totalDistance = distanceKm(originLat, originLon, destLat, destLon);
+          halfDistance = totalDistance / 2;
+        }
 
         // ====== TÍNH ETA DRONE (ƯỚC LƯỢNG) ======
         let etaText = null;
@@ -284,16 +299,11 @@ export function MyOrders() {
         const deliveryStatus =
           detail?.deliveryStatus ?? detail?.status ?? status;
 
-        if (
-          hasCoords &&
-          deliveryStatus === "InTransit" // chỉ khi đang bay
-        ) {
+        if (hasCoords && deliveryStatus === "InTransit") {
           const droneLat =
-            detail.droneLat != null ? detail.droneLat : detail.originLat;
+            detail?.droneLat != null ? detail.droneLat : originLat;
           const droneLon =
-            detail.droneLon != null ? detail.droneLon : detail.originLon;
-          const destLat = detail.destLat;
-          const destLon = detail.destLon;
+            detail?.droneLon != null ? detail.droneLon : originLon;
 
           if (
             typeof droneLat === "number" &&
@@ -327,7 +337,15 @@ export function MyOrders() {
             }
           }
         }
-        // ====== HẾT PHẦN ETA ======      
+        // ====== HẾT PHẦN ETA ======
+
+        // Điều kiện “drone đã đi được ít nhất một nửa quãng đường”
+        const isHalfway =
+          deliveryStatus === "InTransit" &&
+          distanceLeft != null &&
+          halfDistance != null &&
+          distanceLeft <= halfDistance;
+
         return (
           <OrderCard key={id}>
             <OrderHeader onClick={() => toggleOrder(id)}>
@@ -369,22 +387,49 @@ export function MyOrders() {
                           border: "1px solid #ddd",
                           borderRadius: 8,
                           overflow: "hidden",
+                          padding: 8,
                         }}
                       >
                         {etaText && deliveryStatus === "InTransit" && (
-                          <p style={{ marginTop: 8, fontSize: 14, color: "#555"}}>
-                            Estimated time: <b>{etaText}</b> {distanceLeft !=null && (
-                              <> {" "} - Distance Left: {""} <b>{distanceLeft.toFixed(2)} km</b></>
+                          <p
+                            style={{
+                              marginTop: 4,
+                              marginBottom: 4,
+                              fontSize: 14,
+                              color: "#555",
+                            }}
+                          >
+                            Estimated time: <b>{etaText}</b>
+                            {distanceLeft != null && (
+                              <>
+                                {" "}
+                                - Distance Left:{" "}
+                                <b>{distanceLeft.toFixed(2)} km</b>
+                              </>
                             )}
                           </p>
                         )}
+
+                        {isHalfway && (
+                          <p
+                            style={{
+                              marginTop: 2,
+                              marginBottom: 8,
+                              fontSize: 13,
+                              color: "#777",
+                            }}
+                          >
+                            (The drone is halfway to your location!)
+                          </p>
+                        )}
+
                         <DroneDeliveryMap
-                          originLat={detail.originLat ?? detail.OriginLat}
-                          originLng={detail.originLon ?? detail.OriginLon}
-                          destLat={detail.destLat ?? detail.DestLat}
-                          destLng={detail.destLon ?? detail.DestLon}
-                          droneLat={detail.droneLat}
-                          droneLng={detail.droneLon}
+                          originLat={originLat}
+                          originLng={originLon}
+                          destLat={destLat}
+                          destLng={destLon}
+                          droneLat={detail?.droneLat}
+                          droneLng={detail?.droneLon}
                           status={detail.deliveryStatus ?? status}
                         />
                       </div>
@@ -437,6 +482,7 @@ export function MyOrders() {
                 )}
               </>
             )}
+
             <OrderFooter>
               {isOpen ? (
                 <div
