@@ -19,6 +19,39 @@ import {
   OrderFooter,
 } from "./styles";
 
+// Tính khoảng cách (km) giữa 2 điểm lat/lon – giống Haversine phía BE
+function distanceKm(lat1, lon1, lat2, lon2) {
+  function toRad(deg) {
+    return (deg * Math.PI) / 180;
+  }
+
+  const R = 6371; 
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Format số giây thành text đẹp (VN)
+function formatEta(seconds) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "sắp tới nơi";
+
+  const rounded = Math.ceil(seconds); // làm tròn lên
+  if (rounded < 60) {
+    return `${rounded} giây`;
+  }
+
+  const minutes = Math.ceil(rounded / 60);
+  return `${minutes} phút`;
+}
+
 export function MyOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -238,11 +271,60 @@ export function MyOrders() {
         // LOGIC CHECK TỌA ĐỘ
         // Kiểm tra xem đã có dữ liệu tọa độ chưa
         // Sử dụng toán tử ?? để bắt cả trường hợp viết hoa/thường
+        // LOGIC CHECK TỌA ĐỘ
         const hasCoords =
-          detail &&
-          typeof (detail.originLat ?? detail.OriginLat) === "number" &&
-          typeof (detail.destLat ?? detail.DestLat) === "number";
+        detail &&
+        typeof (detail.originLat ?? detail.originLon ?? detail.destLat ?? detail.destLon) ===
+          "number";
 
+        // ====== TÍNH ETA DRONE (ƯỚC LƯỢNG) ======
+        let etaText = null;
+
+        const deliveryStatus =
+          detail?.deliveryStatus ?? detail?.status ?? status;
+
+        if (
+          hasCoords &&
+          deliveryStatus === "InTransit" // chỉ khi đang bay
+        ) {
+          const droneLat =
+            detail.droneLat != null ? detail.droneLat : detail.originLat;
+          const droneLon =
+            detail.droneLon != null ? detail.droneLon : detail.originLon;
+          const destLat = detail.destLat;
+          const destLon = detail.destLon;
+
+          if (
+            typeof droneLat === "number" &&
+            typeof droneLon === "number" &&
+            typeof destLat === "number" &&
+            typeof destLon === "number"
+          ) {
+            const remainingKm = distanceKm(droneLat, droneLon, destLat, destLon);
+            const arriveThresholdKm = 0.005; // giống BE ~5m
+
+            if (remainingKm <= arriveThresholdKm) {
+              etaText = "Sắp tới nơi";
+            } else {
+              // Backend mỗi tick đi 25% quãng đường còn lại (fraction = 0.25)
+              // => remaining_next = remaining * 0.75
+              // Muốn remaining <= threshold:
+              // threshold = remaining * 0.75^n
+              // n = ln(threshold/remaining) / ln(0.75)
+              const fraction = 0.25;
+              const ratio = Math.max(
+                arriveThresholdKm / remainingKm,
+                1e-6 // tránh log(0)
+              );
+              const ticks = Math.log(ratio) / Math.log(1 - fraction); // log base 0.75
+              const tickIntervalSec = 2; // DronePage tick mỗi 2s
+              const seconds = ticks * tickIntervalSec;
+
+              etaText = formatEta(seconds);
+            }
+          }
+        }
+        // ====== HẾT PHẦN ETA ======      
         return (
           <OrderCard key={id}>
             <OrderHeader onClick={() => toggleOrder(id)}>
@@ -286,6 +368,11 @@ export function MyOrders() {
                           overflow: "hidden",
                         }}
                       >
+                        {etaText && deliveryStatus === "InTransit" && (
+                          <p style={{ marginTop: 8, fontSize: 14, color: "#555"}}>
+                            Estimated time: <b>{etaText}</b>
+                          </p>
+                        )}
                         <DroneDeliveryMap
                           originLat={detail.originLat ?? detail.OriginLat}
                           originLng={detail.originLon ?? detail.OriginLon}
