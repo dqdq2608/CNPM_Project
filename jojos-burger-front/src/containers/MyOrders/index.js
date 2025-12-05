@@ -279,6 +279,7 @@ export function MyOrders() {
 
         // ====== TÍNH ETA DRONE (ƯỚC LƯỢNG) ======
         let etaText = null;
+        let distanceLeft = null;
 
         const deliveryStatus =
           detail?.deliveryStatus ?? detail?.status ?? status;
@@ -302,6 +303,8 @@ export function MyOrders() {
           ) {
             const remainingKm = distanceKm(droneLat, droneLon, destLat, destLon);
             const arriveThresholdKm = 0.005; // giống BE ~5m
+
+            distanceLeft = remainingKm;
 
             if (remainingKm <= arriveThresholdKm) {
               etaText = "Sắp tới nơi";
@@ -370,7 +373,9 @@ export function MyOrders() {
                       >
                         {etaText && deliveryStatus === "InTransit" && (
                           <p style={{ marginTop: 8, fontSize: 14, color: "#555"}}>
-                            Estimated time: <b>{etaText}</b>
+                            Estimated time: <b>{etaText}</b> {distanceLeft !=null && (
+                              <> {" "} - Distance Left: {""} <b>{distanceLeft.toFixed(2)} km</b></>
+                            )}
                           </p>
                         )}
                         <DroneDeliveryMap
